@@ -1,0 +1,154 @@
+export type UserRole = 'admin' | 'sales'
+
+export type CustomerCategory = 'wholesale' | 'horeca' | 'dtf' | 'other'
+
+export type LeadStage = 'new' | 'contacted' | 'quoted' | 'won' | 'lost'
+
+export type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'declined' | 'expired'
+
+export type OrderStatus =
+  | 'processing'
+  | 'out_for_delivery'
+  | 'delivered'
+  | 'invoice_ready'
+  | 'invoice_blocked'
+
+export type PodType = 'signature' | 'photo'
+
+export type PreferredCommunication = 'whatsapp' | 'email' | 'phone'
+
+export type CustomerStatus = 'active' | 'inactive'
+
+export interface Address {
+  street: string
+  city: string
+  state: string
+  zip: string
+  country: string
+}
+
+export interface QuoteItem {
+  sku: string
+  name: string
+  qty: number
+  unit_price: number
+  line_total: number
+}
+
+export interface GpsLocation {
+  lat: number
+  lng: number
+  accuracy: number
+}
+
+export interface User {
+  id: string
+  email: string
+  role: UserRole
+  name: string
+  phone: string
+  created_at: string
+}
+
+export interface Customer {
+  id: string
+  company_name: string
+  customer_category: CustomerCategory
+  contact_person: string
+  phone: string
+  whatsapp: string
+  email: string
+  billing_address: Address
+  delivery_address: Address
+  delivery_days: string[]
+  delivery_time_window: string
+  ob_form_required: boolean
+  packing_slip_required: boolean
+  discount_agreement: string
+  track_table_bottles: boolean
+  preferred_communication: PreferredCommunication
+  language: string
+  internal_notes: string
+  quickbooks_customer_id: string
+  status: CustomerStatus
+  created_at: string
+  updated_at: string
+}
+
+export interface Lead {
+  id: string
+  customer_id: string
+  stage: LeadStage
+  category: CustomerCategory
+  assigned_to: string
+  notes: string
+  created_at: string
+  updated_at: string
+  customer?: Customer
+  assigned_user?: User
+}
+
+export interface Quote {
+  id: string
+  lead_id: string | null
+  customer_id: string
+  quote_number: string
+  items: QuoteItem[]
+  subtotal: number
+  tax: number
+  total: number
+  status: QuoteStatus
+  template_used: string
+  valid_until: string
+  created_by: string
+  created_at: string
+  updated_at: string
+  customer?: Customer
+  creator?: User
+}
+
+export interface Order {
+  id: string
+  quote_id: string | null
+  customer_id: string
+  order_number: string
+  items: QuoteItem[]
+  total: number
+  assigned_to: string
+  status: OrderStatus
+  delivery_notes: string
+  created_at: string
+  updated_at: string
+  customer?: Customer
+  assigned_user?: User
+  delivery?: Delivery
+}
+
+export interface Delivery {
+  id: string
+  order_id: string
+  delivery_started_at: string
+  gps_location: GpsLocation
+  table_bottles_returned: number
+  table_bottles_notes: string
+  pod_type: PodType
+  pod_file_url: string
+  delivered_at: string
+  notes: string
+  created_at: string
+}
+
+export interface TemplateItem {
+  sku: string
+  name: string
+  unit_price: number
+}
+
+export interface QuoteTemplate {
+  id: string
+  name: string
+  category: CustomerCategory
+  items: TemplateItem[]
+  created_at: string
+  updated_at: string
+}

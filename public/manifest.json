@@ -1,0 +1,37 @@
+{
+  "name": "SPika CRM",
+  "short_name": "SPika CRM",
+  "description": "Sales & Delivery Management for SPika Hot Sauce",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#dc2626",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "shortcuts": [
+    {
+      "name": "New Delivery",
+      "url": "/orders",
+      "description": "Go to orders to start a delivery"
+    },
+    {
+      "name": "New Customer",
+      "url": "/customers/new",
+      "description": "Add a new customer"
+    }
+  ]
+}
