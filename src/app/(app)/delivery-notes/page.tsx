@@ -1,0 +1,187 @@
+'use client'
+
+import { useState } from 'react'
+import Link from 'next/link'
+import { FileText, ChevronDown, ChevronUp } from 'lucide-react'
+import { useMyOrders } from '@/hooks/use-orders'
+import { useAuth } from '@/contexts/auth-context'
+import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { OrderStatus, Order } from '@/types'
+
+const statusColors: Record<OrderStatus, string> = {
+  pending_approval: 'bg-orange-100 text-orange-700',
+  processing: 'bg-yellow-100 text-yellow-700',
+  out_for_delivery: 'bg-blue-100 text-blue-700',
+  delivered: 'bg-purple-100 text-purple-700',
+  invoice_ready: 'bg-green-100 text-green-700',
+  invoice_blocked: 'bg-red-100 text-red-700',
+  paid: 'bg-emerald-100 text-emerald-700',
+  deleted: 'bg-gray-100 text-gray-500',
+}
+
+const statusLabels: Record<OrderStatus, string> = {
+  pending_approval: 'Pending Approval',
+  processing: 'Processing',
+  out_for_delivery: 'Out for Delivery',
+  delivered: 'Delivered',
+  invoice_ready: 'Invoice Ready',
+  invoice_blocked: 'Invoice Blocked',
+  paid: 'Paid',
+  deleted: 'Deleted',
+}
+
+const ACTIVE_STATUSES: OrderStatus[] = [
+  'pending_approval',
+  'processing',
+  'out_for_delivery',
+  'delivered',
+  'invoice_ready',
+  'invoice_blocked',
+]
+
+export default function DeliveryNotesPage() {
+  const [statusFilter, setStatusFilter] = useState<string>('active')
+  const [showArchive, setShowArchive] = useState(false)
+  const { isAdmin, profile } = useAuth()
+
+  // useMyOrders: if isAdmin=true it returns all orders, otherwise only assigned to userId
+  const { data: allOrders, isLoading } = useMyOrders(profile?.id, isAdmin)
+
+  const activeOrders =
+    allOrders?.filter((o) => ACTIVE_STATUSES.includes(o.status)) ?? []
+  const archivedOrders =
+    allOrders?.filter((o) => o.status === 'paid') ?? []
+
+  const filteredActive =
+    statusFilter === 'active'
+      ? activeOrders
+      : activeOrders.filter((o) => o.status === statusFilter)
+
+  return (
+    <div className="p-4 lg:p-6 space-y-4">
+      <div>
+        <h1 className="text-2xl font-bold">Delivery Notes</h1>
+        <p className="text-muted-foreground text-sm">
+          {filteredActive.length} active{!isAdmin ? ' assigned' : ''} notes
+        </p>
+      </div>
+
+      {/* Filter */}
+      <Select
+        value={statusFilter}
+        onValueChange={(v) => setStatusFilter(v ?? 'active')}
+      >
+        <SelectTrigger className="w-48">
+          <SelectValue placeholder="Active" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="active">Active</SelectItem>
+          {ACTIVE_STATUSES.map((s) => (
+            <SelectItem key={s} value={s}>
+              {statusLabels[s]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {isLoading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-20 rounded-xl" />
+          ))}
+        </div>
+      ) : filteredActive.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-3">
+          <FileText className="h-12 w-12 opacity-20" />
+          <p className="font-medium">No delivery notes found</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filteredActive.map((order) => (
+            <DeliveryNoteRow
+              key={order.id}
+              order={order}
+              statusColors={statusColors}
+              statusLabels={statusLabels}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Archive — paid */}
+      {archivedOrders.length > 0 && (
+        <div className="pt-2">
+          <button
+            onClick={() => setShowArchive((v) => !v)}
+            className="flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors w-full"
+          >
+            {showArchive ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+            Archive — Paid ({archivedOrders.length})
+          </button>
+          {showArchive && (
+            <div className="space-y-2 mt-2">
+              {archivedOrders.map((order) => (
+                <DeliveryNoteRow
+                  key={order.id}
+                  order={order}
+                  statusColors={statusColors}
+                  statusLabels={statusLabels}
+                  dimmed
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DeliveryNoteRow({
+  order,
+  statusColors,
+  statusLabels,
+  dimmed,
+}: {
+  order: Order
+  statusColors: Record<OrderStatus, string>
+  statusLabels: Record<OrderStatus, string>
+  dimmed?: boolean
+}) {
+  return (
+    <Link
+      href={`/delivery-notes/${order.id}`}
+      className={`block p-4 rounded-xl border bg-card hover:bg-accent transition-colors ${
+        dimmed ? 'opacity-60' : ''
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-mono text-sm font-medium">{order.order_number}</p>
+            <Badge className={`text-xs ${statusColors[order.status]}`}>
+              {statusLabels[order.status]}
+            </Badge>
+          </div>
+          <p className="font-medium mt-0.5">{order.customer?.company_name}</p>
+          <p className="text-sm text-muted-foreground">
+            {order.assigned_user?.name ?? '—'} ·{' '}
+            {new Date(order.created_at).toLocaleDateString()}
+          </p>
+        </div>
+      </div>
+    </Link>
+  )
+}

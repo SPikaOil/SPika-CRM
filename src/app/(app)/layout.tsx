@@ -1,7 +1,23 @@
+'use client'
+
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/layout/sidebar'
 import { BottomNav } from '@/components/layout/bottom-nav'
+import { useAuth } from '@/contexts/auth-context'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+  const { isCustomer, isLoading } = useAuth()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!isLoading && isCustomer) {
+      router.replace('/portal')
+    }
+  }, [isCustomer, isLoading, router])
+
+  if (isCustomer) return null
+
   return (
     <div className="flex min-h-screen">
       <Sidebar />

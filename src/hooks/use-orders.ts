@@ -3,6 +3,46 @@ import { createClient } from '@/lib/supabase/client'
 import { Order, OrderStatus } from '@/types'
 import { toast } from 'sonner'
 
+export function useMyOrders(userId?: string, isAdmin?: boolean) {
+  const supabase = createClient()
+
+  return useQuery({
+    queryKey: ['orders', 'mine', userId, isAdmin],
+    queryFn: async () => {
+      let query = supabase
+        .from('orders')
+        .select('*, customer:customers(*), assigned_user:users!assigned_to(*), delivery:deliveries(*)')
+        .order('planned_date', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: false })
+
+      if (!isAdmin && userId) query = query.eq('assigned_to', userId)
+
+      const { data, error } = await query
+      if (error) throw error
+      return data as Order[]
+    },
+    enabled: !!userId || !!isAdmin,
+  })
+}
+
+export function useCustomerOrders(customerId: string) {
+  const supabase = createClient()
+
+  return useQuery({
+    queryKey: ['orders', 'customer', customerId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*, assigned_user:users!assigned_to(name)')
+        .eq('customer_id', customerId)
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      return data as Order[]
+    },
+    enabled: !!customerId,
+  })
+}
+
 export function useOrders(status?: OrderStatus) {
   const supabase = createClient()
 
@@ -11,7 +51,7 @@ export function useOrders(status?: OrderStatus) {
     queryFn: async () => {
       let query = supabase
         .from('orders')
-        .select('*, customer:customers(*), assigned_user:users(*), delivery:deliveries(*)')
+        .select('*, customer:customers(*), assigned_user:users!assigned_to(*), delivery:deliveries(*)')
         .order('created_at', { ascending: false })
 
       if (status && status !== ('all' as any)) query = query.eq('status', status)
@@ -31,7 +71,7 @@ export function useOrder(id: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('orders')
-        .select('*, customer:customers(*), assigned_user:users(*), delivery:deliveries(*)')
+        .select('*, customer:customers(*), assigned_user:users!assigned_to(*), delivery:deliveries(*)')
         .eq('id', id)
         .single()
       if (error) throw error

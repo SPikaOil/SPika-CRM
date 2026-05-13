@@ -5,32 +5,35 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard,
   Users,
-  Target,
   FileText,
   ShoppingCart,
-  Truck,
   Settings,
   Flame,
+  ClipboardList,
+  CalendarDays,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
 import { UserMenu } from './user-menu'
 
-const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/customers', label: 'Customers', icon: Users },
-  { href: '/leads', label: 'Leads', icon: Target },
-  { href: '/quotes', label: 'Quotes', icon: FileText },
-  { href: '/orders', label: 'Orders', icon: ShoppingCart },
+const allNavItems = [
+  { href: '/dashboard',       label: 'Dashboard',       icon: LayoutDashboard, adminOnly: false },
+  { href: '/customers',       label: 'Customers',        icon: Users,           adminOnly: true  },
+  { href: '/delivery-notes',  label: 'Delivery Notes',   icon: FileText,        adminOnly: false },
+  { href: '/orders',          label: 'Orders',           icon: ShoppingCart,    adminOnly: true  },
+  { href: '/tasks',           label: 'Tasks',            icon: ClipboardList,   adminOnly: true  },
+  { href: '/agenda',          label: 'Agenda',           icon: CalendarDays,    adminOnly: false },
 ]
 
-const adminNavItems = [
+const adminOnlyItems = [
   { href: '/settings', label: 'Settings', icon: Settings },
 ]
 
 export function Sidebar() {
   const pathname = usePathname()
   const { isAdmin } = useAuth()
+
+  const navItems = allNavItems.filter(i => isAdmin || !i.adminOnly)
 
   return (
     <aside className="hidden lg:flex flex-col w-64 border-r bg-background h-screen sticky top-0">
@@ -65,7 +68,7 @@ export function Sidebar() {
         {isAdmin && (
           <>
             <div className="my-3 border-t" />
-            {adminNavItems.map((item) => {
+            {adminOnlyItems.map((item) => {
               const Icon = item.icon
               const active = pathname.startsWith(item.href)
               return (

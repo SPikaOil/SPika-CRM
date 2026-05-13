@@ -1,17 +1,20 @@
-export type UserRole = 'admin' | 'sales'
+export type UserRole = 'admin' | 'sales' | 'customer'
 
-export type CustomerCategory = 'wholesale' | 'horeca' | 'dtf' | 'other'
+export type CustomerCategory = 'wholesale' | 'horeca' | 'dtf' | 'other' | 'b2c'
 
 export type LeadStage = 'new' | 'contacted' | 'quoted' | 'won' | 'lost'
 
 export type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'declined' | 'expired'
 
 export type OrderStatus =
+  | 'pending_approval'
   | 'processing'
   | 'out_for_delivery'
   | 'delivered'
   | 'invoice_ready'
   | 'invoice_blocked'
+  | 'paid'
+  | 'deleted'
 
 export type PodType = 'signature' | 'photo'
 
@@ -32,6 +35,7 @@ export interface QuoteItem {
   name: string
   qty: number
   unit_price: number
+  discount: number
   line_total: number
 }
 
@@ -47,6 +51,7 @@ export interface User {
   role: UserRole
   name: string
   phone: string
+  customer_id: string | null
   created_at: string
 }
 
@@ -63,13 +68,25 @@ export interface Customer {
   delivery_days: string[]
   delivery_time_window: string
   ob_form_required: boolean
+  ob_form_signed: boolean
+  ob_form_signed_at: string | null
+  ob_form_signer_name: string | null
+  ob_form_signed_url: string | null
   packing_slip_required: boolean
   discount_agreement: string
   track_table_bottles: boolean
+  hardcopy_required: boolean
+  require_delivery_photo: boolean
   preferred_communication: PreferredCommunication
   language: string
   internal_notes: string
   quickbooks_customer_id: string
+  vat_number: string
+  coc_number: string
+  product_prices: Record<string, number>
+  product_discounts: Record<string, number>
+  free_products: string[]
+  table_bottle_return_price: number
   status: CustomerStatus
   created_at: string
   updated_at: string
@@ -116,7 +133,12 @@ export interface Order {
   total: number
   assigned_to: string
   status: OrderStatus
+  deleted_by?: string | null
+  deleted_reason?: string | null
+  deleted_at?: string | null
   delivery_notes: string
+  planned_date: string | null
+  invoice_date: string | null
   created_at: string
   updated_at: string
   customer?: Customer
@@ -142,6 +164,24 @@ export interface TemplateItem {
   sku: string
   name: string
   unit_price: number
+}
+
+export type TaskFrequency = 'once' | 'weekly' | 'monthly'
+
+export interface Task {
+  id: string
+  customer_id: string | null
+  assigned_to: string | null
+  title: string
+  description: string
+  frequency: TaskFrequency
+  due_date: string | null
+  completed_at: string | null
+  created_by: string
+  created_at: string
+  updated_at: string
+  customer?: Customer
+  assigned_user?: User
 }
 
 export interface QuoteTemplate {

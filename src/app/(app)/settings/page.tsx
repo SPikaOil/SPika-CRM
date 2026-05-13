@@ -2,13 +2,15 @@
 
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Settings, Users, FileText, Download } from 'lucide-react'
+import { Settings, Users, FileText, Download, Building2, Loader2 } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
 import { useQuoteTemplates } from '@/hooks/use-quotes'
 import { useOrders } from '@/hooks/use-orders'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
@@ -131,6 +133,9 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Company Info */}
+      <CompanySettingsCard />
+
       {/* User Management */}
       <Card>
         <CardHeader>
@@ -145,6 +150,102 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+const COMPANY_ID = '00000000-0000-0000-0000-000000000001'
+
+function CompanySettingsCard() {
+  const supabase = createClient()
+  const [saving, setSaving] = useState(false)
+  const [fields, setFields] = useState({
+    name: '',
+    address_line1: '',
+    address_line2: '',
+    email: '',
+    phone: '',
+    crib_number: '',
+    coc_number: '',
+  })
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    supabase.from('company_settings').select('*').eq('id', COMPANY_ID).single()
+      .then(({ data }) => {
+        if (data) setFields({
+          name: data.name ?? '',
+          address_line1: data.address_line1 ?? '',
+          address_line2: data.address_line2 ?? '',
+          email: data.email ?? '',
+          phone: data.phone ?? '',
+          crib_number: data.crib_number ?? '',
+          coc_number: data.coc_number ?? '',
+        })
+        setLoaded(true)
+      })
+  }, [])
+
+  async function handleSave() {
+    setSaving(true)
+    const { error } = await supabase.from('company_settings')
+      .update({ ...fields, updated_at: new Date().toISOString() })
+      .eq('id', COMPANY_ID)
+    if (error) toast.error(error.message)
+    else toast.success('Company info saved!')
+    setSaving(false)
+  }
+
+  const set = (key: keyof typeof fields) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setFields(f => ({ ...f, [key]: e.target.value }))
+
+  if (!loaded) return <Skeleton className="h-64 rounded-xl" />
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Building2 className="h-5 w-5" />
+          Company Info
+        </CardTitle>
+        <CardDescription>Shown on delivery notes as the sender</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="col-span-2 space-y-1.5">
+            <Label>Company Name</Label>
+            <Input value={fields.name} onChange={set('name')} placeholder="Mils Inc." />
+          </div>
+          <div className="col-span-2 space-y-1.5">
+            <Label>Address Line 1</Label>
+            <Input value={fields.address_line1} onChange={set('address_line1')} placeholder="Kaya Kiwa 31-a" />
+          </div>
+          <div className="col-span-2 space-y-1.5">
+            <Label>Address Line 2</Label>
+            <Input value={fields.address_line2} onChange={set('address_line2')} placeholder="Willemstad Curacao CW" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Email</Label>
+            <Input value={fields.email} onChange={set('email')} placeholder="info@company.com" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Phone</Label>
+            <Input value={fields.phone} onChange={set('phone')} placeholder="+5999-000-0000" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Crib #</Label>
+            <Input value={fields.crib_number} onChange={set('crib_number')} placeholder="102471812" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>CoC #</Label>
+            <Input value={fields.coc_number} onChange={set('coc_number')} placeholder="145141" />
+          </div>
+        </div>
+        <Button className="bg-red-600 hover:bg-red-700 gap-2" onClick={handleSave} disabled={saving}>
+          {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+          Save
+        </Button>
+      </CardContent>
+    </Card>
   )
 }
 

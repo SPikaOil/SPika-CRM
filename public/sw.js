@@ -1,8 +1,6 @@
-const CACHE_NAME = 'spika-crm-v1'
+const CACHE_NAME = 'spika-crm-v2'
 
 const STATIC_ASSETS = [
-  '/',
-  '/dashboard',
   '/manifest.json',
 ]
 
@@ -25,25 +23,32 @@ self.addEventListener('activate', (event) => {
 })
 
 self.addEventListener('fetch', (event) => {
-  // Network-first for API calls
-  if (event.request.url.includes('supabase.co')) {
+  const { request } = event
+
+  // Never intercept navigation requests — let the browser/middleware handle auth redirects
+  if (request.mode === 'navigate') return
+
+  // Network-first for API and Supabase calls
+  if (request.url.includes('supabase.co') || request.url.includes('/api/')) {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request))
+      fetch(request).catch(() => caches.match(request))
     )
     return
   }
 
-  // Cache-first for static assets
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached
-      return fetch(event.request).then((response) => {
-        if (response.ok && event.request.method === 'GET') {
-          const clone = response.clone()
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone))
-        }
-        return response
+  // Cache-first for static assets only (JS, CSS, images, fonts)
+  if (request.method === 'GET' && /\.(js|css|png|jpg|jpeg|svg|webp|woff2?)(\?|$)/.test(request.url)) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) return cached
+        return fetch(request).then((response) => {
+          if (response.ok) {
+            const clone = response.clone()
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
+          }
+          return response
+        })
       })
-    })
-  )
+    )
+  }
 })

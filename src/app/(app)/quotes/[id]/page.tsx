@@ -88,8 +88,8 @@ export default function QuoteDetailPage({
     return (
       <div className="p-4 lg:p-6 flex flex-col items-center py-20 gap-3">
         <FileText className="h-12 w-12 opacity-20" />
-        <p className="font-medium">Quote not found</p>
-        <Link href="/quotes"><Button variant="outline">Back to Quotes</Button></Link>
+        <p className="font-medium">Delivery note not found</p>
+        <Link href="/quotes"><Button variant="outline">Back to Delivery Notes</Button></Link>
       </div>
     )
   }
@@ -185,7 +185,7 @@ export default function QuoteDetailPage({
 
       {/* Details */}
       <Card>
-        <CardHeader><CardTitle className="text-base">Quote Details</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">Delivery Note Details</CardTitle></CardHeader>
         <CardContent className="space-y-2 text-sm">
           <Row label="Customer" value={quote.customer?.company_name ?? '—'} />
           <Row label="Template" value={quote.template_used || '—'} />
@@ -208,11 +208,11 @@ export default function QuoteDetailPage({
                 <div>
                   <p className="font-medium text-sm">{item.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {item.sku} · €{Number(item.unit_price).toFixed(2)} × {item.qty}
+                    {item.sku} · XCG {Number(item.unit_price).toFixed(2)} × {item.qty}
                   </p>
                 </div>
                 <p className="font-semibold text-sm shrink-0">
-                  €{Number(item.line_total).toFixed(2)}
+                  XCG {Number(item.line_total).toFixed(2)}
                 </p>
               </div>
             </div>
@@ -221,15 +221,15 @@ export default function QuoteDetailPage({
           <div className="space-y-1 text-sm pt-1">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Subtotal</span>
-              <span>€{Number(quote.subtotal).toFixed(2)}</span>
+              <span>XCG {Number(quote.subtotal).toFixed(2)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">VAT (21%)</span>
-              <span>€{Number(quote.tax).toFixed(2)}</span>
+              <span>XCG {Number(quote.tax).toFixed(2)}</span>
             </div>
             <div className="flex justify-between font-bold text-base pt-1">
               <span>Total</span>
-              <span>€{Number(quote.total).toFixed(2)}</span>
+              <span>XCG {Number(quote.total).toFixed(2)}</span>
             </div>
           </div>
         </CardContent>

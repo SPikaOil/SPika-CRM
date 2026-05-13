@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useCallback, useEffect, useRef, useState } from 'react'
+import { use, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -26,6 +26,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { useAuth } from '@/contexts/auth-context'
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
 
@@ -39,10 +40,12 @@ export default function DeliveryPage({
 }) {
   const { orderId } = use(params)
   const { data: order, isLoading, refetch } = useOrder(orderId)
+  const { isAdmin } = useAuth()
   const router = useRouter()
   const supabase = createClient()
 
   const [step, setStep] = useState<Step>('start')
+  const [resumedFromOutForDelivery, setResumedFromOutForDelivery] = useState(false)
   const [isOnline, setIsOnline] = useState(true)
   const [gps, setGps] = useState<GeolocationCoordinates | null>(null)
   const [gpsError, setGpsError] = useState('')
@@ -58,10 +61,25 @@ export default function DeliveryPage({
   const [photoPreview, setPhotoPreview] = useState('')
   const [deliveryNotes, setDeliveryNotes] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [signerFirstName, setSignerFirstName] = useState('')
+  const [signerLastName, setSignerLastName] = useState('')
 
   // Signature pad
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sigPadRef = useRef<SignaturePad | null>(null)
+
+  // Auto-resume: if order is already out_for_delivery, skip straight to POD
+  useEffect(() => {
+    if (!order || resumedFromOutForDelivery) return
+    if (order.status === 'out_for_delivery' && step === 'start') {
+      setResumedFromOutForDelivery(true)
+      if (order?.customer?.track_table_bottles) {
+        setStep('table_bottles')
+      } else {
+        setStep('pod')
+      }
+    }
+  }, [order])
 
   useEffect(() => {
     setIsOnline(navigator.onLine)
@@ -79,16 +97,17 @@ export default function DeliveryPage({
   }, [])
 
   useEffect(() => {
-    if (step === 'pod' && podMode === 'signature' && canvasRef.current) {
+    if (step === 'pod' && canvasRef.current) {
       sigPadRef.current = new SignaturePad(canvasRef.current, {
         backgroundColor: 'rgba(255,255,255,0)',
+        penColor: '#1a1a1a',
       })
       resizeCanvas()
     }
     return () => {
       sigPadRef.current?.off()
     }
-  }, [step, podMode])
+  }, [step])
 
   function resizeCanvas() {
     const canvas = canvasRef.current
@@ -110,12 +129,27 @@ export default function DeliveryPage({
     })
   }
 
-  async function handleStartDelivery() {
+  async function handleStartDelivery(simulate = false) {
     setGpsLoading(true)
     setGpsError('')
     try {
-      const coords = await captureGps()
-      setGps(coords)
+      let coords: GeolocationCoordinates | null = null
+
+      if (!simulate) {
+        try {
+          coords = await captureGps()
+          setGps(coords)
+        } catch {
+          // GPS not available — continue with null location
+          toast('GPS unavailable — continuing without location', { icon: '📍' })
+        }
+      } else {
+        // Simulated location: Willemstad, Curaçao
+        const simulated = { latitude: 12.1224, longitude: -68.8824, accuracy: 10 } as GeolocationCoordinates
+        setGps(simulated)
+        coords = simulated
+        toast('Using simulated GPS location (Willemstad)', { icon: '📍' })
+      }
 
       // Update order status
       await supabase.from('orders').update({ status: 'out_for_delivery' }).eq('id', orderId)
@@ -124,7 +158,9 @@ export default function DeliveryPage({
       await supabase.from('deliveries').upsert({
         order_id: orderId,
         delivery_started_at: new Date().toISOString(),
-        gps_location: { lat: coords.latitude, lng: coords.longitude, accuracy: coords.accuracy },
+        gps_location: coords
+          ? { lat: coords.latitude, lng: coords.longitude, accuracy: coords.accuracy }
+          : null,
       }, { onConflict: 'order_id' })
 
       toast.success('Delivery started!')
@@ -134,8 +170,8 @@ export default function DeliveryPage({
         setStep('pod')
       }
     } catch (err: any) {
-      setGpsError(err.message ?? 'Could not get GPS location')
-      toast.error('GPS error — check location permissions')
+      setGpsError(err.message ?? 'Could not start delivery')
+      toast.error('Failed to start delivery')
     } finally {
       setGpsLoading(false)
     }
@@ -168,24 +204,28 @@ export default function DeliveryPage({
   }
 
   async function handleCompleteDelivery() {
-    // Validate POD
-    if (podMode === 'signature' && (!sigPadRef.current || sigPadRef.current.isEmpty())) {
-      toast.error('Please provide a signature')
+    if (!signerFirstName.trim() || !signerLastName.trim()) {
+      toast.error('Please enter the signer\'s first and last name')
       return
     }
-    if (podMode === 'photo' && !photoFile) {
-      toast.error('Please take a photo')
+    if (podMode === 'signature' && (!sigPadRef.current || sigPadRef.current.isEmpty())) {
+      toast.error('Please have the customer sign first')
+      return
+    }
+    if (order?.customer?.require_delivery_photo && !photoFile) {
+      toast.error('A delivery photo is required for this customer')
       return
     }
 
     setUploading(true)
     try {
       let podBlob: Blob
+      let signatureDataUrl: string | undefined
       const fileName = `pod/${orderId}-${Date.now()}.png`
 
       if (podMode === 'signature') {
-        const dataUrl = sigPadRef.current!.toDataURL('image/png')
-        const res = await fetch(dataUrl)
+        signatureDataUrl = sigPadRef.current!.toDataURL('image/png')
+        const res = await fetch(signatureDataUrl)
         podBlob = await res.blob()
       } else {
         podBlob = photoFile!
@@ -197,18 +237,68 @@ export default function DeliveryPage({
         pod_type: podMode,
         delivered_at: new Date().toISOString(),
         notes: deliveryNotes,
+        signer_name: `${signerFirstName.trim()} ${signerLastName.trim()}`,
         gps_location: gps
           ? { lat: gps.latitude, lng: gps.longitude, accuracy: gps.accuracy }
           : null,
       }
 
       if (isOnline) {
-        const url = await uploadToSupabase(podBlob, fileName)
+        // Upload signature/photo
+        const podUrl = await uploadToSupabase(podBlob, fileName)
+
+        // Generate signed PDF with signature + photo embedded
+        let signedPdfUrl: string | undefined
+        if (signatureDataUrl && order) {
+          try {
+            const React = await import('react')
+            const { pdf } = await import('@react-pdf/renderer')
+            const { DeliveryNotePDF } = await import('@/components/pdf/delivery-note-pdf')
+
+            // Fetch company settings
+            const { data: companyData } = await supabase.from('company_settings').select('*').eq('id', '00000000-0000-0000-0000-000000000001').single()
+            const company = companyData ?? undefined
+
+            // Convert photo to data URL for embedding in PDF
+            let deliveryPhotoDataUrl: string | undefined
+            if (photoFile) {
+              deliveryPhotoDataUrl = await new Promise<string>((resolve) => {
+                const reader = new FileReader()
+                reader.onloadend = () => resolve(reader.result as string)
+                reader.readAsDataURL(photoFile)
+              })
+            }
+
+            const pdfBlob = await (pdf as any)(
+              React.createElement(DeliveryNotePDF as any, {
+                order,
+                signatureDataUrl,
+                tableBottlesReturned: tablBottlesReturned,
+                tableBottlesNotes,
+                signerName: `${signerFirstName.trim()} ${signerLastName.trim()}`,
+                deliveryPhotoDataUrl,
+                company,
+                documentType: 'INVOICE',
+              })
+            ).toBlob()
+            signedPdfUrl = await uploadToSupabase(pdfBlob, `signed-notes/${orderId}-${Date.now()}.pdf`)
+          } catch (pdfErr) {
+            console.error('PDF generation failed:', pdfErr)
+            // Non-fatal — delivery still completes
+          }
+        }
+
         await supabase.from('deliveries').update({
           ...deliveryData,
-          pod_file_url: url,
+          pod_file_url: podUrl,
         }).eq('order_id', orderId)
-        toast.success('Delivery completed!')
+
+        await supabase.from('orders').update({
+          ...(signedPdfUrl ? { signed_pdf_url: signedPdfUrl } : {}),
+          ...(signatureDataUrl ? { signature_data_url: signatureDataUrl } : {}),
+        } as any).eq('id', orderId)
+
+        toast.success('Delivery completed — signed invoice saved!')
       } else {
         await queuePodUpload({
           id: `${orderId}-${Date.now()}`,
@@ -244,7 +334,7 @@ export default function DeliveryPage({
     return (
       <div className="p-4 flex flex-col items-center py-20 gap-3">
         <p>Order not found</p>
-        <Link href="/orders"><Button variant="outline">Back</Button></Link>
+        <Link href="/delivery-notes"><Button variant="outline">Back</Button></Link>
       </div>
     )
   }
@@ -300,23 +390,45 @@ export default function DeliveryPage({
                 )}
               </div>
 
+              {order.customer?.hardcopy_required && (
+                <div className="flex items-start gap-3 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-lg p-3">
+                  <span className="text-xl shrink-0">🖨️</span>
+                  <div>
+                    <p className="font-semibold text-orange-700 dark:text-orange-400 text-sm">Hard Copy Required</p>
+                    <p className="text-xs text-orange-600 dark:text-orange-500 mt-0.5">
+                      This customer requires a printed delivery note. Make sure you have a hard copy with you before starting the delivery.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {gpsError && (
                 <p className="text-sm text-destructive">{gpsError}</p>
               )}
 
               <Button
                 className="w-full h-14 text-lg bg-red-600 hover:bg-red-700 gap-2"
-                onClick={handleStartDelivery}
+                onClick={() => handleStartDelivery(false)}
                 disabled={gpsLoading}
               >
                 {gpsLoading ? (
-                  <><Loader2 className="h-5 w-5 animate-spin" /> Getting GPS...</>
+                  <><Loader2 className="h-5 w-5 animate-spin" /> Starting...</>
                 ) : (
                   <><MapPin className="h-5 w-5" /> Start Delivery</>
                 )}
               </Button>
+
+              <Button
+                variant="outline"
+                className="w-full gap-2"
+                onClick={() => handleStartDelivery(true)}
+                disabled={gpsLoading}
+              >
+                <MapPin className="h-4 w-4 text-muted-foreground" />
+                Simulate GPS &amp; Start
+              </Button>
               <p className="text-xs text-center text-muted-foreground">
-                Tapping Start will capture your GPS location
+                Use "Simulate GPS" to test the delivery flow without real location
               </p>
             </CardContent>
           </Card>
@@ -355,41 +467,91 @@ export default function DeliveryPage({
           </Card>
         )}
 
-        {/* Step 3: POD */}
+        {/* Step 3: Invoice Preview + Customer Signature */}
         {step === 'pod' && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                {podMode === 'signature' ? <PenLine className="h-5 w-5 text-red-600" /> : <Camera className="h-5 w-5 text-red-600" />}
-                Step {order?.customer?.track_table_bottles ? 3 : 2} — Proof of Delivery
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* POD Mode Toggle */}
-              <div className="flex rounded-lg border overflow-hidden">
-                <button
-                  className={`flex-1 py-3 text-sm font-medium flex items-center justify-center gap-2 transition-colors ${podMode === 'signature' ? 'bg-red-600 text-white' : 'hover:bg-accent'}`}
-                  onClick={() => setPodMode('signature')}
-                >
-                  <PenLine className="h-4 w-4" />
-                  Signature
-                </button>
-                <button
-                  className={`flex-1 py-3 text-sm font-medium flex items-center justify-center gap-2 transition-colors ${podMode === 'photo' ? 'bg-red-600 text-white' : 'hover:bg-accent'}`}
-                  onClick={() => setPodMode('photo')}
-                >
-                  <Camera className="h-4 w-4" />
-                  Photo
-                </button>
-              </div>
+          <div className="space-y-4">
 
-              {podMode === 'signature' ? (
+            {/* Invoice Preview */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Invoice for Customer</CardTitle>
+                <p className="text-xs text-muted-foreground">Show this to the customer before signing</p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Customer</span>
+                  <span className="font-medium">{order.customer?.company_name}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Order #</span>
+                  <span className="font-mono">{order.order_number}</span>
+                </div>
+                <Separator />
+                {(order.items as any[]).map((item: any, i: number) => (
+                  <div key={i} className="flex justify-between text-sm gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{item.name}</p>
+                      <p className="text-xs text-muted-foreground">× {item.qty} @ XCG {Number(item.unit_price).toFixed(2)}</p>
+                    </div>
+                    <span className="font-semibold shrink-0">XCG {Number(item.line_total).toFixed(2)}</span>
+                  </div>
+                ))}
+                <Separator />
+                {order.customer?.customer_category === 'b2c' && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">VAT (6%)</span>
+                    <span>XCG {(Number(order.total) * 0.06 / 1.06).toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-bold text-base">
+                  <span>Total Due</span>
+                  <span className="text-red-600">XCG {Number(order.total).toFixed(2)}</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Signature */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <PenLine className="h-5 w-5 text-red-600" />
+                  Customer Signature
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Hand the phone to the customer to sign below
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+
+                {/* Signer name */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1.5">
+                    <Label>First name <span className="text-red-500">*</span></Label>
+                    <Input
+                      placeholder="John"
+                      value={signerFirstName}
+                      onChange={(e) => setSignerFirstName(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Last name <span className="text-red-500">*</span></Label>
+                    <Input
+                      placeholder="Doe"
+                      value={signerLastName}
+                      onChange={(e) => setSignerLastName(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Signature */}
                 <div className="space-y-2">
-                  <Label>Customer Signature</Label>
-                  <div className="border rounded-lg overflow-hidden bg-white">
+                  <Label>Signature <span className="text-red-500">*</span></Label>
+                  <div className="border-2 border-dashed rounded-xl overflow-hidden bg-white">
                     <canvas
                       ref={canvasRef}
-                      className="w-full h-48 touch-none cursor-crosshair"
+                      className="w-full h-52 touch-none cursor-crosshair"
                     />
                   </div>
                   <Button
@@ -399,67 +561,64 @@ export default function DeliveryPage({
                     onClick={() => sigPadRef.current?.clear()}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
-                    Clear
+                    Clear signature
                   </Button>
                 </div>
-              ) : (
-                <div className="space-y-2">
-                  <Label>Delivery Photo</Label>
+
+                <Separator />
+
+                {/* Delivery photo */}
+                <div className="space-y-1.5">
+                  <Label>
+                    Delivery photo{' '}
+                    {order?.customer?.require_delivery_photo
+                      ? <span className="text-red-500">*</span>
+                      : <span className="text-muted-foreground text-xs">(optional)</span>}
+                  </Label>
                   {photoPreview ? (
-                    <div className="relative">
+                    <div>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={photoPreview} alt="POD" className="w-full rounded-lg object-cover max-h-64" />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="mt-2 gap-1.5"
-                        onClick={() => { setPhotoFile(null); setPhotoPreview('') }}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        Retake
+                      <img src={photoPreview} alt="POD" className="w-full rounded-lg object-cover max-h-48" />
+                      <Button variant="outline" size="sm" className="mt-2 gap-1.5"
+                        onClick={() => { setPhotoFile(null); setPhotoPreview('') }}>
+                        <Trash2 className="h-3.5 w-3.5" /> Retake
                       </Button>
                     </div>
                   ) : (
-                    <label className="flex flex-col items-center justify-center h-48 border-2 border-dashed rounded-lg cursor-pointer hover:bg-accent transition-colors gap-3 text-muted-foreground">
-                      <Camera className="h-10 w-10 opacity-40" />
-                      <p className="text-sm font-medium">Tap to take a photo</p>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        className="hidden"
-                        onChange={handlePhotoChange}
-                      />
+                    <label className="flex flex-col items-center justify-center gap-2 cursor-pointer border-2 border-dashed rounded-xl p-6 text-muted-foreground hover:text-foreground hover:border-red-300 transition-colors">
+                      <Camera className="h-8 w-8" />
+                      <span className="text-sm font-medium">Take delivery photo</span>
+                      <span className="text-xs">{order?.customer?.require_delivery_photo ? 'Required to complete delivery' : 'Optional — will be added to the PDF'}</span>
+                      <input type="file" accept="image/*" capture="environment"
+                        className="hidden" onChange={handlePhotoChange} />
                     </label>
                   )}
                 </div>
-              )}
 
-              <Separator />
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Notes (optional)</Label>
+                  <Textarea
+                    value={deliveryNotes}
+                    onChange={(e) => setDeliveryNotes(e.target.value)}
+                    placeholder="Any notes about this delivery..."
+                    rows={2}
+                  />
+                </div>
 
-              <div className="space-y-1.5">
-                <Label>Delivery Notes (optional)</Label>
-                <Textarea
-                  value={deliveryNotes}
-                  onChange={(e) => setDeliveryNotes(e.target.value)}
-                  placeholder="Any notes about this delivery..."
-                  rows={2}
-                />
-              </div>
-
-              <Button
-                className="w-full h-14 text-lg bg-green-600 hover:bg-green-700 gap-2"
-                onClick={handleCompleteDelivery}
-                disabled={uploading}
-              >
-                {uploading ? (
-                  <><Loader2 className="h-5 w-5 animate-spin" /> {isOnline ? 'Uploading...' : 'Saving...'}</>
-                ) : (
-                  <><Upload className="h-5 w-5" /> Complete Delivery</>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
+                <Button
+                  className="w-full h-14 text-lg bg-green-600 hover:bg-green-700 gap-2"
+                  onClick={handleCompleteDelivery}
+                  disabled={uploading}
+                >
+                  {uploading ? (
+                    <><Loader2 className="h-5 w-5 animate-spin" /> Generating signed invoice…</>
+                  ) : (
+                    <><CheckCircle className="h-5 w-5" /> Complete &amp; Save Signed Invoice</>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
         )}
 
         {/* Step 4: Done */}
@@ -473,8 +632,8 @@ export default function DeliveryPage({
                   {isOnline ? 'POD uploaded and order marked as invoice ready.' : 'POD saved offline. Will sync when connected.'}
                 </p>
               </div>
-              <Link href="/orders">
-                <Button className="mt-2">Back to Orders</Button>
+              <Link href={isAdmin ? '/orders' : '/delivery-notes'}>
+                <Button className="mt-2">Back to {isAdmin ? 'Orders' : 'Delivery Notes'}</Button>
               </Link>
             </CardContent>
           </Card>

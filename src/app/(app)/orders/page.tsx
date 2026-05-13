@@ -1,12 +1,19 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ShoppingCart, Truck } from 'lucide-react'
-import { useOrders } from '@/hooks/use-orders'
+import { useRouter } from 'next/navigation'
+import { ShoppingCart, Truck, CheckCircle2, Trash2, ChevronDown, ChevronUp, Plus } from 'lucide-react'
+import { useOrders, useUpdateOrder } from '@/hooks/use-orders'
+import { useAuth } from '@/contexts/auth-context'
+import { createClient } from '@/lib/supabase/client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
 import {
   Select,
   SelectContent,
@@ -14,45 +21,131 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { OrderStatus } from '@/types'
+import { OrderStatus, Order } from '@/types'
+import { toast } from 'sonner'
+import { useQueryClient } from '@tanstack/react-query'
 
 const statusColors: Record<OrderStatus, string> = {
+  pending_approval: 'bg-orange-100 text-orange-700',
   processing: 'bg-yellow-100 text-yellow-700',
   out_for_delivery: 'bg-blue-100 text-blue-700',
   delivered: 'bg-purple-100 text-purple-700',
   invoice_ready: 'bg-green-100 text-green-700',
   invoice_blocked: 'bg-red-100 text-red-700',
+  paid: 'bg-emerald-100 text-emerald-700',
+  deleted: 'bg-gray-100 text-gray-500',
 }
 
 const statusLabels: Record<OrderStatus, string> = {
+  pending_approval: 'Pending Approval',
   processing: 'Processing',
   out_for_delivery: 'Out for Delivery',
   delivered: 'Delivered',
   invoice_ready: 'Invoice Ready',
   invoice_blocked: 'Invoice Blocked',
+  paid: 'Paid',
+  deleted: 'Deleted',
 }
 
+const ACTIVE_STATUSES: OrderStatus[] = ['pending_approval', 'processing', 'out_for_delivery', 'delivered', 'invoice_ready', 'invoice_blocked']
+
 export default function OrdersPage() {
-  const [status, setStatus] = useState<string>('all')
-  const { data: orders, isLoading } = useOrders(status !== 'all' ? (status as OrderStatus) : undefined)
+  const [status, setStatus] = useState<string>('active')
+  const { data: allOrders, isLoading } = useOrders()
+  const { isAdmin, profile } = useAuth()
+  const queryClient = useQueryClient()
+  const updateOrder = useUpdateOrder()
+  const supabase = createClient()
+  const router = useRouter()
+
+  // Non-admins are redirected to delivery notes
+  useEffect(() => {
+    if (!isAdmin && profile !== undefined) {
+      router.replace('/delivery-notes')
+    }
+  }, [isAdmin, profile, router])
+
+  const [showArchive, setShowArchive] = useState(false)
+  const [showDeleted, setShowDeleted] = useState(false)
+
+  // Delete modal state
+  const [deleteTarget, setDeleteTarget] = useState<Order | null>(null)
+  const [deletePassword, setDeletePassword] = useState('')
+  const [deleteReason, setDeleteReason] = useState('')
+  const [deleting, setDeleting] = useState(false)
+
+  const activeOrders = allOrders?.filter(o => ACTIVE_STATUSES.includes(o.status)) ?? []
+  const paidOrders = allOrders?.filter(o => o.status === 'paid') ?? []
+  const deletedOrders = allOrders?.filter(o => o.status === 'deleted') ?? []
+
+  const filteredActive = status === 'active'
+    ? activeOrders
+    : activeOrders.filter(o => o.status === status)
+
+  async function handleMarkPaid(order: Order, e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    await updateOrder.mutateAsync({ id: order.id, values: { status: 'paid' } as any })
+    toast.success(`${order.order_number} marked as paid`)
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget || !deleteReason.trim() || !deletePassword) return
+    setDeleting(true)
+    try {
+      // Re-authenticate
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: profile?.email ?? '',
+        password: deletePassword,
+      })
+      if (authError) {
+        toast.error('Incorrect password')
+        setDeleting(false)
+        return
+      }
+
+      await supabase.from('orders').update({
+        status: 'deleted',
+        deleted_by: profile?.id,
+        deleted_reason: deleteReason.trim(),
+        deleted_at: new Date().toISOString(),
+      } as any).eq('id', deleteTarget.id)
+
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+      toast.success(`${deleteTarget.order_number} deleted`)
+      setDeleteTarget(null)
+      setDeletePassword('')
+      setDeleteReason('')
+    } catch {
+      toast.error('Failed to delete order')
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   return (
     <div className="p-4 lg:p-6 space-y-4">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Orders</h1>
-          <p className="text-muted-foreground text-sm">{orders?.length ?? 0} orders</p>
+          <p className="text-muted-foreground text-sm">{filteredActive.length} active orders</p>
         </div>
+        <Link href="/quotes/new">
+          <Button className="bg-red-600 hover:bg-red-700 gap-2">
+            <Plus className="h-4 w-4" />
+            New Order
+          </Button>
+        </Link>
       </div>
 
       {/* Filter */}
-      <Select value={status} onValueChange={(v) => setStatus(v ?? 'all')}>
+      <Select value={status} onValueChange={(v) => setStatus(v ?? 'active')}>
         <SelectTrigger className="w-48">
-          <SelectValue placeholder="All statuses" />
+          <SelectValue placeholder="Active orders" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">All statuses</SelectItem>
-          {(Object.keys(statusLabels) as OrderStatus[]).map((s) => (
+          <SelectItem value="active">Active orders</SelectItem>
+          {ACTIVE_STATUSES.map((s) => (
             <SelectItem key={s} value={s}>{statusLabels[s]}</SelectItem>
           ))}
         </SelectContent>
@@ -64,52 +157,199 @@ export default function OrdersPage() {
             <Skeleton key={i} className="h-24 rounded-xl" />
           ))}
         </div>
-      ) : orders?.length === 0 ? (
+      ) : filteredActive.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-3">
           <ShoppingCart className="h-12 w-12 opacity-20" />
           <p className="font-medium">No orders found</p>
         </div>
       ) : (
         <div className="space-y-2">
-          {orders?.map((order) => (
-            <Link
+          {filteredActive.map((order) => (
+            <OrderRow
               key={order.id}
-              href={`/orders/${order.id}`}
-              className="block p-4 rounded-xl border bg-card hover:bg-accent transition-colors"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-mono text-sm font-medium">{order.order_number}</p>
-                    <Badge className={`text-xs ${statusColors[order.status]}`}>
-                      {statusLabels[order.status]}
-                    </Badge>
-                  </div>
-                  <p className="font-medium mt-0.5">{order.customer?.company_name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {order.assigned_user?.name ?? '—'} ·{' '}
-                    {new Date(order.created_at).toLocaleDateString()}
-                  </p>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="font-semibold">€{Number(order.total).toFixed(2)}</p>
-                  {order.status === 'processing' && (
-                    <Link href={`/delivery/${order.id}`} onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        size="sm"
-                        className="mt-2 h-8 bg-red-600 hover:bg-red-700 text-xs gap-1"
-                      >
-                        <Truck className="h-3 w-3" />
-                        Deliver
-                      </Button>
-                    </Link>
-                  )}
-                </div>
-              </div>
-            </Link>
+              order={order}
+              isAdmin={isAdmin}
+              statusColors={statusColors}
+              statusLabels={statusLabels}
+              onMarkPaid={(e) => handleMarkPaid(order, e)}
+              onDelete={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteTarget(order) }}
+            />
           ))}
         </div>
       )}
+
+      {/* Archive — paid orders */}
+      {isAdmin && paidOrders.length > 0 && (
+        <div className="pt-2">
+          <button
+            onClick={() => setShowArchive(v => !v)}
+            className="flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors w-full"
+          >
+            {showArchive ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            Archive — Paid ({paidOrders.length})
+          </button>
+          {showArchive && (
+            <div className="space-y-2 mt-2">
+              {paidOrders.map(order => (
+                <OrderRow
+                  key={order.id}
+                  order={order}
+                  isAdmin={isAdmin}
+                  statusColors={statusColors}
+                  statusLabels={statusLabels}
+                  dimmed
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Deleted orders */}
+      {isAdmin && deletedOrders.length > 0 && (
+        <div className="pt-2">
+          <button
+            onClick={() => setShowDeleted(v => !v)}
+            className="flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors w-full"
+          >
+            {showDeleted ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            Deleted ({deletedOrders.length})
+          </button>
+          {showDeleted && (
+            <div className="space-y-2 mt-2">
+              {deletedOrders.map(order => (
+                <Link key={order.id} href={`/orders/${order.id}`} className="block p-4 rounded-xl border bg-card opacity-60 hover:opacity-80 transition-opacity">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-mono text-sm font-medium">{order.order_number}</p>
+                        <Badge className="text-xs bg-gray-100 text-gray-500">Deleted</Badge>
+                      </div>
+                      <p className="font-medium mt-0.5">{order.customer?.company_name}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Reason: {(order as any).deleted_reason ?? '—'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Deleted {(order as any).deleted_at ? new Date((order as any).deleted_at).toLocaleString() : ''}
+                      </p>
+                    </div>
+                    {isAdmin && <p className="text-sm font-semibold shrink-0">XCG {Number(order.total).toFixed(2)}</p>}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2 text-red-600">
+                <Trash2 className="h-5 w-5" />
+                Delete {deleteTarget.order_number}?
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">This will move the order to the Deleted list. It won't be permanently removed.</p>
+              <div className="space-y-1.5">
+                <Label>Reason for deletion <span className="text-red-500">*</span></Label>
+                <Input
+                  placeholder="e.g. Test order, duplicate, customer cancelled..."
+                  value={deleteReason}
+                  onChange={e => setDeleteReason(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Confirm your password <span className="text-red-500">*</span></Label>
+                <Input
+                  type="password"
+                  placeholder="Your account password"
+                  value={deletePassword}
+                  onChange={e => setDeletePassword(e.target.value)}
+                />
+              </div>
+              <Separator />
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => { setDeleteTarget(null); setDeletePassword(''); setDeleteReason('') }}>
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-red-600 hover:bg-red-700"
+                  disabled={!deleteReason.trim() || !deletePassword || deleting}
+                  onClick={handleDelete}
+                >
+                  {deleting ? 'Deleting...' : 'Delete Order'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
+  )
+}
+
+function OrderRow({
+  order, isAdmin, statusColors, statusLabels, onMarkPaid, onDelete, dimmed
+}: {
+  order: Order
+  isAdmin: boolean
+  statusColors: Record<OrderStatus, string>
+  statusLabels: Record<OrderStatus, string>
+  onMarkPaid?: (e: React.MouseEvent) => void
+  onDelete?: (e: React.MouseEvent) => void
+  dimmed?: boolean
+}) {
+  return (
+    <Link
+      href={`/orders/${order.id}`}
+      className={`block p-4 rounded-xl border bg-card hover:bg-accent transition-colors ${dimmed ? 'opacity-60' : ''}`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-mono text-sm font-medium">{order.order_number}</p>
+            <Badge className={`text-xs ${statusColors[order.status]}`}>
+              {statusLabels[order.status]}
+            </Badge>
+          </div>
+          <p className="font-medium mt-0.5">{order.customer?.company_name}</p>
+          <p className="text-sm text-muted-foreground">
+            {order.assigned_user?.name ?? '—'} · {new Date(order.created_at).toLocaleDateString()}
+          </p>
+        </div>
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+          {isAdmin && (() => {
+            const credit = (order.delivery?.table_bottles_returned ?? 0) * (order.customer?.table_bottle_return_price ?? 2.50)
+            const adj = Number(order.total) - credit
+            return <p className="font-semibold text-sm">XCG {adj.toFixed(2)}</p>
+          })()}
+          <div className="flex gap-1">
+            {order.status === 'processing' && (
+              <Link href={`/delivery/${order.id}`} onClick={(e) => e.stopPropagation()}>
+                <Button size="sm" className="h-7 bg-red-600 hover:bg-red-700 text-xs gap-1">
+                  <Truck className="h-3 w-3" />
+                  Deliver
+                </Button>
+              </Link>
+            )}
+            {isAdmin && order.status === 'invoice_ready' && onMarkPaid && (
+              <Button size="sm" className="h-7 bg-emerald-600 hover:bg-emerald-700 text-xs gap-1" onClick={onMarkPaid}>
+                <CheckCircle2 className="h-3 w-3" />
+                Paid
+              </Button>
+            )}
+            {isAdmin && order.status !== 'paid' && onDelete && (
+              <Button size="sm" variant="outline" className="h-7 text-xs border-red-200 text-red-500 hover:bg-red-50 gap-1" onClick={onDelete}>
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    </Link>
   )
 }

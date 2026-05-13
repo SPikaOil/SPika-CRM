@@ -5,22 +5,31 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard,
   Users,
-  Target,
   FileText,
   ShoppingCart,
+  CalendarDays,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/contexts/auth-context'
 
-const navItems = [
-  { href: '/dashboard', label: 'Home', icon: LayoutDashboard },
-  { href: '/customers', label: 'Customers', icon: Users },
-  { href: '/leads', label: 'Leads', icon: Target },
-  { href: '/quotes', label: 'Quotes', icon: FileText },
-  { href: '/orders', label: 'Orders', icon: ShoppingCart },
+const adminNavItems = [
+  { href: '/dashboard',      label: 'Home',    icon: LayoutDashboard },
+  { href: '/customers',      label: 'Customers', icon: Users },
+  { href: '/delivery-notes', label: 'Notes',   icon: FileText },
+  { href: '/orders',         label: 'Orders',  icon: ShoppingCart },
+  { href: '/agenda',         label: 'Agenda',  icon: CalendarDays },
+]
+
+const salesNavItems = [
+  { href: '/dashboard',      label: 'Home',    icon: LayoutDashboard },
+  { href: '/delivery-notes', label: 'Notes',   icon: FileText },
+  { href: '/agenda',         label: 'Agenda',  icon: CalendarDays },
 ]
 
 export function BottomNav() {
   const pathname = usePathname()
+  const { isAdmin } = useAuth()
+  const navItems = isAdmin ? adminNavItems : salesNavItems
 
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-background border-t safe-area-pb">

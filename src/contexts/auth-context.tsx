@@ -11,6 +11,7 @@ interface AuthContextValue {
   profile: User | null
   isLoading: boolean
   isAdmin: boolean
+  isCustomer: boolean
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -19,6 +20,7 @@ const AuthContext = createContext<AuthContextValue>({
   profile: null,
   isLoading: true,
   isAdmin: false,
+  isCustomer: false,
 })
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -72,6 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         profile,
         isLoading,
         isAdmin: profile?.role === 'admin',
+        isCustomer: profile?.role === 'customer',
       }}
     >
       {children}

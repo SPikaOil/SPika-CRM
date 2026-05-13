@@ -1,28 +1,29 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertCircle, CheckCircle, Clock, FileText, Loader2, ShoppingCart, Target, Truck, Users } from 'lucide-react'
+import { AlertCircle, CheckCircle, Clock, FileText, ShoppingBag, Truck, Users } from 'lucide-react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Badge } from '@/components/ui/badge'
+import { useAuth } from '@/contexts/auth-context'
+import { useUsers } from '@/hooks/use-users'
+import { useOrders } from '@/hooks/use-orders'
+import { Order } from '@/types'
 
-interface KPIs {
-  leads_new: number
-  leads_contacted: number
-  leads_quoted: number
-  leads_won: number
-  leads_lost: number
-  quotes_sent_this_week: number
-  orders_processing: number
+interface Stats {
+  // Delivery notes (quotes) by status
+  notes_draft: number
+  notes_sent: number
+  notes_accepted: number
+  // Deliveries
   orders_out_for_delivery: number
   deliveries_today: number
   deliveries_missing_pod: number
-  orders_invoice_ready: number
-  orders_invoice_blocked: number
 }
 
-function KpiCard({
+function StatCard({
   title,
   value,
   icon: Icon,
@@ -35,11 +36,11 @@ function KpiCard({
   variant?: 'default' | 'warning' | 'danger' | 'success'
   isLoading?: boolean
 }) {
-  const variantClasses = {
-    default: 'text-foreground',
-    warning: 'text-yellow-600 dark:text-yellow-400',
-    danger: 'text-red-600 dark:text-red-400',
-    success: 'text-green-600 dark:text-green-400',
+  const colors = {
+    default: 'text-foreground bg-muted',
+    warning: 'text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-950/30',
+    danger: 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30',
+    success: 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30',
   }
 
   return (
@@ -49,14 +50,14 @@ function KpiCard({
           <div>
             <p className="text-sm text-muted-foreground">{title}</p>
             {isLoading ? (
-              <Skeleton className="h-8 w-12 mt-1" />
+              <Skeleton className="h-9 w-14 mt-1" />
             ) : (
-              <p className={`text-3xl font-bold mt-1 ${variantClasses[variant]}`}>
+              <p className={`text-4xl font-bold mt-1 ${colors[variant].split(' ')[0]}`}>
                 {value}
               </p>
             )}
           </div>
-          <div className={`p-2 rounded-lg bg-muted ${variantClasses[variant]}`}>
+          <div className={`p-2 rounded-lg ${colors[variant]}`}>
             <Icon className="h-5 w-5" />
           </div>
         </div>
@@ -67,27 +68,56 @@ function KpiCard({
 
 export default function DashboardPage() {
   const supabase = createClient()
-  const [kpis, setKpis] = useState<KPIs | null>(null)
+  const { isAdmin } = useAuth()
+  const { data: users } = useUsers()
+  const { data: allOrders } = useOrders()
+  const [stats, setStats] = useState<Stats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [pendingOrders, setPendingOrders] = useState<Order[]>([])
 
-  async function loadKpis() {
-    const { data, error } = await supabase
-      .from('v_dashboard_kpis')
-      .select('*')
-      .single()
-    if (!error && data) setKpis(data)
+  async function loadPendingOrders() {
+    const { data } = await supabase
+      .from('orders')
+      .select('*, customer:customers(company_name)')
+      .eq('status', 'pending_approval')
+      .order('created_at', { ascending: true })
+    setPendingOrders((data ?? []) as Order[])
+  }
+
+  async function loadStats() {
+    await loadPendingOrders()
+    const [quotesRes, kpisRes] = await Promise.all([
+      supabase
+        .from('quotes')
+        .select('status'),
+      supabase
+        .from('v_dashboard_kpis')
+        .select('orders_out_for_delivery, deliveries_today, deliveries_missing_pod')
+        .single(),
+    ])
+
+    const quotes = quotesRes.data ?? []
+    const kpis = kpisRes.data
+
+    setStats({
+      notes_draft:    quotes.filter((q) => q.status === 'draft').length,
+      notes_sent:     quotes.filter((q) => q.status === 'sent').length,
+      notes_accepted: quotes.filter((q) => q.status === 'accepted').length,
+      orders_out_for_delivery: kpis?.orders_out_for_delivery ?? 0,
+      deliveries_today:        kpis?.deliveries_today ?? 0,
+      deliveries_missing_pod:  kpis?.deliveries_missing_pod ?? 0,
+    })
     setIsLoading(false)
   }
 
   useEffect(() => {
-    loadKpis()
+    loadStats()
 
-    // Realtime subscription to key tables
     const channel = supabase
       .channel('dashboard-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, loadKpis)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, loadKpis)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, loadKpis)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quotes' }, loadStats)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, loadStats)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, loadStats)
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
@@ -100,68 +130,75 @@ export default function DashboardPage() {
         <p className="text-muted-foreground text-sm">Live overview — updates in real time</p>
       </div>
 
-      {/* Priority alerts */}
-      {!isLoading && kpis && kpis.deliveries_missing_pod > 0 && (
-        <div className="flex items-center gap-3 p-4 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900">
-          <AlertCircle className="h-5 w-5 text-red-600 shrink-0" />
-          <div>
-            <p className="font-semibold text-red-700 dark:text-red-400">
-              {kpis.deliveries_missing_pod} deliveries missing POD
-            </p>
-            <p className="text-sm text-red-600/80">Check delivered orders without proof of delivery</p>
+      {/* Customer order approval alert */}
+      {isAdmin && pendingOrders.length > 0 && (
+        <div className="rounded-xl border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/20 overflow-hidden">
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-orange-200 dark:border-orange-800">
+            <ShoppingBag className="h-5 w-5 text-orange-600 shrink-0" />
+            <div className="flex-1">
+              <p className="font-semibold text-orange-700 dark:text-orange-400">
+                {pendingOrders.length} customer order{pendingOrders.length > 1 ? 's' : ''} waiting for approval
+              </p>
+              <p className="text-xs text-orange-600/80 dark:text-orange-500">Review and assign to a worker</p>
+            </div>
+            <Badge className="bg-orange-600 text-white text-sm px-2">{pendingOrders.length}</Badge>
+          </div>
+          <div className="divide-y divide-orange-100 dark:divide-orange-900">
+            {pendingOrders.map((order) => (
+              <Link
+                key={order.id}
+                href={`/orders/${order.id}`}
+                className="flex items-center justify-between px-4 py-3 hover:bg-orange-100/50 dark:hover:bg-orange-900/20 transition-colors"
+              >
+                <div>
+                  <p className="text-sm font-medium">{(order as any).customer?.company_name}</p>
+                  <p className="text-xs text-muted-foreground font-mono">{order.order_number}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-orange-700 dark:text-orange-400">XCG {Number(order.total).toFixed(2)}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(order.created_at).toLocaleDateString('en', { day: 'numeric', month: 'short' })}
+                  </p>
+                </div>
+              </Link>
+            ))}
           </div>
         </div>
       )}
 
-      {/* Leads Pipeline */}
-      <section>
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Lead Pipeline</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          {[
-            { label: 'New', key: 'leads_new', color: 'bg-blue-100 text-blue-700' },
-            { label: 'Contacted', key: 'leads_contacted', color: 'bg-yellow-100 text-yellow-700' },
-            { label: 'Quoted', key: 'leads_quoted', color: 'bg-purple-100 text-purple-700' },
-            { label: 'Won', key: 'leads_won', color: 'bg-green-100 text-green-700' },
-            { label: 'Lost', key: 'leads_lost', color: 'bg-red-100 text-red-700' },
-          ].map(({ label, key, color }) => (
-            <div key={key} className="flex flex-col items-center p-4 rounded-xl border bg-card gap-1">
-              <Badge className={`${color} text-xs`}>{label}</Badge>
-              {isLoading ? (
-                <Skeleton className="h-8 w-10 mt-1" />
-              ) : (
-                <p className="text-3xl font-bold">{(kpis as any)?.[key] ?? 0}</p>
-              )}
-            </div>
-          ))}
+      {/* Missing POD alert */}
+      {!isLoading && stats && stats.deliveries_missing_pod > 0 && (
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900">
+          <AlertCircle className="h-5 w-5 text-red-600 shrink-0" />
+          <div>
+            <p className="font-semibold text-red-700 dark:text-red-400">
+              {stats.deliveries_missing_pod} {stats.deliveries_missing_pod === 1 ? 'delivery' : 'deliveries'} missing Proof of Delivery
+            </p>
+            <p className="text-sm text-red-600/80">Open the delivery to upload a signature or photo</p>
+          </div>
         </div>
-      </section>
+      )}
 
-      {/* Operations KPIs */}
+      {/* Delivery Notes */}
       <section>
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Operations</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <KpiCard
-            title="Quotes This Week"
-            value={kpis?.quotes_sent_this_week ?? 0}
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Delivery Notes</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <StatCard
+            title="Draft"
+            value={stats?.notes_draft ?? 0}
             icon={FileText}
             isLoading={isLoading}
           />
-          <KpiCard
-            title="Processing"
-            value={kpis?.orders_processing ?? 0}
+          <StatCard
+            title="Sent to Customer"
+            value={stats?.notes_sent ?? 0}
             icon={Clock}
             variant="warning"
             isLoading={isLoading}
           />
-          <KpiCard
-            title="Out for Delivery"
-            value={kpis?.orders_out_for_delivery ?? 0}
-            icon={Truck}
-            isLoading={isLoading}
-          />
-          <KpiCard
-            title="Delivered Today"
-            value={kpis?.deliveries_today ?? 0}
+          <StatCard
+            title="Accepted"
+            value={stats?.notes_accepted ?? 0}
             icon={CheckCircle}
             variant="success"
             isLoading={isLoading}
@@ -169,33 +206,72 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* Invoicing KPIs */}
+      {/* Deliveries */}
       <section>
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Invoicing</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <KpiCard
-            title="Invoice Ready"
-            value={kpis?.orders_invoice_ready ?? 0}
-            icon={ShoppingCart}
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Deliveries</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <StatCard
+            title="Out for Delivery"
+            value={stats?.orders_out_for_delivery ?? 0}
+            icon={Truck}
+            variant="warning"
+            isLoading={isLoading}
+          />
+          <StatCard
+            title="Delivered Today"
+            value={stats?.deliveries_today ?? 0}
+            icon={CheckCircle}
             variant="success"
             isLoading={isLoading}
           />
-          <KpiCard
-            title="Invoice Blocked"
-            value={kpis?.orders_invoice_blocked ?? 0}
-            icon={AlertCircle}
-            variant="danger"
-            isLoading={isLoading}
-          />
-          <KpiCard
+          <StatCard
             title="Missing POD"
-            value={kpis?.deliveries_missing_pod ?? 0}
+            value={stats?.deliveries_missing_pod ?? 0}
             icon={AlertCircle}
-            variant={kpis?.deliveries_missing_pod ? 'danger' : 'default'}
+            variant={stats?.deliveries_missing_pod ? 'danger' : 'default'}
             isLoading={isLoading}
           />
         </div>
       </section>
+
+      {/* Worker Overview — admin only */}
+      {isAdmin && users && users.length > 0 && (
+        <section>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Team Overview</h2>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Users className="h-4 w-4" /> Workers
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="divide-y">
+              {users.map((user) => {
+                const assigned = allOrders?.filter((o) => o.assigned_to === user.id) ?? []
+                const pending   = assigned.filter((o) => o.status === 'processing' || o.status === 'out_for_delivery')
+                const delivered = assigned.filter((o) => o.status === 'delivered' || o.status === 'invoice_ready')
+                return (
+                  <div key={user.id} className="py-3 flex items-center justify-between gap-4">
+                    <div>
+                      <p className="font-medium text-sm">{user.name}</p>
+                      <p className="text-xs text-muted-foreground capitalize">{user.role}</p>
+                    </div>
+                    <div className="flex gap-4 text-sm">
+                      <div className="text-center">
+                        <p className="font-bold text-yellow-600">{pending.length}</p>
+                        <p className="text-xs text-muted-foreground">Pending</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="font-bold text-green-600">{delivered.length}</p>
+                        <p className="text-xs text-muted-foreground">Done</p>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </CardContent>
+          </Card>
+        </section>
+      )}
     </div>
   )
 }
