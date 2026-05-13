@@ -141,7 +141,7 @@ export function OBFormPDF({ company, address, coc, crib, signerName, signerTitle
           {' starting '}
           <Text style={styles.bold}>1st of January 2026</Text>
           {' until '}
-          <Text style={styles.bold}>31 December 2026.'}
+          <Text style={styles.bold}>31 December 2026.</Text>
         </Text>
 
         <Text style={[styles.bodyText, { marginBottom: 0 }]}>Date: {dateStr}</Text>
