@@ -3,7 +3,7 @@
 import { use, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Edit, Building2, Package, CheckCircle2, Clock, Truck, FileSignature, AlertTriangle, Download, Upload } from 'lucide-react'
+import { ArrowLeft, Edit, Building2, Package, CheckCircle2, Clock, Truck, FileSignature, AlertTriangle, Download, Upload, Info } from 'lucide-react'
 import { useRef } from 'react'
 import { useCustomer, useUpdateCustomer } from '@/hooks/use-customers'
 import { createClient } from '@/lib/supabase/client'
@@ -219,6 +219,12 @@ export default function CustomerDetailPage({
                     ? <span className="text-xs font-normal text-green-600 bg-green-100 px-2 py-0.5 rounded-full">Signed</span>
                     : <span className="text-xs font-normal text-red-600 bg-red-100 px-2 py-0.5 rounded-full">Missing</span>
                   }
+                  <div className="relative group ml-auto">
+                    <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                    <div className="absolute right-0 top-6 z-10 hidden group-hover:block w-72 rounded-lg border bg-popover p-3 text-xs text-popover-foreground shadow-md">
+                      This form prevents charging double OB on the same product. It confirms you&apos;re selling to the end consumer — we&apos;re the producer, you&apos;re the final seller.
+                    </div>
+                  </div>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
