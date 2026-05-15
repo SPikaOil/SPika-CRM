@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, ShoppingBag, CheckCircle2 } from 'lucide-react'
+import { Loader2, ShoppingBag, CheckCircle2, FileSignature, AlertTriangle } from 'lucide-react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { getNextOrderNumber } from '@/lib/order-number'
 import { useAuth } from '@/contexts/auth-context'
@@ -78,6 +79,30 @@ export default function NewOrderPage() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  // Block ordering if OB form is required but not signed
+  if (customer && customer.ob_form_required && !customer.ob_form_signed) {
+    return (
+      <div className="flex flex-col items-center justify-center text-center py-16 space-y-5 px-4">
+        <div className="h-16 w-16 rounded-full bg-red-100 flex items-center justify-center">
+          <AlertTriangle className="h-9 w-9 text-red-600" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-xl font-bold">OB Form Required</h2>
+          <p className="text-muted-foreground text-sm max-w-sm">
+            Before you can place an order, you need to sign the OB Declaratie Formulier 2026.
+            This is a one-time legal requirement.
+          </p>
+        </div>
+        <Link href={`/portal/ob-sign`}>
+          <Button className="bg-red-600 hover:bg-red-700 gap-2 h-12 px-6">
+            <FileSignature className="h-4 w-4" />
+            Sign OB Form Now
+          </Button>
+        </Link>
+      </div>
+    )
   }
 
   if (submitted) {
