@@ -2,7 +2,8 @@
 
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Settings, Users, FileText, Download, Building2, Loader2 } from 'lucide-react'
+import { Settings, Users, FileText, Download, Building2, Loader2, Tag } from 'lucide-react'
+import { SPIKA_PRODUCTS } from '@/lib/products'
 import { useAuth } from '@/contexts/auth-context'
 import { useQuoteTemplates } from '@/hooks/use-quotes'
 import { useOrders } from '@/hooks/use-orders'
@@ -133,6 +134,9 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Product Codes */}
+      <ProductCodesCard />
+
       {/* Company Info */}
       <CompanySettingsCard />
 
@@ -243,6 +247,67 @@ function CompanySettingsCard() {
         <Button className="bg-red-600 hover:bg-red-700 gap-2" onClick={handleSave} disabled={saving}>
           {saving && <Loader2 className="h-4 w-4 animate-spin" />}
           Save
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+function ProductCodesCard() {
+  const supabase = createClient()
+  const [codes, setCodes] = useState<Record<string, string>>({})
+  const [loaded, setLoaded] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    supabase.from('company_settings').select('product_codes').eq('id', COMPANY_ID).single()
+      .then(({ data }) => {
+        if (data?.product_codes) setCodes(data.product_codes as Record<string, string>)
+        setLoaded(true)
+      })
+  }, [])
+
+  async function handleSave() {
+    setSaving(true)
+    const { error } = await supabase.from('company_settings')
+      .update({ product_codes: codes })
+      .eq('id', COMPANY_ID)
+    if (error) toast.error(error.message)
+    else toast.success('Product codes saved!')
+    setSaving(false)
+  }
+
+  if (!loaded) return <Skeleton className="h-48 rounded-xl" />
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Tag className="h-5 w-5" />
+          Product Codes
+        </CardTitle>
+        <CardDescription>Internal product codes for CRM use only — not shown on invoices or delivery notes</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="rounded-lg border divide-y">
+          {SPIKA_PRODUCTS.map((product) => (
+            <div key={product.sku} className="flex items-center gap-3 px-3 py-2.5">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{product.name}</p>
+                <p className="text-xs text-muted-foreground">{product.sku}</p>
+              </div>
+              <Input
+                className="w-32 h-8 text-sm font-mono"
+                placeholder="e.g. SP-001"
+                value={codes[product.sku] ?? ''}
+                onChange={e => setCodes(c => ({ ...c, [product.sku]: e.target.value }))}
+              />
+            </div>
+          ))}
+        </div>
+        <Button className="bg-red-600 hover:bg-red-700 gap-2" onClick={handleSave} disabled={saving}>
+          {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+          Save Codes
         </Button>
       </CardContent>
     </Card>
