@@ -11,6 +11,7 @@ import {
   Flame,
   ClipboardList,
   CalendarDays,
+  UserCog,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
@@ -26,6 +27,7 @@ const allNavItems = [
 ]
 
 const adminOnlyItems = [
+  { href: '/team',     label: 'Team',     icon: UserCog  },
   { href: '/settings', label: 'Settings', icon: Settings },
 ]
 
