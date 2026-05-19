@@ -37,7 +37,7 @@ export default function TeamPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
   const [newEmail, setNewEmail] = useState('')
-  const [newRole, setNewRole] = useState<string>('worker')
+  const [newRole, setNewRole] = useState('worker')
   const [newPhone, setNewPhone] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [creating, setCreating] = useState(false)
@@ -227,7 +227,7 @@ export default function TeamPage() {
               </div>
               <div className="space-y-1.5">
                 <Label>Role <span className="text-red-500">*</span></Label>
-                <Select value={newRole} onValueChange={setNewRole}>
+                <Select value={newRole} onValueChange={(v) => setNewRole(v ?? 'worker')}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="admin">Admin</SelectItem>
@@ -290,7 +290,7 @@ export default function TeamPage() {
             </div>
             <div className="space-y-1.5">
               <Label>Role</Label>
-              <Select value={editRole} onValueChange={setEditRole}>
+              <Select value={editRole} onValueChange={(v) => setEditRole(v ?? editRole)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="admin">Admin</SelectItem>
