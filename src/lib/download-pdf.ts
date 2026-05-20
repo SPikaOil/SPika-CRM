@@ -14,9 +14,25 @@ export async function downloadDeliveryNotePDF(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const blob = await (pdf as any)(element).toBlob()
   const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${documentType === 'INVOICE' ? 'invoice' : 'delivery-note'}-${order.order_number || order.id.slice(0, 8)}.pdf`
-  a.click()
-  URL.revokeObjectURL(url)
+
+  const filename = `${documentType === 'INVOICE' ? 'invoice' : 'delivery-note'}-${order.order_number || order.id.slice(0, 8)}.pdf`
+
+  // iOS Safari and most mobile browsers don't support the download attribute on blob URLs.
+  // Open in a new tab instead — the user can then use the share sheet to save/print.
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+
+  if (isMobile || isSafari) {
+    window.open(url, '_blank')
+    // Don't revoke immediately — the new tab needs time to load the blob
+    setTimeout(() => URL.revokeObjectURL(url), 60000)
+  } else {
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
 }
