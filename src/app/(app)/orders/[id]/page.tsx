@@ -3,7 +3,7 @@
 import { use, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Truck, CheckCircle, Clock, AlertCircle, Calendar, Download, Upload, FileCheck, X, UserCheck, XCircle, Pencil, Check } from 'lucide-react'
+import { ArrowLeft, Truck, CheckCircle, Clock, AlertCircle, Calendar, Download, Upload, FileCheck, X, UserCheck, XCircle, Pencil, Check, Plus, Trash2 } from 'lucide-react'
 import { useOrder, useUpdateOrder } from '@/hooks/use-orders'
 import { useUsers } from '@/hooks/use-users'
 import { useAuth } from '@/contexts/auth-context'
@@ -16,7 +16,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { OrderStatus, QuoteItem } from '@/types'
+import { OrderEditLogEntry, OrderStatus, QuoteItem } from '@/types'
+import { SPIKA_PRODUCTS } from '@/lib/products'
 
 const statusColors: Record<OrderStatus, string> = {
   pending_approval: 'bg-orange-100 text-orange-700',
@@ -55,7 +56,7 @@ export default function OrderDetailPage({
   const { id } = use(params)
   const { data: order, isLoading } = useOrder(id)
   const updateOrder = useUpdateOrder()
-  const { isAdmin } = useAuth()
+  const { isAdmin, profile } = useAuth()
 
   // Adjusted total accounting for table bottle credit
   const bottleCredit = order
@@ -70,6 +71,10 @@ export default function OrderDetailPage({
   const [selectedWorker, setSelectedWorker] = useState<string>('')
   const [editingOrderNumber, setEditingOrderNumber] = useState(false)
   const [orderNumberDraft, setOrderNumberDraft] = useState('')
+  const [poNumber, setPoNumber] = useState('')
+  const [editingItems, setEditingItems] = useState(false)
+  const [draftItems, setDraftItems] = useState<QuoteItem[]>([])
+  const [editReason, setEditReason] = useState('')
   const [isDownloading, setIsDownloading] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null)
@@ -375,6 +380,38 @@ export default function OrderDetailPage({
                 onClick={() => updateOrder.mutate({
                   id: order.id,
                   values: { status: 'processing', assigned_to: selectedWorker } as any,
+                }, {
+                  onSuccess: () => {
+                    // Notify customer their order is confirmed
+                    if (order.customer?.email) {
+                      fetch('/api/notify', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          type: 'order_confirmed',
+                          payload: {
+                            orderNumber: order.order_number,
+                            customerEmail: order.customer.email,
+                            customerName: order.customer.company_name,
+                            billingEmails: order.customer.billing_emails ?? [],
+                          },
+                        }),
+                      }).catch(() => {})
+                    }
+                    // Notify assigned worker
+                    fetch('/api/notify', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        type: 'order_out_for_delivery',
+                        payload: {
+                          orderNumber: order.order_number,
+                          customerName: order.customer?.company_name ?? '',
+                          assignedTo: selectedWorker,
+                        },
+                      }),
+                    }).catch(() => {})
+                  },
                 })}
               >
                 <UserCheck className="h-4 w-4" />
@@ -515,6 +552,40 @@ export default function OrderDetailPage({
         </CardContent>
       </Card>
 
+      {/* Mark Invoice Ready — admin action for delivered orders */}
+      {isAdmin && order.status === 'delivered' && (
+        <Button
+          className="w-full h-12 bg-green-600 hover:bg-green-700 gap-2"
+          disabled={updateOrder.isPending}
+          onClick={() => updateOrder.mutate({
+            id: order.id,
+            values: { status: 'invoice_ready' } as any,
+          }, {
+            onSuccess: () => {
+              if (order.customer?.email) {
+                fetch('/api/notify', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    type: 'invoice_ready',
+                    payload: {
+                      orderNumber: order.order_number,
+                      customerEmail: order.customer.email,
+                      customerName: order.customer.company_name,
+                      billingEmails: order.customer.billing_emails ?? [],
+                      total: `XCG ${Number(order.total).toFixed(2)}`,
+                    },
+                  }),
+                }).catch(() => {})
+              }
+            },
+          })}
+        >
+          <CheckCircle className="h-5 w-5" />
+          Mark Invoice Ready
+        </Button>
+      )}
+
       {/* Start / Continue Delivery CTA */}
       {order.status === 'processing' && (
         <Link href={`/delivery/${order.id}`}>
@@ -535,44 +606,285 @@ export default function OrderDetailPage({
 
       {/* Items */}
       <Card>
-        <CardHeader><CardTitle className="text-base">Order Items</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="text-base">Order Items</CardTitle>
+          {isAdmin && !editingItems && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 gap-1 text-xs"
+              onClick={() => {
+                setDraftItems(items.map(i => ({ ...i })))
+                setEditReason('')
+                setEditingItems(true)
+              }}
+            >
+              <Pencil className="h-3 w-3" />
+              Edit Items
+            </Button>
+          )}
+        </CardHeader>
         <CardContent className="space-y-2">
-          {items.map((item, i) => (
-            <div key={i}>
-              {i > 0 && <Separator className="my-2" />}
-              <div className="flex justify-between items-start gap-2">
-                <div>
-                  <p className="font-medium text-sm">{item.name}</p>
-                  {isAdmin && <p className="text-xs text-muted-foreground">{item.sku} · XCG {item.unit_price.toFixed(2)} × {item.qty}</p>}
-                  {!isAdmin && <p className="text-xs text-muted-foreground">{item.sku} · qty: {item.qty}</p>}
-                </div>
-                {isAdmin && <p className="font-semibold text-sm shrink-0">XCG {item.line_total.toFixed(2)}</p>}
-              </div>
-            </div>
-          ))}
-          {isAdmin && (
+          {editingItems ? (
             <>
-              <Separator />
-              {bottleCredit > 0 && (
-                <>
-                  <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>Order subtotal</span>
-                    <span>XCG {Number(order.total).toFixed(2)}</span>
+              {/* Edit mode header */}
+              <div className="grid grid-cols-[1fr_60px_90px_90px_32px] gap-2 text-xs text-muted-foreground pb-1 border-b">
+                <span>Product</span>
+                <span className="text-center">Qty</span>
+                <span className="text-right">Price (XCG)</span>
+                <span className="text-right">Total</span>
+                <span />
+              </div>
+              {draftItems.map((item, i) => (
+                <div key={i} className="grid grid-cols-[1fr_60px_90px_90px_32px] gap-2 items-center py-1 border-b last:border-0">
+                  <div>
+                    <p className="text-sm font-medium leading-tight">{item.name}</p>
+                    <p className="text-xs text-muted-foreground">{item.sku}</p>
                   </div>
-                  <div className="flex justify-between text-sm text-red-600">
-                    <span>Table bottle credit ({order.delivery?.table_bottles_returned} × XCG {(order.customer?.table_bottle_return_price ?? 2.50).toFixed(2)})</span>
-                    <span>- XCG {bottleCredit.toFixed(2)}</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={item.qty}
+                    onChange={e => {
+                      const qty = parseInt(e.target.value) || 0
+                      setDraftItems(prev => prev.map((it, idx) =>
+                        idx === i ? { ...it, qty, line_total: parseFloat(((it.unit_price - (it.discount ?? 0)) * qty).toFixed(2)) } : it
+                      ))
+                    }}
+                    className="h-7 text-center px-1 text-sm"
+                  />
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={item.unit_price}
+                    onChange={e => {
+                      const unit_price = parseFloat(e.target.value) || 0
+                      setDraftItems(prev => prev.map((it, idx) =>
+                        idx === i ? { ...it, unit_price, line_total: parseFloat(((unit_price - (it.discount ?? 0)) * it.qty).toFixed(2)) } : it
+                      ))
+                    }}
+                    className="h-7 text-right px-1 text-sm"
+                  />
+                  <span className="text-sm text-right font-medium">
+                    {item.line_total.toFixed(2)}
+                  </span>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                    onClick={() => setDraftItems(prev => prev.filter((_, idx) => idx !== i))}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))}
+
+              {/* Add product */}
+              <div className="pt-2">
+                <Select
+                  onValueChange={(skuVal) => {
+                    if (!skuVal) return
+                    const sku = String(skuVal)
+                    const product = SPIKA_PRODUCTS.find(p => p.sku === sku)
+                    if (!product) return
+                    const price = (order.customer?.product_prices as Record<string, number> | undefined)?.[sku] ?? product.default_price
+                    setDraftItems(prev => [...prev, {
+                      sku: product.sku,
+                      name: product.name,
+                      qty: 1,
+                      unit_price: price,
+                      discount: 0,
+                      line_total: price,
+                    }])
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="+ Add product…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SPIKA_PRODUCTS.map(p => (
+                      <SelectItem key={p.sku} value={p.sku}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Reason required if order has been signed/delivered */}
+              {order.delivery?.delivered_at && (
+                <div className="pt-2 space-y-1.5">
+                  <p className="text-sm font-medium text-orange-700 dark:text-orange-400">
+                    ⚠️ This order has been delivered and signed. A reason is required.
+                  </p>
+                  <textarea
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                    rows={2}
+                    placeholder="Reason for changing this order (e.g. customer returned 2 bottles)…"
+                    value={editReason}
+                    onChange={e => setEditReason(e.target.value)}
+                  />
+                </div>
+              )}
+
+              {/* Edit mode totals + save/cancel */}
+              <Separator />
+              <div className="flex justify-between font-bold text-sm">
+                <span>New Total</span>
+                <span>XCG {draftItems.reduce((s, i) => s + i.line_total, 0).toFixed(2)}</span>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <Button
+                  className="flex-1 bg-red-600 hover:bg-red-700 gap-1"
+                  disabled={updateOrder.isPending || (!!order.delivery?.delivered_at && !editReason.trim())}
+                  onClick={async () => {
+                    const newTotal = draftItems.reduce((s, i) => s + i.line_total, 0)
+                    const isSigned = !!order.delivery?.delivered_at
+
+                    const updateValues: any = { items: draftItems, total: newTotal }
+
+                    if (isSigned) {
+                      const entry: OrderEditLogEntry = {
+                        edited_by: profile?.name ?? 'Admin',
+                        edited_at: new Date().toISOString(),
+                        reason: editReason.trim(),
+                        old_items: items,
+                        new_items: draftItems,
+                        old_total: Number(order.total),
+                        new_total: newTotal,
+                      }
+                      updateValues.edit_log = [...(order.edit_log ?? []), entry]
+                    }
+
+                    await updateOrder.mutateAsync({ id: order.id, values: updateValues })
+                    setEditingItems(false)
+                    setEditReason('')
+                  }}
+                >
+                  <Check className="h-4 w-4" />
+                  Save Changes
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => { setEditingItems(false); setEditReason('') }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              {items.map((item, i) => (
+                <div key={i}>
+                  {i > 0 && <Separator className="my-2" />}
+                  <div className="flex justify-between items-start gap-2">
+                    <div>
+                      <p className="font-medium text-sm">{item.name}</p>
+                      {isAdmin && <p className="text-xs text-muted-foreground">{item.sku} · XCG {item.unit_price.toFixed(2)} × {item.qty}</p>}
+                      {!isAdmin && <p className="text-xs text-muted-foreground">{item.sku} · qty: {item.qty}</p>}
+                    </div>
+                    {isAdmin && <p className="font-semibold text-sm shrink-0">XCG {item.line_total.toFixed(2)}</p>}
+                  </div>
+                </div>
+              ))}
+              {isAdmin && (
+                <>
+                  <Separator />
+                  {bottleCredit > 0 && (
+                    <>
+                      <div className="flex justify-between text-sm text-muted-foreground">
+                        <span>Order subtotal</span>
+                        <span>XCG {Number(order.total).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm text-red-600">
+                        <span>Table bottle credit ({order.delivery?.table_bottles_returned} × XCG {(order.customer?.table_bottle_return_price ?? 2.50).toFixed(2)})</span>
+                        <span>- XCG {bottleCredit.toFixed(2)}</span>
+                      </div>
+                    </>
+                  )}
+                  <div className="flex justify-between font-bold">
+                    <span>Total</span>
+                    <span>XCG {adjustedTotal.toFixed(2)}</span>
                   </div>
                 </>
               )}
-              <div className="flex justify-between font-bold">
-                <span>Total</span>
-                <span>XCG {adjustedTotal.toFixed(2)}</span>
-              </div>
             </>
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Log — shown when post-signature changes have been made */}
+      {isAdmin && (order.edit_log ?? []).length > 0 && (
+        <Card className="border-orange-200">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-orange-500" />
+              Order Change Log
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {(order.edit_log ?? []).map((entry, i) => (
+              <div key={i} className="border rounded-lg p-3 space-y-2 text-sm bg-orange-50 dark:bg-orange-950/20">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="font-medium">{entry.edited_by}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(entry.edited_at).toLocaleString('en', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+                <p className="text-muted-foreground italic">"{entry.reason}"</p>
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Before</p>
+                    {entry.old_items.map((item, j) => (
+                      <p key={j} className="text-xs">{item.qty}× {item.name} — XCG {item.line_total.toFixed(2)}</p>
+                    ))}
+                    <p className="text-xs font-bold mt-1">Total: XCG {entry.old_total.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">After</p>
+                    {entry.new_items.map((item, j) => (
+                      <p key={j} className="text-xs">{item.qty}× {item.name} — XCG {item.line_total.toFixed(2)}</p>
+                    ))}
+                    <p className="text-xs font-bold mt-1">Total: XCG {entry.new_total.toFixed(2)}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* PO Number — admin editable */}
+      {isAdmin && (
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <p className="text-sm font-medium mb-1">PO Number <span className="text-muted-foreground font-normal">(optional)</span></p>
+                <Input
+                  placeholder="Enter customer PO number…"
+                  defaultValue={order.po_number ?? ''}
+                  onChange={(e) => setPoNumber(e.target.value)}
+                  className="h-8 max-w-xs"
+                />
+              </div>
+              {poNumber && poNumber !== (order.po_number ?? '') && (
+                <Button
+                  size="sm"
+                  onClick={() => updateOrder.mutate({ id: order.id, values: { po_number: poNumber } as any })}
+                  disabled={updateOrder.isPending}
+                  className="bg-red-600 hover:bg-red-700 shrink-0 self-end mb-0.5"
+                >
+                  Save
+                </Button>
+              )}
+            </div>
+            {order.po_number && (
+              <p className="text-xs text-muted-foreground mt-1.5">Current: <span className="font-medium text-foreground">{order.po_number}</span></p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Details */}
       <Card>

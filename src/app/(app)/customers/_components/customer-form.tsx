@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -31,6 +31,7 @@ const customerSchema = z.object({
   ob_form_required: z.boolean(),
   packing_slip_required: z.boolean(),
   track_table_bottles: z.boolean(),
+  table_count: z.string().optional(),
   table_bottle_return_price: z.number().min(0),
   hardcopy_required: z.boolean(),
   require_delivery_photo: z.boolean(),
@@ -65,6 +66,7 @@ function toFormValues(customer?: Partial<Customer>): Partial<CustomerFormValues>
   if (!customer) return {}
   return {
     ...customer,
+    table_count: (customer as any).table_count != null ? String((customer as any).table_count) : '',
     billing_street: (customer.billing_address as any)?.street ?? '',
     billing_city: (customer.billing_address as any)?.city ?? '',
     billing_zip: (customer.billing_address as any)?.zip ?? '',
@@ -97,6 +99,23 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
     return result
   })
 
+  // Billing emails — list of extra email addresses to CC on invoices
+  const [billingEmails, setBillingEmails] = useState<string[]>(
+    () => defaultValues?.billing_emails ?? []
+  )
+  const [billingEmailInput, setBillingEmailInput] = useState('')
+
+  function addBillingEmail() {
+    const email = billingEmailInput.trim()
+    if (!email || billingEmails.includes(email)) return
+    setBillingEmails(prev => [...prev, email])
+    setBillingEmailInput('')
+  }
+
+  function removeBillingEmail(email: string) {
+    setBillingEmails(prev => prev.filter(e => e !== email))
+  }
+
   // Free of charge products — set of SKUs that are free for this customer
   const [freeProducts, setFreeProducts] = useState<Set<string>>(
     () => new Set(defaultValues?.free_products ?? [])
@@ -122,6 +141,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
     ob_form_required: false,
     packing_slip_required: false,
     track_table_bottles: false,
+    table_count: '',
     table_bottle_return_price: 2.50,
     hardcopy_required: false,
     require_delivery_photo: false,
@@ -162,8 +182,14 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
       ...rest
     } = data
 
+    const tableCount = rest.table_count != null && !Number.isNaN(Number(rest.table_count))
+      ? Number(rest.table_count)
+      : null
+
     await onSubmit({
       ...rest,
+      table_count: tableCount,
+      billing_emails: billingEmails,
       product_prices: productPrices,
       product_discounts: productDiscounts,
       free_products: Array.from(freeProducts),
@@ -252,9 +278,38 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
               <Input {...register('whatsapp')} placeholder="+1 555 000 0000" />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
-              <Label>Email</Label>
+              <Label>Primary Email</Label>
               <Input {...register('email')} type="email" placeholder="contact@company.com" />
               {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Billing Emails <span className="text-muted-foreground text-xs font-normal">(invoice CC recipients)</span></Label>
+              <div className="flex gap-2">
+                <Input
+                  type="email"
+                  value={billingEmailInput}
+                  onChange={e => setBillingEmailInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addBillingEmail() } }}
+                  placeholder="billing@company.com"
+                  className="flex-1"
+                />
+                <Button type="button" variant="outline" size="icon" onClick={addBillingEmail}>
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              {billingEmails.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {billingEmails.map(email => (
+                    <span key={email} className="flex items-center gap-1 bg-muted text-sm px-2 py-1 rounded-md">
+                      {email}
+                      <button type="button" onClick={() => removeBillingEmail(email)} className="text-muted-foreground hover:text-destructive">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">These addresses will receive invoice emails in addition to the primary email.</p>
             </div>
             <div className="space-y-1.5">
               <Label>Preferred Communication</Label>
@@ -296,6 +351,15 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
               <input type="checkbox" {...register('track_table_bottles')} className="rounded" />
               <span className="text-sm">Track Table Bottles</span>
             </label>
+            <div className="flex items-center gap-2 pl-6">
+              <Label className="text-xs text-muted-foreground whitespace-nowrap">Tables at customer</Label>
+              <Input
+                type="number"
+                min="0"
+                className="h-7 w-20 text-right text-sm"
+                {...register('table_count')}
+              />
+            </div>
             <div className="flex items-center gap-2 pl-6">
               <Label className="text-xs text-muted-foreground whitespace-nowrap">Return price per bottle (XCG)</Label>
               <Input

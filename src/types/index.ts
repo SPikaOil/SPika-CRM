@@ -63,6 +63,7 @@ export interface Customer {
   phone: string
   whatsapp: string
   email: string
+  billing_emails: string[]
   billing_address: Address
   delivery_address: Address
   delivery_days: string[]
@@ -75,6 +76,8 @@ export interface Customer {
   packing_slip_required: boolean
   discount_agreement: string
   track_table_bottles: boolean
+  table_count: number | null
+  table_bottle_interval_weeks: number | null
   hardcopy_required: boolean
   require_delivery_photo: boolean
   preferred_communication: PreferredCommunication
@@ -124,6 +127,16 @@ export interface Quote {
   creator?: User
 }
 
+export interface OrderEditLogEntry {
+  edited_by: string
+  edited_at: string
+  reason: string
+  old_items: QuoteItem[]
+  new_items: QuoteItem[]
+  old_total: number
+  new_total: number
+}
+
 export interface Order {
   id: string
   quote_id: string | null
@@ -137,8 +150,10 @@ export interface Order {
   deleted_reason?: string | null
   deleted_at?: string | null
   delivery_notes: string
+  po_number: string | null
   planned_date: string | null
   invoice_date: string | null
+  edit_log: OrderEditLogEntry[]
   created_at: string
   updated_at: string
   customer?: Customer

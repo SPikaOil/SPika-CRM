@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import Link from 'next/link'
-import { Plus, Search, Building2, Upload, X, CheckCircle, AlertCircle } from 'lucide-react'
+import { Plus, Search, Building2, Upload, Download, FileDown, X, CheckCircle, AlertCircle } from 'lucide-react'
 import { useCustomers } from '@/hooks/use-customers'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,6 +20,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/contexts/auth-context'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { SPIKA_PRODUCTS } from '@/lib/products'
 
 type ImportRow = {
   company_name: string
@@ -28,11 +29,13 @@ type ImportRow = {
   phone?: string
   whatsapp?: string
   customer_category?: string
+  coc_number?: string
   vat_number?: string
   street?: string
   city?: string
   country?: string
   notes?: string
+  [key: string]: string | undefined
 }
 
 type ImportResult = { row: ImportRow; error?: string }
@@ -58,6 +61,70 @@ const categoryColors: Record<CustomerCategory, string> = {
 }
 
 const VALID_CATEGORIES = ['wholesale', 'horeca', 'dtf', 'other', 'b2c']
+
+const PRICE_COLUMNS = SPIKA_PRODUCTS.map(p => `price_${p.sku.replace(/-/g, '_')}`)
+
+const CSV_HEADERS = [
+  'company_name',
+  'contact_person',
+  'email',
+  'phone',
+  'whatsapp',
+  'customer_category',
+  'coc_number',
+  'vat_number',
+  'street',
+  'city',
+  'country',
+  'notes',
+  ...PRICE_COLUMNS,
+]
+
+function downloadXLSX(rows: any[][], filename: string) {
+  import('xlsx').then(XLSX => {
+    const ws = XLSX.utils.aoa_to_sheet(rows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Customers')
+    XLSX.writeFile(wb, filename)
+  })
+}
+
+function exportCustomersXML(customers: any[]) {
+  const headers = CSV_HEADERS
+  const dataRows = customers.map(c => {
+    const prices = SPIKA_PRODUCTS.map(p => {
+      const val = c.product_prices?.[p.sku]
+      return val != null ? Number(val) : ''
+    })
+    return [
+      c.company_name ?? '',
+      c.contact_person ?? '',
+      c.email ?? '',
+      c.phone ?? '',
+      c.whatsapp ?? '',
+      c.customer_category ?? '',
+      c.coc_number ?? '',
+      c.vat_number ?? '',
+      c.billing_address?.street ?? '',
+      c.billing_address?.city ?? '',
+      c.billing_address?.country ?? '',
+      c.internal_notes ?? '',
+      ...prices,
+    ]
+  })
+  downloadXLSX([headers, ...dataRows], `spika-customers-${new Date().toISOString().split('T')[0]}.xlsx`)
+}
+
+function downloadTemplateXML() {
+  const headers = CSV_HEADERS
+  const examplePrices = SPIKA_PRODUCTS.map(p => p.default_price)
+  const example = [
+    'Example Company', 'John Doe', 'john@example.com', '+5999 000 0000', '',
+    'horeca', '145141', '', 'Kaya Kiwa 31', 'Willemstad', 'CW', '',
+    ...examplePrices,
+  ]
+  downloadXLSX([headers, example], 'spika-customers-template.xlsx')
+}
 
 export default function CustomersPage() {
   const [search, setSearch] = useState('')
@@ -85,6 +152,12 @@ export default function CustomersPage() {
         try {
           const cat = VALID_CATEGORIES.includes(row.customer_category ?? '') ? row.customer_category : 'other'
           const billing_address = (row.street || row.city) ? { street: row.street ?? '', city: row.city ?? '', country: row.country ?? '' } : undefined
+          const product_prices: Record<string, number> = {}
+          SPIKA_PRODUCTS.forEach(p => {
+            const col = `price_${p.sku.replace(/-/g, '_')}`
+            const val = row[col]
+            if (val && !isNaN(Number(val))) product_prices[p.sku] = Number(val)
+          })
           const { error } = await supabase.from('customers').insert({
             company_name: row.company_name,
             contact_person: row.contact_person ?? '',
@@ -92,8 +165,10 @@ export default function CustomersPage() {
             phone: row.phone ?? '',
             whatsapp: row.whatsapp ?? '',
             customer_category: cat,
+            coc_number: row.coc_number ?? '',
             vat_number: row.vat_number ?? '',
             notes: row.notes ?? '',
+            ...(Object.keys(product_prices).length > 0 ? { product_prices } : {}),
             ...(billing_address ? { billing_address } : {}),
             status: 'active',
           })
@@ -127,7 +202,22 @@ export default function CustomersPage() {
           </p>
         </div>
         {isAdmin && (
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              onClick={downloadTemplateXML}
+            >
+              <FileDown className="h-4 w-4 mr-2" />
+              Template
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => customers && exportCustomersXML(customers)}
+              disabled={!customers?.length}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export Excel
+            </Button>
             <Button
               variant="outline"
               onClick={() => fileInputRef.current?.click()}

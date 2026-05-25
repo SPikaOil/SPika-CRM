@@ -33,7 +33,7 @@ export function useCustomerOrders(customerId: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('orders')
-        .select('*, assigned_user:users!assigned_to(name)')
+        .select('*, assigned_user:users!assigned_to(name), delivery:deliveries(*)')
         .eq('customer_id', customerId)
         .order('created_at', { ascending: false })
       if (error) throw error

@@ -294,9 +294,25 @@ export default function DeliveryPage({
         }).eq('order_id', orderId)
 
         await supabase.from('orders').update({
+          status: 'delivered',
           ...(signedPdfUrl ? { signed_pdf_url: signedPdfUrl } : {}),
           ...(signatureDataUrl ? { signature_data_url: signatureDataUrl } : {}),
         } as any).eq('id', orderId)
+
+        // Notify admin + customer (fire-and-forget)
+        fetch('/api/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'order_delivered',
+            payload: {
+              orderNumber: order?.order_number ?? orderId,
+              customerName: order?.customer?.company_name ?? '',
+              customerEmail: (order?.customer as any)?.email ?? '',
+              billingEmails: (order?.customer as any)?.billing_emails ?? [],
+            },
+          }),
+        }).catch(() => {})
 
         toast.success('Delivery completed — signed invoice saved!')
       } else {

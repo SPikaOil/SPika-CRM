@@ -222,6 +222,7 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
             isInvoice
               ? { label: 'Delivery Date', value: order.planned_date ? fmt(new Date(order.planned_date + 'T12:00:00')) : fmt(today) }
               : { label: 'Reference', value: 'SPika Oil' },
+            ...(order.po_number ? [{ label: 'PO Number', value: order.po_number }] : []),
           ].map(({ label, value }) => (
             <View key={label} style={styles.metaBlock}>
               <Text style={styles.metaLabel}>{label}</Text>

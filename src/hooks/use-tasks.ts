@@ -40,9 +40,26 @@ export function useCreateTask() {
       if (error) throw error
       return data as Task
     },
-    onSuccess: () => {
+    onSuccess: (task) => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
       toast.success('Task created')
+      // Notify assigned worker if one was set
+      if (task.assigned_to) {
+        fetch('/api/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'task_assigned',
+            payload: {
+              taskTitle: task.title,
+              assignedTo: task.assigned_to,
+              dueDate: task.due_date
+                ? new Date(task.due_date).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })
+                : undefined,
+            },
+          }),
+        }).catch(() => {})
+      }
     },
     onError: (err: Error) => toast.error(err.message),
   })

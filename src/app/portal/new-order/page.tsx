@@ -73,6 +73,22 @@ export default function NewOrderPage() {
       })
 
       if (error) throw error
+
+      // Notify admin of new order (fire-and-forget)
+      fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'order_placed',
+          payload: {
+            orderNumber,
+            customerName: customer?.company_name ?? 'Unknown',
+            total: `XCG ${total.toFixed(2)}`,
+            items: activeItems.map(i => `${i.qty}× ${i.name}`).join(', '),
+          },
+        }),
+      }).catch(() => {})
+
       setSubmitted(true)
     } catch (err: any) {
       toast.error(err.message ?? 'Failed to submit order')

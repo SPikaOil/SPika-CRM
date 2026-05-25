@@ -1,20 +1,22 @@
 'use client'
 
-import { use, useState } from 'react'
+import { use, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Edit, Building2, Package, CheckCircle2, Clock, Truck, FileSignature, AlertTriangle, Download, Upload, Info } from 'lucide-react'
+import { ArrowLeft, Edit, Building2, Package, CheckCircle2, Clock, Truck, FileSignature, AlertTriangle, Download, Upload, Info, RefreshCw, CalendarClock } from 'lucide-react'
 import { useRef } from 'react'
 import { useCustomer, useUpdateCustomer } from '@/hooks/use-customers'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { useCustomerOrders } from '@/hooks/use-orders'
+import { useCreateTask } from '@/hooks/use-tasks'
 import { useAuth } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { CustomerForm } from '../_components/customer-form'
 import { Customer } from '@/types'
 
@@ -34,13 +36,15 @@ export default function CustomerDetailPage({
   const { data: customer, isLoading } = useCustomer(id)
   const { data: orders } = useCustomerOrders(id)
   const updateCustomer = useUpdateCustomer()
-  const { isAdmin } = useAuth()
+  const { isAdmin, profile } = useAuth()
   const [editing, setEditing] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [isOpeningOB, setIsOpeningOB] = useState(false)
+  const [bottleInterval, setBottleInterval] = useState<string>('')
   const router = useRouter()
   const supabase = createClient()
   const obFileRef = useRef<HTMLInputElement>(null)
+  const createTask = useCreateTask()
 
   async function handleUploadOB(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -114,6 +118,35 @@ export default function CustomerDetailPage({
       </div>
     )
   }
+
+  // Last table bottle refresh — most recent delivered order with table_bottles_returned > 0
+  // Must be before any conditional returns (Rules of Hooks)
+  const lastBottleRefresh = useMemo(() => {
+    if (!orders) return null
+    try {
+      const delivered = orders
+        .filter(o => (o.delivery as any)?.table_bottles_returned > 0 && (o.delivery as any)?.delivered_at)
+        .sort((a, b) => new Date((b.delivery as any).delivered_at).getTime() - new Date((a.delivery as any).delivered_at).getTime())
+      return delivered[0]?.delivery as any ?? null
+    } catch { return null }
+  }, [orders])
+
+  const intervalWeeks = bottleInterval
+    ? parseInt(bottleInterval)
+    : ((customer as any)?.table_bottle_interval_weeks ?? null)
+
+  const nextRefreshDate = useMemo(() => {
+    if (!lastBottleRefresh?.delivered_at || !intervalWeeks) return null
+    try {
+      const d = new Date(lastBottleRefresh.delivered_at)
+      d.setDate(d.getDate() + intervalWeeks * 7)
+      return d
+    } catch { return null }
+  }, [lastBottleRefresh, intervalWeeks])
+
+  const daysUntilRefresh = nextRefreshDate
+    ? Math.ceil((nextRefreshDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    : null
 
   if (editing) {
     return (
@@ -202,11 +235,126 @@ export default function CustomerDetailPage({
               <Row label="OB Form" value={customer.ob_form_required ? 'Required' : 'Not required'} />
               <Row label="Packing Slip" value={customer.packing_slip_required ? 'Required' : 'Not required'} />
               <Row label="Table Bottles" value={customer.track_table_bottles ? 'Tracked' : 'Not tracked'} />
+              {customer.track_table_bottles && (customer as any).table_count != null && (
+                <Row label="Tables at Customer" value={String((customer as any).table_count)} />
+              )}
               {customer.discount_agreement && (
                 <Row label="Discount" value={customer.discount_agreement} className="sm:col-span-2" />
               )}
             </CardContent>
           </Card>
+
+          {/* Table Bottle Schedule */}
+          {customer.track_table_bottles && isAdmin && (
+            <Card className={daysUntilRefresh !== null && daysUntilRefresh <= 7 ? 'border-orange-300' : ''}>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <RefreshCw className="h-4 w-4 text-blue-500" />
+                  Table Bottle Refresh Schedule
+                  {daysUntilRefresh !== null && (
+                    <span className={`text-xs font-normal px-2 py-0.5 rounded-full ${
+                      daysUntilRefresh < 0 ? 'bg-red-100 text-red-700' :
+                      daysUntilRefresh <= 7 ? 'bg-orange-100 text-orange-700' :
+                      'bg-green-100 text-green-700'
+                    }`}>
+                      {daysUntilRefresh < 0 ? `${Math.abs(daysUntilRefresh)}d overdue` :
+                       daysUntilRefresh === 0 ? 'Due today' :
+                       `Due in ${daysUntilRefresh}d`}
+                    </span>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  {(customer as any).table_count != null && (
+                    <div className="sm:col-span-2">
+                      <p className="text-muted-foreground mb-1">Tables at Customer</p>
+                      <p className="font-medium text-lg">{(customer as any).table_count} tables</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-muted-foreground mb-1">Last Refresh</p>
+                    <p className="font-medium">
+                      {lastBottleRefresh?.delivered_at
+                        ? new Date(lastBottleRefresh.delivered_at).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })
+                        : '—'}
+                    </p>
+                    {lastBottleRefresh?.table_bottles_returned > 0 && (
+                      <p className="text-xs text-muted-foreground">{lastBottleRefresh.table_bottles_returned} bottles returned</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground mb-1">Next Refresh</p>
+                    <p className={`font-medium ${daysUntilRefresh !== null && daysUntilRefresh < 0 ? 'text-red-600' : ''}`}>
+                      {nextRefreshDate
+                        ? nextRefreshDate.toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })
+                        : '—'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-end gap-3 flex-wrap">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">Refresh Interval</p>
+                    <Select
+                      value={bottleInterval || String(customer.table_bottle_interval_weeks ?? '')}
+                      onValueChange={(v) => { if (v) setBottleInterval(v) }}
+                    >
+                      <SelectTrigger className="w-40 h-8 text-sm">
+                        <SelectValue placeholder="Set interval…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">Every week</SelectItem>
+                        <SelectItem value="2">Every 2 weeks</SelectItem>
+                        <SelectItem value="4">Every 4 weeks</SelectItem>
+                        <SelectItem value="6">Every 6 weeks</SelectItem>
+                        <SelectItem value="8">Every 8 weeks</SelectItem>
+                        <SelectItem value="12">Every 3 months</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {bottleInterval && bottleInterval !== String(customer.table_bottle_interval_weeks ?? '') && (
+                    <Button
+                      size="sm"
+                      className="h-8 bg-red-600 hover:bg-red-700"
+                      onClick={() => updateCustomer.mutate({ id, values: { table_bottle_interval_weeks: parseInt(bottleInterval) } as any }, {
+                        onSuccess: () => { setBottleInterval(''); toast.success('Interval saved') }
+                      })}
+                      disabled={updateCustomer.isPending}
+                    >
+                      Save
+                    </Button>
+                  )}
+                </div>
+
+                {nextRefreshDate && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5"
+                    disabled={createTask.isPending}
+                    onClick={() => {
+                      const due = nextRefreshDate.toISOString().split('T')[0]
+                      createTask.mutate({
+                        customer_id: id,
+                        title: `Table bottle refresh — ${customer.company_name}`,
+                        description: `Replace table bottles with fresh oil. Interval: every ${intervalWeeks} week(s).`,
+                        frequency: 'once',
+                        due_date: due,
+                        assigned_to: null,
+                        created_by: profile?.id ?? '',
+                      } as any, {
+                        onSuccess: () => toast.success('Refresh task scheduled!')
+                      })
+                    }}
+                  >
+                    <CalendarClock className="h-3.5 w-3.5" />
+                    Schedule Refresh Task
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* OB Form */}
           {customer.ob_form_required && (

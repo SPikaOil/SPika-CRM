@@ -123,6 +123,16 @@ export default function PortalOBSignPage() {
       }).eq('id', profile.customer_id)
       if (updateError) throw updateError
 
+      // Notify admin (fire-and-forget)
+      fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'ob_form_signed',
+          payload: { customerName: company.trim(), signerName: displayName },
+        }),
+      }).catch(() => {})
+
       toast.success('Form signed! You can now place orders.')
       router.replace('/portal/new-order')
     } catch (err: any) {
