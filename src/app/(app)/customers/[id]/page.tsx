@@ -97,30 +97,7 @@ export default function CustomerDetailPage({
     setEditing(false)
   }
 
-  if (isLoading) {
-    return (
-      <div className="p-4 lg:p-6 space-y-4">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-40 rounded-xl" />
-        <Skeleton className="h-60 rounded-xl" />
-      </div>
-    )
-  }
-
-  if (!customer) {
-    return (
-      <div className="p-4 lg:p-6 flex flex-col items-center justify-center py-20 gap-3">
-        <Building2 className="h-12 w-12 opacity-20" />
-        <p className="font-medium">Customer not found</p>
-        <Link href="/customers">
-          <Button variant="outline">Back to Customers</Button>
-        </Link>
-      </div>
-    )
-  }
-
-  // Last table bottle refresh — most recent delivered order with table_bottles_returned > 0
-  // Must be before any conditional returns (Rules of Hooks)
+  // All useMemo hooks must be before any early returns (Rules of Hooks)
   const lastBottleRefresh = useMemo(() => {
     if (!orders) return null
     try {
@@ -147,6 +124,28 @@ export default function CustomerDetailPage({
   const daysUntilRefresh = nextRefreshDate
     ? Math.ceil((nextRefreshDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : null
+
+  if (isLoading) {
+    return (
+      <div className="p-4 lg:p-6 space-y-4">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-40 rounded-xl" />
+        <Skeleton className="h-60 rounded-xl" />
+      </div>
+    )
+  }
+
+  if (!customer) {
+    return (
+      <div className="p-4 lg:p-6 flex flex-col items-center justify-center py-20 gap-3">
+        <Building2 className="h-12 w-12 opacity-20" />
+        <p className="font-medium">Customer not found</p>
+        <Link href="/customers">
+          <Button variant="outline">Back to Customers</Button>
+        </Link>
+      </div>
+    )
+  }
 
   if (editing) {
     return (
