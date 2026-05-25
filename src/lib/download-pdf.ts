@@ -46,22 +46,16 @@ export async function downloadQuotationPDF(quote: Quote) {
   const element = React.createElement(QuotationPDF as any, { quote })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const blob = await (pdf as any)(element).toBlob()
-  const url = URL.createObjectURL(blob)
   const filename = `quotation-${quote.quote_number || quote.id.slice(0, 8)}.pdf`
 
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
-  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
-
-  if (isMobile || isSafari) {
-    window.open(url, '_blank')
-    setTimeout(() => URL.revokeObjectURL(url), 60000)
-  } else {
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    setTimeout(() => URL.revokeObjectURL(url), 5000)
-  }
+  // Force download using a named file blob URL — works on all modern browsers including Safari 14+
+  const file = new File([blob], filename, { type: 'application/pdf' })
+  const url = URL.createObjectURL(file)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  setTimeout(() => URL.revokeObjectURL(url), 5000)
 }
