@@ -132,6 +132,10 @@ export function QuotationPDF({ quote }: QuotationPDFProps) {
               <Text style={styles.addressLine}>{[billingAddr.zip, billingAddr.city].filter(Boolean).join(' ')}</Text>
             ) : null}
             {billingAddr?.country ? <Text style={styles.addressLine}>{billingAddr.country}</Text> : null}
+            {customer?.email ? <Text style={[styles.addressLine, { color: RED }]}>{customer.email}</Text> : null}
+            {(customer?.billing_emails ?? []).map((email: string) => (
+              <Text key={email} style={[styles.addressLine, { color: RED }]}>{email}</Text>
+            ))}
             {customer?.vat_number ? <Text style={styles.addressLine}>VAT: {customer.vat_number}</Text> : null}
           </View>
         </View>

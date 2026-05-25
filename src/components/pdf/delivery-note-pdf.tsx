@@ -209,6 +209,9 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
             {customer?.email && (
               <Text style={styles.addressRed}>{customer.email}</Text>
             )}
+            {(customer?.billing_emails ?? []).map((email: string) => (
+              <Text key={email} style={styles.addressRed}>{email}</Text>
+            ))}
           </View>
         </View>
 
