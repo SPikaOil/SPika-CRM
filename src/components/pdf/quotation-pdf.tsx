@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Line,
   Svg,
+  Image,
 } from '@react-pdf/renderer'
 import { Quote } from '@/types'
 
@@ -32,9 +33,7 @@ const styles = StyleSheet.create({
   },
 
   // Header
-  header: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  brandName: { fontSize: 20, fontFamily: 'Helvetica-Bold', color: RED, letterSpacing: 1 },
-  brandSub: { fontSize: 8, color: GRAY, letterSpacing: 2 },
+  header: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 20 },
   docTitle: { fontSize: 28, fontFamily: 'Helvetica-Bold', color: RED, textAlign: 'right' },
 
   divider: { marginVertical: 10 },
@@ -79,9 +78,6 @@ const styles = StyleSheet.create({
   noteTitle: { fontSize: 8, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 4 },
   noteText: { fontSize: 8, color: GRAY, lineHeight: 1.5 },
 
-  // Footer
-  footer: { position: 'absolute', bottom: 20, left: 40, right: 40 },
-  footerText: { fontSize: 7.5, color: GRAY, textAlign: 'center', marginTop: 2 },
 })
 
 export function QuotationPDF({ quote }: QuotationPDFProps) {
@@ -107,19 +103,16 @@ export function QuotationPDF({ quote }: QuotationPDFProps) {
     <Document>
       <Page size="A4" style={styles.page}>
         {/* Header */}
+        <View style={{ marginBottom: 10, alignItems: 'center' }}>
+          <Image src="/spika-banner.png" style={{ width: '96%', height: 80, objectFit: 'contain' }} />
+        </View>
         <View style={styles.header}>
-          <View>
-            <Text style={styles.brandName}>SPIKA OIL</Text>
-            <Text style={styles.brandSub}>WILLEMSTAD · CURAÇAO</Text>
-          </View>
           <Text style={styles.docTitle}>QUOTATION</Text>
         </View>
 
-        <View style={styles.divider}>
-          <Svg height={1} width={515}>
-            <Line x1={0} y1={0} x2={515} y2={0} strokeWidth={0.5} stroke={BORDER} />
-          </Svg>
-        </View>
+        <Svg height={1} style={styles.divider}>
+          <Line x1={0} y1={0} x2={515} y2={0} strokeWidth={1} stroke={RED} />
+        </Svg>
 
         {/* Addresses */}
         <View style={styles.addressRow}>
@@ -217,18 +210,6 @@ export function QuotationPDF({ quote }: QuotationPDFProps) {
           </Text>
         </View>
 
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Svg height={1} width={515}>
-            <Line x1={0} y1={0} x2={515} y2={0} strokeWidth={0.5} stroke={BORDER} />
-          </Svg>
-          <Text style={styles.footerText}>
-            SPika Oil · Mils Inc. · Kaya Gilberto F. Croes 4, Willemstad, Curaçao · hello@spikaoil.nl
-          </Text>
-          <Text style={styles.footerText}>
-            Quote #{quote.quote_number} · Valid until {validUntilStr}
-          </Text>
-        </View>
       </Page>
     </Document>
   )
