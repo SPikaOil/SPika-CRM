@@ -1,4 +1,4 @@
-import { Order } from '@/types'
+import { Order, Quote } from '@/types'
 
 export async function downloadDeliveryNotePDF(
   order: Order,
@@ -25,6 +25,35 @@ export async function downloadDeliveryNotePDF(
   if (isMobile || isSafari) {
     window.open(url, '_blank')
     // Don't revoke immediately — the new tab needs time to load the blob
+    setTimeout(() => URL.revokeObjectURL(url), 60000)
+  } else {
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+}
+
+export async function downloadQuotationPDF(quote: Quote) {
+  const { pdf } = await import('@react-pdf/renderer')
+  const React = await import('react')
+  const { QuotationPDF } = await import('@/components/pdf/quotation-pdf')
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const element = React.createElement(QuotationPDF as any, { quote })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const blob = await (pdf as any)(element).toBlob()
+  const url = URL.createObjectURL(blob)
+  const filename = `quotation-${quote.quote_number || quote.id.slice(0, 8)}.pdf`
+
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+
+  if (isMobile || isSafari) {
+    window.open(url, '_blank')
     setTimeout(() => URL.revokeObjectURL(url), 60000)
   } else {
     const a = document.createElement('a')

@@ -33,3 +33,27 @@ export async function getNextOrderNumber(): Promise<string> {
   // Fallback: generate a fresh number
   return `O-${new Date().getFullYear()}-0001`
 }
+
+export async function getNextQuoteNumber(): Promise<string> {
+  const supabase = createClient()
+
+  const { data } = await supabase
+    .from('quotes')
+    .select('quote_number')
+    .not('quote_number', 'is', null)
+    .neq('quote_number', '')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single()
+
+  const last = data?.quote_number ?? ''
+  const match = last.match(/^(.*?)(\d+)$/)
+  if (match) {
+    const prefix = match[1]
+    const num = match[2]
+    const next = String(parseInt(num, 10) + 1).padStart(num.length, '0')
+    return `${prefix}${next}`
+  }
+
+  return `Q-${new Date().getFullYear()}-0001`
+}

@@ -184,6 +184,21 @@ export function emailNewCustomer(p: { customerName: string; email: string; categ
   `)
 }
 
+export function emailQuoteSent(p: { quoteNumber: string; customerName: string; validUntil: string; total: string; items: string }) {
+  return layout(`
+    <h2 style="margin:0 0 4px;font-size:20px;color:#111;">You have received a quotation</h2>
+    <p style="margin:0 0 20px;color:#6b7280;font-size:14px;">Hi ${p.customerName}, please find your quotation details below.</p>
+    ${badge('Quotation', '#6366f1')}
+    <table style="margin-top:16px;width:100%;border-collapse:collapse;">
+      ${row('Quote #', p.quoteNumber)}
+      ${row('Total', `XCG ${p.total}`)}
+      ${row('Valid until', p.validUntil)}
+      ${row('Products', p.items)}
+    </table>
+    <p style="margin-top:16px;font-size:13px;color:#6b7280;">To confirm your order or for any questions, please contact us via WhatsApp or email. This quotation does not constitute an invoice — no payment is required at this stage.</p>
+  `)
+}
+
 export function emailTaskAssigned(p: { workerName: string; taskTitle: string; customerName?: string; dueDate?: string }) {
   return layout(`
     <h2 style="margin:0 0 4px;font-size:20px;color:#111;">New task assigned to you</h2>

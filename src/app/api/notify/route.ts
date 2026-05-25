@@ -5,7 +5,7 @@ import {
   sendEmail, ADMIN_EMAIL,
   emailOrderPlaced, emailOrderConfirmed, emailOutForDelivery,
   emailOrderDelivered, emailInvoiceReady, emailOBFormSigned,
-  emailNewCustomer, emailTaskAssigned,
+  emailNewCustomer, emailTaskAssigned, emailQuoteSent,
 } from '@/lib/resend'
 
 export async function POST(req: NextRequest) {
@@ -127,6 +127,20 @@ export async function POST(req: NextRequest) {
               html: emailTaskAssigned({ workerName: worker.name, taskTitle, customerName, dueDate }),
             })
           }
+        }
+        break
+      }
+
+      // ── Customer: quotation sent ───────────────────────────────
+      case 'quote_sent': {
+        const { quoteNumber, customerEmail, customerName, validUntil, total, items, billingEmails } = payload
+        const recipients = [customerEmail, ...(billingEmails ?? [])].filter(Boolean)
+        if (recipients.length > 0) {
+          await sendEmail({
+            to: recipients,
+            subject: `Quotation #${quoteNumber} from SPika Oil`,
+            html: emailQuoteSent({ quoteNumber, customerName, validUntil, total, items }),
+          })
         }
         break
       }
