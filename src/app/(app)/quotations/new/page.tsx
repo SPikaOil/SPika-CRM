@@ -56,6 +56,7 @@ function NewQuotationInner() {
   const [customerId, setCustomerId] = useState(searchParams.get('customer') ?? '')
   const [validUntil, setValidUntil] = useState(defaultValidUntil())
   const [quoteNumber, setQuoteNumber] = useState('')
+  const [poNumber, setPoNumber] = useState('')
   const [notes, setNotes] = useState('')
   const [items, setItems] = useState<QuoteItem[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -136,6 +137,7 @@ function NewQuotationInner() {
       const quote = await createQuote.mutateAsync({
         customer_id: customerId,
         quote_number: quoteNumber || await getNextQuoteNumber(),
+        po_number: poNumber || null,
         items: activeItems,
         subtotal,
         tax,
@@ -207,6 +209,15 @@ function NewQuotationInner() {
                   value={validUntil}
                   onChange={(e) => setValidUntil(e.target.value)}
                   min={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label>PO Number <span className="text-muted-foreground text-xs font-normal">(optional — customer's purchase order reference)</span></Label>
+                <Input
+                  value={poNumber}
+                  onChange={(e) => setPoNumber(e.target.value)}
+                  placeholder="e.g. PO-2026-001"
+                  className="font-mono"
                 />
               </div>
             </div>

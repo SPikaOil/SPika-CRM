@@ -375,6 +375,12 @@ export default function QuotationDetailPage({
             <p className="text-muted-foreground">VAT</p>
             <p className="font-medium">{isB2C ? '6% (B2C)' : '0% (B2B exempt)'}</p>
           </div>
+          {quote.po_number && (
+            <div>
+              <p className="text-muted-foreground">PO Number</p>
+              <p className="font-medium font-mono">{quote.po_number}</p>
+            </div>
+          )}
           {quote.template_used && (
             <div className="sm:col-span-3">
               <p className="text-muted-foreground">Internal Notes</p>

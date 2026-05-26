@@ -113,6 +113,7 @@ export interface Quote {
   lead_id: string | null
   customer_id: string
   quote_number: string
+  po_number?: string
   items: QuoteItem[]
   subtotal: number
   tax: number

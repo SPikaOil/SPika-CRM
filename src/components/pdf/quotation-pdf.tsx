@@ -161,6 +161,15 @@ export function QuotationPDF({ quote }: QuotationPDFProps) {
             <Text style={styles.metaLabel}>VAT</Text>
             <Text style={styles.metaValue}>{isB2C ? '6% (B2C)' : '0% (B2B)'}</Text>
           </View>
+          {quote.po_number ? (
+            <>
+              <View style={styles.metaGap} />
+              <View style={styles.metaBlock}>
+                <Text style={styles.metaLabel}>PO Number</Text>
+                <Text style={styles.metaValue}>{quote.po_number}</Text>
+              </View>
+            </>
+          ) : null}
         </View>
 
         {/* Table header */}
