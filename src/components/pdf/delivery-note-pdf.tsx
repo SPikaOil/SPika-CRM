@@ -264,7 +264,7 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
         {tableBottlesReturned !== undefined && tableBottlesReturned > 0 && (
           <View style={[styles.tableRow, (items.length % 2 === 1) ? styles.tableRowAlt : {}]}>
             <Text style={[styles.tdText, styles.colProduct]}>
-              SPika Oil 30ml (Table Version) — Return{tableBottlesNotes ? `\n${tableBottlesNotes}` : ''}
+              SPika Oil - 30ml (Table Version) - Returned{tableBottlesNotes ? `\n${tableBottlesNotes}` : ''}
             </Text>
             <Text style={[styles.tdText, styles.colQty]}>-{tableBottlesReturned}</Text>
             {showPrices && <Text style={[styles.tdText, styles.colRate]}>XCG {returnPrice.toFixed(2)}</Text>}
