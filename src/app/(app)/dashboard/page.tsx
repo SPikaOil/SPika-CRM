@@ -29,12 +29,14 @@ function StatCard({
   icon: Icon,
   variant = 'default',
   isLoading,
+  href,
 }: {
   title: string
   value: number
   icon: React.ElementType
   variant?: 'default' | 'warning' | 'danger' | 'success'
   isLoading?: boolean
+  href?: string
 }) {
   const colors = {
     default: 'text-foreground bg-muted',
@@ -43,27 +45,34 @@ function StatCard({
     success: 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30',
   }
 
-  return (
-    <Card>
-      <CardContent className="pt-5 pb-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-sm text-muted-foreground">{title}</p>
-            {isLoading ? (
-              <Skeleton className="h-9 w-14 mt-1" />
-            ) : (
-              <p className={`text-4xl font-bold mt-1 ${colors[variant].split(' ')[0]}`}>
-                {value}
-              </p>
-            )}
-          </div>
-          <div className={`p-2 rounded-lg ${colors[variant]}`}>
-            <Icon className="h-5 w-5" />
-          </div>
+  const inner = (
+    <CardContent className="pt-5 pb-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm text-muted-foreground">{title}</p>
+          {isLoading ? (
+            <Skeleton className="h-9 w-14 mt-1" />
+          ) : (
+            <p className={`text-4xl font-bold mt-1 ${colors[variant].split(' ')[0]}`}>
+              {value}
+            </p>
+          )}
         </div>
-      </CardContent>
-    </Card>
+        <div className={`p-2 rounded-lg ${colors[variant]}`}>
+          <Icon className="h-5 w-5" />
+        </div>
+      </div>
+    </CardContent>
   )
+
+  if (href) {
+    return (
+      <Link href={href}>
+        <Card className="hover:bg-accent transition-colors cursor-pointer">{inner}</Card>
+      </Link>
+    )
+  }
+  return <Card>{inner}</Card>
 }
 
 export default function DashboardPage() {
@@ -188,6 +197,7 @@ export default function DashboardPage() {
             value={stats?.notes_draft ?? 0}
             icon={FileText}
             isLoading={isLoading}
+            href="/quotations?status=draft"
           />
           <StatCard
             title="Sent to Customer"
@@ -195,6 +205,7 @@ export default function DashboardPage() {
             icon={Clock}
             variant="warning"
             isLoading={isLoading}
+            href="/quotations?status=sent"
           />
           <StatCard
             title="Accepted"
@@ -202,6 +213,7 @@ export default function DashboardPage() {
             icon={CheckCircle}
             variant="success"
             isLoading={isLoading}
+            href="/quotations?status=accepted"
           />
         </div>
       </section>
@@ -216,6 +228,7 @@ export default function DashboardPage() {
             icon={Truck}
             variant="warning"
             isLoading={isLoading}
+            href="/orders?status=out_for_delivery"
           />
           <StatCard
             title="Delivered Today"
@@ -223,6 +236,7 @@ export default function DashboardPage() {
             icon={CheckCircle}
             variant="success"
             isLoading={isLoading}
+            href="/orders?status=delivered"
           />
           <StatCard
             title="Missing POD"
@@ -230,6 +244,7 @@ export default function DashboardPage() {
             icon={AlertCircle}
             variant={stats?.deliveries_missing_pod ? 'danger' : 'default'}
             isLoading={isLoading}
+            href="/orders?status=delivered"
           />
         </div>
       </section>
@@ -256,14 +271,14 @@ export default function DashboardPage() {
                       <p className="text-xs text-muted-foreground capitalize">{user.role}</p>
                     </div>
                     <div className="flex gap-4 text-sm">
-                      <div className="text-center">
+                      <Link href={`/orders?assigned=${user.id}&status=active`} className="text-center hover:opacity-70 transition-opacity">
                         <p className="font-bold text-yellow-600">{pending.length}</p>
                         <p className="text-xs text-muted-foreground">Pending</p>
-                      </div>
-                      <div className="text-center">
+                      </Link>
+                      <Link href={`/orders?assigned=${user.id}&status=delivered`} className="text-center hover:opacity-70 transition-opacity">
                         <p className="font-bold text-green-600">{delivered.length}</p>
                         <p className="text-xs text-muted-foreground">Done</p>
-                      </div>
+                      </Link>
                     </div>
                   </div>
                 )

@@ -1,9 +1,11 @@
 'use client'
 
 import Link from 'next/link'
+import { Suspense } from 'react'
 import { Plus, ReceiptText, FileText } from 'lucide-react'
 import { useQuotes } from '@/hooks/use-quotes'
 import { useAuth } from '@/contexts/auth-context'
+import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -16,9 +18,11 @@ const statusColors: Record<string, string> = {
   expired:  'bg-orange-100 text-orange-700',
 }
 
-export default function QuotationsPage() {
+function QuotationsPageInner() {
   const { data: quotes, isLoading } = useQuotes()
   const { isAdmin } = useAuth()
+  const searchParams = useSearchParams()
+  const statusFilter = searchParams.get('status') ?? ''
 
   if (!isAdmin) {
     return (
@@ -60,7 +64,13 @@ export default function QuotationsPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {quotes.map((quote) => {
+          {statusFilter && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground pb-1">
+              <span>Showing: <span className="font-medium capitalize text-foreground">{statusFilter}</span></span>
+              <Link href="/quotations" className="text-red-600 hover:underline text-xs">Clear filter</Link>
+            </div>
+          )}
+          {(statusFilter ? quotes.filter(q => q.status === statusFilter) : quotes).map((quote) => {
             const customer = (quote as any).customer
             const isExpired = (quote.status === 'draft' || quote.status === 'sent') &&
               quote.valid_until && new Date(quote.valid_until) < new Date()
@@ -97,5 +107,13 @@ export default function QuotationsPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function QuotationsPage() {
+  return (
+    <Suspense>
+      <QuotationsPageInner />
+    </Suspense>
   )
 }

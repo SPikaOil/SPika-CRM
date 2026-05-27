@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { ShoppingCart, Truck, CheckCircle2, Trash2, ChevronDown, ChevronUp, Plus } from 'lucide-react'
 import { useOrders, useUpdateOrder } from '@/hooks/use-orders'
 import { useAuth } from '@/contexts/auth-context'
@@ -49,8 +49,10 @@ const statusLabels: Record<OrderStatus, string> = {
 
 const ACTIVE_STATUSES: OrderStatus[] = ['pending_approval', 'processing', 'out_for_delivery', 'delivered', 'invoice_ready', 'invoice_blocked']
 
-export default function OrdersPage() {
-  const [status, setStatus] = useState<string>('active')
+function OrdersPageInner() {
+  const searchParams = useSearchParams()
+  const [status, setStatus] = useState<string>(searchParams.get('status') ?? 'active')
+  const assignedFilter = searchParams.get('assigned') ?? ''
   const { data: allOrders, isLoading } = useOrders()
   const { isAdmin, profile } = useAuth()
   const queryClient = useQueryClient()
@@ -74,9 +76,13 @@ export default function OrdersPage() {
   const [deleteReason, setDeleteReason] = useState('')
   const [deleting, setDeleting] = useState(false)
 
-  const activeOrders = allOrders?.filter(o => ACTIVE_STATUSES.includes(o.status)) ?? []
-  const paidOrders = allOrders?.filter(o => o.status === 'paid') ?? []
-  const deletedOrders = allOrders?.filter(o => o.status === 'deleted') ?? []
+  const baseOrders = assignedFilter
+    ? (allOrders?.filter(o => o.assigned_to === assignedFilter) ?? [])
+    : (allOrders ?? [])
+
+  const activeOrders = baseOrders.filter(o => ACTIVE_STATUSES.includes(o.status))
+  const paidOrders = baseOrders.filter(o => o.status === 'paid')
+  const deletedOrders = baseOrders.filter(o => o.status === 'deleted')
 
   const filteredActive = status === 'active'
     ? activeOrders
@@ -242,6 +248,14 @@ export default function OrdersPage() {
         </div>
       )}
 
+      {/* Active filter label */}
+      {assignedFilter && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>Filtered by worker</span>
+          <Link href="/orders" className="text-red-600 hover:underline text-xs">Clear filter</Link>
+        </div>
+      )}
+
       {/* Delete confirmation modal */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
@@ -289,6 +303,14 @@ export default function OrdersPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function OrdersPage() {
+  return (
+    <Suspense>
+      <OrdersPageInner />
+    </Suspense>
   )
 }
 
