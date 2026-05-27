@@ -55,6 +55,20 @@ export interface User {
   created_at: string
 }
 
+export interface SpikaStand {
+  type: '4-single' | '8-single' | '10-double' | '12-single' | '16-double' | '24-single'
+  qty: number
+}
+
+export const SPIKA_STAND_TYPES: { value: SpikaStand['type']; label: string; capacity: number }[] = [
+  { value: '4-single',  label: '4 btls (one side)',              capacity: 4  },
+  { value: '8-single',  label: '8 btls (one side)',              capacity: 8  },
+  { value: '10-double', label: '10 btls (two sides - 5 each)',   capacity: 10 },
+  { value: '12-single', label: '12 btls (one side)',             capacity: 12 },
+  { value: '16-double', label: '16 btls (two sides - 8 each)',   capacity: 16 },
+  { value: '24-single', label: '24 btls (one side)',             capacity: 24 },
+]
+
 export interface Customer {
   id: string
   company_name: string
@@ -90,6 +104,7 @@ export interface Customer {
   product_discounts: Record<string, number>
   free_products: string[]
   table_bottle_return_price: number
+  spika_stands: SpikaStand[]
   status: CustomerStatus
   created_at: string
   updated_at: string

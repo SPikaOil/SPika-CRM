@@ -18,7 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { CustomerForm } from '../_components/customer-form'
-import { Customer } from '@/types'
+import { Customer, SPIKA_STAND_TYPES } from '@/types'
 
 const categoryColors: Record<string, string> = {
   wholesale: 'bg-blue-100 text-blue-700',
@@ -240,6 +240,30 @@ export default function CustomerDetailPage({
               {customer.discount_agreement && (
                 <Row label="Discount" value={customer.discount_agreement} className="sm:col-span-2" />
               )}
+              {(() => {
+                const stands: any[] = (customer as any).spika_stands ?? []
+                if (stands.length === 0) return null
+                const totalCapacity = stands.reduce((sum: number, s: any) => {
+                  const def = SPIKA_STAND_TYPES.find(st => st.value === s.type)
+                  return sum + (def?.capacity ?? 0) * (s.qty ?? 1)
+                }, 0)
+                return (
+                  <div className="sm:col-span-2">
+                    <p className="text-muted-foreground">SPika Stands</p>
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {stands.map((s: any) => {
+                        const def = SPIKA_STAND_TYPES.find(st => st.value === s.type)
+                        return (
+                          <span key={s.type} className="text-xs bg-muted px-2 py-1 rounded-md font-medium">
+                            {s.qty}× {def?.label ?? s.type}
+                          </span>
+                        )
+                      })}
+                      <span className="text-xs text-muted-foreground self-center ml-1">({totalCapacity} btls total capacity)</span>
+                    </div>
+                  </div>
+                )
+              })()}
             </CardContent>
           </Card>
 

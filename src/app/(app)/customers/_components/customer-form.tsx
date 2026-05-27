@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Customer } from '@/types'
+import { Customer, SpikaStand, SPIKA_STAND_TYPES } from '@/types'
 import { SPIKA_PRODUCTS } from '@/lib/products'
 
 const customerSchema = z.object({
@@ -105,6 +105,24 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
   )
   const [billingEmailInput, setBillingEmailInput] = useState('')
 
+  // SPika Stands — which stand types the customer has and how many
+  const [stands, setStands] = useState<SpikaStand[]>(
+    () => (defaultValues as any)?.spika_stands ?? []
+  )
+
+  function addStand(type: SpikaStand['type']) {
+    setStands(prev => {
+      const existing = prev.find(s => s.type === type)
+      if (existing) return prev.map(s => s.type === type ? { ...s, qty: s.qty + 1 } : s)
+      return [...prev, { type, qty: 1 }]
+    })
+  }
+
+  function updateStandQty(type: SpikaStand['type'], qty: number) {
+    if (qty <= 0) setStands(prev => prev.filter(s => s.type !== type))
+    else setStands(prev => prev.map(s => s.type === type ? { ...s, qty } : s))
+  }
+
   function addBillingEmail() {
     const email = billingEmailInput.trim()
     if (!email || billingEmails.includes(email)) return
@@ -190,6 +208,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
       ...rest,
       table_count: tableCount,
       billing_emails: billingEmails,
+      spika_stands: stands,
       product_prices: productPrices,
       product_discounts: productDiscounts,
       free_products: Array.from(freeProducts),
@@ -380,6 +399,46 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
             </label>
           </div>
           <p className="text-xs text-muted-foreground">Hard copy: worker is reminded to bring a printed note. Delivery photo: worker must take a photo to complete the delivery.</p>
+
+          {/* SPika Stands */}
+          <div className="space-y-2 pt-2 border-t">
+            <p className="text-sm font-medium">SPika Stands at Customer</p>
+            <p className="text-xs text-muted-foreground">Track which display stands are placed at this customer location.</p>
+            <div className="flex flex-wrap gap-2">
+              {SPIKA_STAND_TYPES.map(st => (
+                <button
+                  key={st.value}
+                  type="button"
+                  onClick={() => addStand(st.value)}
+                  className="text-xs border rounded-md px-2 py-1 hover:bg-accent transition-colors"
+                >
+                  + {st.label}
+                </button>
+              ))}
+            </div>
+            {stands.length > 0 && (
+              <div className="space-y-1.5 mt-2">
+                {stands.map(s => {
+                  const def = SPIKA_STAND_TYPES.find(st => st.value === s.type)!
+                  return (
+                    <div key={s.type} className="flex items-center gap-2">
+                      <span className="text-sm flex-1">{def.label}</span>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={s.qty}
+                        onChange={e => updateStandQty(s.type, Number(e.target.value))}
+                        className="h-7 w-16 text-right text-sm"
+                      />
+                      <button type="button" onClick={() => updateStandQty(s.type, 0)} className="text-muted-foreground hover:text-destructive">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 
