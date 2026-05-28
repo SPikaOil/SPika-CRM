@@ -1,10 +1,10 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { useCreateExport, useCarriers } from '@/hooks/use-exports'
-import { useOrders } from '@/hooks/use-orders'
+import { useCustomers } from '@/hooks/use-customers'
 import { useAuth } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,23 +14,61 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
+import { QuoteItem } from '@/types'
+import { SPIKA_PRODUCTS } from '@/lib/products'
+
+function buildItems(
+  productPrices: Record<string, number>,
+  productDiscounts: Record<string, number> = {},
+  freeProducts: string[] = []
+): QuoteItem[] {
+  return SPIKA_PRODUCTS.map(p => {
+    const isFree = freeProducts.includes(p.sku)
+    return {
+      sku: p.sku,
+      name: p.name,
+      qty: 0,
+      unit_price: isFree ? 0 : (productPrices[p.sku] ?? p.default_price),
+      discount: isFree ? 0 : (productDiscounts[p.sku] ?? 0),
+      line_total: 0,
+    }
+  })
+}
 
 function NewExportInner() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const createExport = useCreateExport()
   const { data: carriers } = useCarriers()
-  const { data: orders } = useOrders()
+  const { data: allCustomers } = useCustomers()
   const { profile, isAdmin } = useAuth()
 
-  const [orderId, setOrderId] = useState(searchParams.get('order') ?? '')
+  const [customerId, setCustomerId] = useState('')
   const [carrierId, setCarrierId] = useState('')
   const [destination, setDestination] = useState('')
   const [exportDate, setExportDate] = useState(new Date().toISOString().split('T')[0])
   const [notes, setNotes] = useState('')
+  const [items, setItems] = useState<QuoteItem[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Pre-fill destination when carrier changes
+  // Only international customers
+  const internationalCustomers = (allCustomers ?? []).filter(c => (c as any).is_international === true)
+
+  const selectedCustomer = internationalCustomers.find(c => c.id === customerId)
+
+  // When customer changes, pre-fill items with their prices
+  function handleCustomerChange(id: string) {
+    setCustomerId(id)
+    const customer = internationalCustomers.find(c => c.id === id)
+    if (customer) {
+      setItems(buildItems(
+        customer.product_prices ?? {},
+        customer.product_discounts ?? {},
+        customer.free_products ?? []
+      ))
+    }
+  }
+
+  // When carrier changes, pre-fill destination
   useEffect(() => {
     const carrier = carriers?.find(c => c.id === carrierId)
     if (carrier?.route) {
@@ -39,24 +77,31 @@ function NewExportInner() {
     }
   }, [carrierId, carriers])
 
-  const eligibleOrders = (orders ?? []).filter(
-    o => (o.status === 'invoice_ready' || o.status === 'paid') &&
-         (o.customer as any)?.is_international === true
-  )
+  function updateQty(index: number, qty: number) {
+    setItems(prev =>
+      prev.map((item, i) =>
+        i === index ? { ...item, qty, line_total: qty * (item.unit_price - (item.discount ?? 0)) } : item
+      )
+    )
+  }
 
-  const selectedOrder = eligibleOrders.find(o => o.id === orderId)
+  const activeItems = items.filter(i => i.qty > 0)
+  const subtotal = activeItems.reduce((sum, i) => sum + i.line_total, 0)
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!orderId) return
+    if (!customerId) return
+    if (activeItems.length === 0) return
     setIsSubmitting(true)
     try {
       const exp = await createExport.mutateAsync({
-        order_id: orderId,
+        customer_id: customerId,
+        order_id: null,
         carrier_id: carrierId || null,
         destination,
         export_date: exportDate || null,
         notes,
+        items: activeItems,
         status: 'draft',
         created_by: profile?.id ?? '',
       } as any)
@@ -84,25 +129,27 @@ function NewExportInner() {
           <CardContent className="space-y-4">
 
             <div className="space-y-1.5">
-              <Label>Order *</Label>
-              <Select value={orderId} onValueChange={(v) => v && setOrderId(v)}>
+              <Label>Customer *</Label>
+              <Select value={customerId} onValueChange={(v) => v && handleCustomerChange(v)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select an order">
-                    {selectedOrder
-                      ? `${selectedOrder.order_number} — ${selectedOrder.customer?.company_name ?? ''}`
-                      : 'Select an order'}
+                  <SelectValue placeholder="Select international customer">
+                    {selectedCustomer?.company_name ?? 'Select international customer'}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {eligibleOrders.map(o => (
-                    <SelectItem key={o.id} value={o.id}>
-                      {o.order_number} — {o.customer?.company_name ?? ''}
-                    </SelectItem>
-                  ))}
+                  {internationalCustomers.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-muted-foreground">
+                      No international customers — enable the toggle on a customer profile first
+                    </div>
+                  ) : (
+                    internationalCustomers.map(c => (
+                      <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Only Invoice Ready / Paid orders from international customers are shown
+                Only customers with "International Customer" enabled are shown
               </p>
             </div>
 
@@ -153,10 +200,51 @@ function NewExportInner() {
           </CardContent>
         </Card>
 
+        {/* Products — only shown after customer selected */}
+        {items.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Products</CardTitle>
+              <p className="text-xs text-muted-foreground">Set the quantity for each product to include in this export.</p>
+            </CardHeader>
+            <CardContent className="space-y-0 divide-y">
+              {items.map((item, i) => (
+                <div key={item.sku} className="py-3 flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className={`font-medium text-sm ${item.qty === 0 ? 'text-muted-foreground' : ''}`}>
+                      {item.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      XCG {item.unit_price.toFixed(2)} / bottle
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Input
+                      type="number"
+                      min="0"
+                      value={item.qty}
+                      onChange={e => updateQty(i, Number(e.target.value))}
+                      className="h-8 w-20 text-right"
+                    />
+                    <span className="text-xs text-muted-foreground w-20 text-right font-medium">
+                      {item.qty > 0 ? `XCG ${item.line_total.toFixed(2)}` : '—'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+
+              <div className="pt-3 text-sm flex justify-between font-bold">
+                <span>Total Value</span>
+                <span>XCG {subtotal.toFixed(2)}</span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <Button
           type="submit"
           className="w-full bg-red-600 hover:bg-red-700 h-12"
-          disabled={isSubmitting || !orderId}
+          disabled={isSubmitting || !customerId || activeItems.length === 0}
         >
           {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
           Create Export

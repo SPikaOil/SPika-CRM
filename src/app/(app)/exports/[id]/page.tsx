@@ -86,8 +86,8 @@ export default function ExportDetailPage({
   const exp = exportRecord
 
   const order = (exp as any).order
-  const customer = order?.customer
-  const items: QuoteItem[] = order?.items ?? []
+  const customer = order?.customer ?? (exp as any).customer
+  const items: QuoteItem[] = (order?.items ?? exp.items ?? []) as QuoteItem[]
   const activeItems = items.filter(i => i.qty > 0)
   const totalQty = activeItems.reduce((sum, i) => sum + i.qty, 0)
   const totalCartons = Math.ceil(totalQty / BOTTLES_PER_CARTON)

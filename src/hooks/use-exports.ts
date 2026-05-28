@@ -10,7 +10,7 @@ export function useExports() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('exports')
-        .select('*, order:orders(order_number, customer:customers(company_name)), carrier:carriers(*)')
+        .select('*, order:orders(order_number, customer:customers(company_name)), customer:customers(company_name), carrier:carriers(*)')
         .order('created_at', { ascending: false })
       if (error) throw error
       return data as Export[]
@@ -25,7 +25,7 @@ export function useExport(id: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('exports')
-        .select('*, order:orders(*, customer:customers(*)), carrier:carriers(*)')
+        .select('*, order:orders(*, customer:customers(*)), customer:customers(*), carrier:carriers(*)')
         .eq('id', id)
         .single()
       if (error) throw error

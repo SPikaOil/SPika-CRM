@@ -99,7 +99,7 @@ function ExportsPageInner() {
         <div className="space-y-2">
           {filtered.map((exp) => {
             const order = (exp as any).order
-            const customer = order?.customer
+            const customer = order?.customer ?? (exp as any).customer
             return (
               <Link key={exp.id} href={`/exports/${exp.id}`}>
                 <div className="flex items-center gap-3 p-4 rounded-xl border bg-card hover:bg-accent transition-colors">

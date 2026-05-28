@@ -236,15 +236,18 @@ export interface Export {
   id: string
   export_number: string
   order_id: string | null
+  customer_id: string | null
   carrier_id: string | null
   destination: string
   export_date: string | null
   notes: string
   status: ExportStatus
+  items: QuoteItem[]
   created_by: string | null
   created_at: string
   updated_at: string
   order?: Order
+  customer?: Customer
   carrier?: Carrier
 }
 

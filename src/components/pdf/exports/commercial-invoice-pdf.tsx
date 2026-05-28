@@ -74,8 +74,8 @@ interface Props {
 
 export function CommercialInvoicePDF({ exportRecord, company = DEFAULT_COMPANY }: Props) {
   const order = exportRecord.order as any
-  const customer = order?.customer as any
-  const items: QuoteItem[] = order?.items ?? []
+  const customer = (order?.customer ?? (exportRecord as any).customer) as any
+  const items: QuoteItem[] = (order?.items ?? exportRecord.items ?? []) as QuoteItem[]
   const activeItems = items.filter(i => i.qty > 0)
   const subtotal = activeItems.reduce((sum, i) => sum + i.line_total, 0)
 
