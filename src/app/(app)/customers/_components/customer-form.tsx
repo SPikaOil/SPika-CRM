@@ -33,6 +33,7 @@ const customerSchema = z.object({
   track_table_bottles: z.boolean(),
   table_count: z.string().optional(),
   table_bottle_return_price: z.number().min(0),
+  payment_term_days: z.number().min(1),
   hardcopy_required: z.boolean(),
   require_delivery_photo: z.boolean(),
   discount_agreement: z.string(),
@@ -162,6 +163,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
     track_table_bottles: false,
     table_count: '',
     table_bottle_return_price: 2.50,
+    payment_term_days: 7,
     hardcopy_required: false,
     require_delivery_photo: false,
     discount_agreement: '',
@@ -512,6 +514,31 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
           <div className="space-y-1.5">
             <Label>CRIB Number <span className="text-muted-foreground text-xs">(Curaçao customs/tax ID)</span></Label>
             <Input {...register('crib_number')} placeholder="e.g. 102471812" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Payment Term</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min="1"
+                className="h-9 w-24"
+                {...register('payment_term_days', { valueAsNumber: true })}
+              />
+              <span className="text-sm text-muted-foreground">days</span>
+              <div className="flex gap-1 ml-2 flex-wrap">
+                {[7, 14, 21, 30, 45, 60].map(d => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setValue('payment_term_days', d)}
+                    className="text-xs px-2 py-1 rounded border hover:bg-accent transition-colors"
+                  >
+                    {d}d
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">Days until invoice is due. Shown on delivery notes and invoices.</p>
           </div>
           <div className="space-y-1.5">
             <Label>Discount Agreement</Label>

@@ -147,10 +147,11 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
     d.toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })
 
   // Invoice date: explicit invoice_date field, fallback to planned_date, fallback to today
+  const paymentTermDays = customer?.payment_term_days ?? 7
   const invoiceDateRaw = (order as any).invoice_date ?? order.planned_date
   const invoiceDateObj = invoiceDateRaw ? new Date(invoiceDateRaw + 'T12:00:00') : today
   const dueDate = new Date(invoiceDateObj)
-  dueDate.setDate(invoiceDateObj.getDate() + 7)
+  dueDate.setDate(invoiceDateObj.getDate() + paymentTermDays)
 
   const isInvoice = documentType === 'INVOICE'
   const dateLabel = isInvoice ? 'Invoice Date' : 'Delivery Date'
@@ -221,7 +222,7 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
             { label: 'Invoice #',  value: order.order_number },
             { label: dateLabel,    value: dateValue },
             { label: 'Due Date',   value: fmt(dueDate) },
-            { label: 'Term',       value: '7 days' },
+            { label: 'Term',       value: `${paymentTermDays} days` },
             isInvoice
               ? { label: 'Delivery Date', value: order.planned_date ? fmt(new Date(order.planned_date + 'T12:00:00')) : fmt(today) }
               : { label: 'Reference', value: 'SPika Oil' },
