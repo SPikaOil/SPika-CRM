@@ -82,7 +82,10 @@ export default function ExportDetailPage({
     return <div className="p-4 lg:p-6"><p>Export not found.</p></div>
   }
 
-  const order = (exportRecord as any).order
+  // Narrowed non-null reference for use in async callbacks
+  const exp = exportRecord
+
+  const order = (exp as any).order
   const customer = order?.customer
   const items: QuoteItem[] = order?.items ?? []
   const activeItems = items.filter(i => i.qty > 0)
@@ -116,13 +119,13 @@ export default function ExportDetailPage({
 
       if (type === 'commercial_invoice') {
         const { CommercialInvoicePDF } = await import('@/components/pdf/exports/commercial-invoice-pdf')
-        element = React.createElement(CommercialInvoicePDF, { exportRecord, company })
+        element = React.createElement(CommercialInvoicePDF, { exportRecord: exp, company })
       } else if (type === 'packing_list') {
         const { PackingListPDF } = await import('@/components/pdf/exports/packing-list-pdf')
-        element = React.createElement(PackingListPDF, { exportRecord, company })
+        element = React.createElement(PackingListPDF, { exportRecord: exp, company })
       } else {
         const { DonAndresBolPDF } = await import('@/components/pdf/exports/don-andres-bol-pdf')
-        element = React.createElement(DonAndresBolPDF, { exportRecord, company })
+        element = React.createElement(DonAndresBolPDF, { exportRecord: exp, company })
       }
 
       const blob = await pdf(element).toBlob()
@@ -131,7 +134,7 @@ export default function ExportDetailPage({
         packing_list: 'Packing-List',
         bill_of_lading: 'Bill-of-Lading',
       }
-      const filename = `${exportRecord.export_number}_${labels[type]}.pdf`
+      const filename = `${exp.export_number}_${labels[type]}.pdf`
       const file = new File([blob], filename, { type: 'application/pdf' })
       const url = URL.createObjectURL(file)
       const a = document.createElement('a')
@@ -162,13 +165,13 @@ export default function ExportDetailPage({
       const { DonAndresBolPDF } = await import('@/components/pdf/exports/don-andres-bol-pdf')
 
       const [ciBlob, plBlob, bolBlob] = await Promise.all([
-        pdf(React.createElement(CommercialInvoicePDF, { exportRecord, company })).toBlob(),
-        pdf(React.createElement(PackingListPDF, { exportRecord, company })).toBlob(),
-        pdf(React.createElement(DonAndresBolPDF, { exportRecord, company })).toBlob(),
+        pdf(React.createElement(CommercialInvoicePDF, { exportRecord: exp, company })).toBlob(),
+        pdf(React.createElement(PackingListPDF, { exportRecord: exp, company })).toBlob(),
+        pdf(React.createElement(DonAndresBolPDF, { exportRecord: exp, company })).toBlob(),
       ])
 
       const zip = new JSZip()
-      const num = exportRecord.export_number
+      const num = exp.export_number
       zip.file(`${num}_Commercial-Invoice.pdf`, ciBlob)
       zip.file(`${num}_Packing-List.pdf`, plBlob)
       zip.file(`${num}_Bill-of-Lading.pdf`, bolBlob)
@@ -209,13 +212,13 @@ export default function ExportDetailPage({
         </Link>
         <div className="flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-xl font-bold font-mono">{exportRecord.export_number}</h1>
-            <Badge className={`capitalize ${statusColors[exportRecord.status]}`}>
-              {statusLabels[exportRecord.status]}
+            <h1 className="text-xl font-bold font-mono">{exp.export_number}</h1>
+            <Badge className={`capitalize ${statusColors[exp.status]}`}>
+              {statusLabels[exp.status]}
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            {customer?.company_name ?? '—'} · {exportRecord.destination || '—'}
+            {customer?.company_name ?? '—'} · {exp.destination || '—'}
           </p>
         </div>
       </div>
@@ -227,7 +230,7 @@ export default function ExportDetailPage({
             <div className="flex-1">
               <p className="text-sm font-medium mb-1">Status</p>
               <Select
-                value={exportRecord.status}
+                value={exp.status}
                 onValueChange={(v) => updateExport.mutate({ id, values: { status: v as ExportStatus } })}
               >
                 <SelectTrigger className="w-48">
@@ -267,21 +270,21 @@ export default function ExportDetailPage({
           </div>
           <div className="flex justify-between gap-4">
             <span className="text-muted-foreground">Carrier</span>
-            <span className="font-medium">{(exportRecord as any).carrier?.name ?? '—'}</span>
+            <span className="font-medium">{(exp as any).carrier?.name ?? '—'}</span>
           </div>
           <div className="flex justify-between gap-4">
             <span className="text-muted-foreground">Route</span>
-            <span className="font-medium">{(exportRecord as any).carrier?.route ?? '—'}</span>
+            <span className="font-medium">{(exp as any).carrier?.route ?? '—'}</span>
           </div>
           <div className="flex justify-between gap-4">
             <span className="text-muted-foreground">Destination</span>
-            <span className="font-medium">{exportRecord.destination || '—'}</span>
+            <span className="font-medium">{exp.destination || '—'}</span>
           </div>
           <div className="flex justify-between gap-4">
             <span className="text-muted-foreground">Export Date</span>
             <span className="font-medium">
-              {exportRecord.export_date
-                ? new Date(exportRecord.export_date + 'T12:00:00').toLocaleDateString('en', {
+              {exp.export_date
+                ? new Date(exp.export_date + 'T12:00:00').toLocaleDateString('en', {
                     day: 'numeric', month: 'long', year: 'numeric',
                   })
                 : '—'}
@@ -289,12 +292,12 @@ export default function ExportDetailPage({
           </div>
           <div className="flex justify-between gap-4">
             <span className="text-muted-foreground">Created</span>
-            <span className="font-medium">{new Date(exportRecord.created_at).toLocaleString()}</span>
+            <span className="font-medium">{new Date(exp.created_at).toLocaleString()}</span>
           </div>
-          {exportRecord.notes && (
+          {exp.notes && (
             <div className="flex justify-between gap-4">
               <span className="text-muted-foreground">Notes</span>
-              <span className="font-medium text-right">{exportRecord.notes}</span>
+              <span className="font-medium text-right">{exp.notes}</span>
             </div>
           )}
         </CardContent>
