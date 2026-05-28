@@ -84,7 +84,7 @@ function NewExportInner() {
 
             <div className="space-y-1.5">
               <Label>Order *</Label>
-              <Select value={orderId} onValueChange={setOrderId}>
+              <Select value={orderId} onValueChange={(v) => v && setOrderId(v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select an order">
                     {selectedOrder
@@ -107,7 +107,7 @@ function NewExportInner() {
 
             <div className="space-y-1.5">
               <Label>Carrier</Label>
-              <Select value={carrierId} onValueChange={setCarrierId}>
+              <Select value={carrierId} onValueChange={(v) => v && setCarrierId(v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select carrier" />
                 </SelectTrigger>

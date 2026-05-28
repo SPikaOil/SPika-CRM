@@ -128,7 +128,7 @@ export default function ExportDetailPage({
         element = React.createElement(DonAndresBolPDF, { exportRecord: exp, company })
       }
 
-      const blob = await pdf(element).toBlob()
+      const blob = await pdf(element as any).toBlob()
       const labels = {
         commercial_invoice: 'Commercial-Invoice',
         packing_list: 'Packing-List',
@@ -165,9 +165,9 @@ export default function ExportDetailPage({
       const { DonAndresBolPDF } = await import('@/components/pdf/exports/don-andres-bol-pdf')
 
       const [ciBlob, plBlob, bolBlob] = await Promise.all([
-        pdf(React.createElement(CommercialInvoicePDF, { exportRecord: exp, company })).toBlob(),
-        pdf(React.createElement(PackingListPDF, { exportRecord: exp, company })).toBlob(),
-        pdf(React.createElement(DonAndresBolPDF, { exportRecord: exp, company })).toBlob(),
+        pdf(React.createElement(CommercialInvoicePDF, { exportRecord: exp, company }) as any).toBlob(),
+        pdf(React.createElement(PackingListPDF, { exportRecord: exp, company }) as any).toBlob(),
+        pdf(React.createElement(DonAndresBolPDF, { exportRecord: exp, company }) as any).toBlob(),
       ])
 
       const zip = new JSZip()
