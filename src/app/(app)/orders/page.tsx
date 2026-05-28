@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ShoppingCart, Truck, CheckCircle2, Trash2, ChevronDown, ChevronUp, Plus } from 'lucide-react'
+import { ShoppingCart, Truck, CheckCircle2, Trash2, ChevronDown, ChevronUp, Plus, Search } from 'lucide-react'
 import { useOrders, useUpdateOrder } from '@/hooks/use-orders'
 import { useAuth } from '@/contexts/auth-context'
 import { createClient } from '@/lib/supabase/client'
@@ -67,6 +67,7 @@ function OrdersPageInner() {
     }
   }, [isAdmin, profile, router])
 
+  const [search, setSearch] = useState('')
   const [showArchive, setShowArchive] = useState(false)
   const [showDeleted, setShowDeleted] = useState(false)
 
@@ -84,9 +85,21 @@ function OrdersPageInner() {
   const paidOrders = baseOrders.filter(o => o.status === 'paid')
   const deletedOrders = baseOrders.filter(o => o.status === 'deleted')
 
-  const filteredActive = status === 'active'
+  const searchLower = search.toLowerCase().trim()
+
+  function matchesSearch(o: Order) {
+    if (!searchLower) return true
+    return (
+      o.order_number.toLowerCase().includes(searchLower) ||
+      (o.customer?.company_name ?? '').toLowerCase().includes(searchLower) ||
+      (o.customer?.contact_person ?? '').toLowerCase().includes(searchLower)
+    )
+  }
+
+  const filteredActive = (status === 'active'
     ? activeOrders
     : activeOrders.filter(o => o.status === status)
+  ).filter(matchesSearch)
 
   async function handleMarkPaid(order: Order, e: React.MouseEvent) {
     e.preventDefault()
@@ -142,6 +155,17 @@ function OrdersPageInner() {
             New Order
           </Button>
         </Link>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+        <Input
+          placeholder="Search by order number or customer name…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="pl-9"
+        />
       </div>
 
       {/* Filter */}
