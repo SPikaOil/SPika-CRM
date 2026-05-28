@@ -15,6 +15,7 @@ import {
   UserCog,
   X,
   PackageCheck,
+  FolderOpen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
@@ -28,18 +29,20 @@ const adminMainItems = [
 ]
 
 const salesMainItems = [
-  { href: '/dashboard',      label: 'Home',    icon: LayoutDashboard },
-  { href: '/delivery-notes', label: 'Notes',   icon: FileText },
-  { href: '/agenda',         label: 'Agenda',  icon: CalendarDays },
+  { href: '/dashboard',       label: 'Home',       icon: LayoutDashboard },
+  { href: '/delivery-notes',  label: 'Notes',      icon: FileText },
+  { href: '/sales-documents', label: 'Sales Docs', icon: FolderOpen },
+  { href: '/agenda',          label: 'Agenda',     icon: CalendarDays },
 ]
 
 const adminMoreItems = [
-  { href: '/agenda',       label: 'Agenda',      icon: CalendarDays },
-  { href: '/quotations',   label: 'Quotations',  icon: ReceiptText },
-  { href: '/exports',      label: 'Exports',     icon: PackageCheck },
-  { href: '/tasks',        label: 'Tasks',       icon: ClipboardList },
-  { href: '/team',         label: 'Team',        icon: UserCog },
-  { href: '/settings',     label: 'Settings',    icon: Settings },
+  { href: '/agenda',           label: 'Agenda',      icon: CalendarDays },
+  { href: '/quotations',       label: 'Quotations',  icon: ReceiptText },
+  { href: '/exports',          label: 'Exports',     icon: PackageCheck },
+  { href: '/sales-documents',  label: 'Sales Docs',  icon: FolderOpen },
+  { href: '/tasks',            label: 'Tasks',       icon: ClipboardList },
+  { href: '/team',             label: 'Team',        icon: UserCog },
+  { href: '/settings',         label: 'Settings',    icon: Settings },
 ]
 
 export function BottomNav() {

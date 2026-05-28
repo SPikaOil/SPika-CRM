@@ -14,6 +14,7 @@ import {
   UserCog,
   ReceiptText,
   PackageCheck,
+  FolderOpen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
@@ -25,7 +26,8 @@ const allNavItems = [
   { href: '/quotations',      label: 'Quotations',       icon: ReceiptText,     adminOnly: true  },
   { href: '/delivery-notes',  label: 'Delivery Notes',   icon: FileText,        adminOnly: false },
   { href: '/orders',          label: 'Orders',           icon: ShoppingCart,    adminOnly: true  },
-  { href: '/exports',         label: 'Exports',          icon: PackageCheck,    adminOnly: true  },
+  { href: '/exports',          label: 'Exports',          icon: PackageCheck,    adminOnly: true  },
+  { href: '/sales-documents', label: 'Sales Docs',       icon: FolderOpen,      adminOnly: false },
   { href: '/tasks',           label: 'Tasks',            icon: ClipboardList,   adminOnly: true  },
   { href: '/agenda',          label: 'Agenda',           icon: CalendarDays,    adminOnly: false },
 ]

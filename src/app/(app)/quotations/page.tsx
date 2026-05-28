@@ -1,12 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { Suspense } from 'react'
-import { Plus, ReceiptText, FileText } from 'lucide-react'
+import { Suspense, useState } from 'react'
+import { Plus, ReceiptText, FileText, Search } from 'lucide-react'
 import { useQuotes } from '@/hooks/use-quotes'
 import { useAuth } from '@/contexts/auth-context'
 import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -23,6 +24,7 @@ function QuotationsPageInner() {
   const { isAdmin } = useAuth()
   const searchParams = useSearchParams()
   const statusFilter = searchParams.get('status') ?? ''
+  const [search, setSearch] = useState('')
 
   if (!isAdmin) {
     return (
@@ -41,6 +43,16 @@ function QuotationsPageInner() {
     )
   }
 
+  const searchLower = search.toLowerCase().trim()
+  const visibleQuotes = (statusFilter ? (quotes ?? []).filter(q => q.status === statusFilter) : (quotes ?? []))
+    .filter(q => {
+      if (!searchLower) return true
+      return (
+        (q.quote_number ?? '').toLowerCase().includes(searchLower) ||
+        ((q as any).customer?.company_name ?? '').toLowerCase().includes(searchLower)
+      )
+    })
+
   return (
     <div className="p-4 lg:p-6 space-y-4 max-w-3xl mx-auto">
       <div className="flex items-center justify-between">
@@ -51,6 +63,17 @@ function QuotationsPageInner() {
             New Quotation
           </Button>
         </Link>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+        <Input
+          placeholder="Search by quote number or customer name…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="pl-9"
+        />
       </div>
 
       {!quotes || quotes.length === 0 ? (
@@ -70,7 +93,7 @@ function QuotationsPageInner() {
               <Link href="/quotations" className="text-red-600 hover:underline text-xs">Clear filter</Link>
             </div>
           )}
-          {(statusFilter ? quotes.filter(q => q.status === statusFilter) : quotes).map((quote) => {
+          {visibleQuotes.map((quote) => {
             const customer = (quote as any).customer
             const isExpired = (quote.status === 'draft' || quote.status === 'sent') &&
               quote.valid_until && new Date(quote.valid_until) < new Date()

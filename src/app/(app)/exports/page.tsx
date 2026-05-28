@@ -1,12 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { Suspense } from 'react'
-import { PackageCheck, Plus } from 'lucide-react'
+import { Suspense, useState } from 'react'
+import { PackageCheck, Plus, Search } from 'lucide-react'
 import { useExports } from '@/hooks/use-exports'
 import { useAuth } from '@/contexts/auth-context'
 import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ExportStatus } from '@/types'
@@ -34,6 +35,7 @@ function ExportsPageInner() {
   const { isAdmin } = useAuth()
   const searchParams = useSearchParams()
   const statusFilter = searchParams.get('status') ?? ''
+  const [search, setSearch] = useState('')
 
   if (!isAdmin) {
     return (
@@ -52,9 +54,18 @@ function ExportsPageInner() {
     )
   }
 
-  const filtered = statusFilter
+  const searchLower = search.toLowerCase().trim()
+  const filtered = (statusFilter
     ? (exports ?? []).filter(e => e.status === statusFilter)
     : (exports ?? [])
+  ).filter(e => {
+    if (!searchLower) return true
+    const customer = (e as any).order?.customer ?? (e as any).customer
+    return (
+      (e.export_number ?? '').toLowerCase().includes(searchLower) ||
+      (customer?.company_name ?? '').toLowerCase().includes(searchLower)
+    )
+  })
 
   return (
     <div className="p-4 lg:p-6 space-y-4 max-w-3xl mx-auto">
@@ -66,6 +77,17 @@ function ExportsPageInner() {
             New Export
           </Button>
         </Link>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+        <Input
+          placeholder="Search by export number or customer name…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="pl-9"
+        />
       </div>
 
       {/* Status filter tabs */}

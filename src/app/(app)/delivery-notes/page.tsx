@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { FileText, ChevronDown, ChevronUp } from 'lucide-react'
+import { FileText, ChevronDown, ChevronUp, Search } from 'lucide-react'
 import { useMyOrders } from '@/hooks/use-orders'
 import { useAuth } from '@/contexts/auth-context'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Select,
@@ -50,6 +51,7 @@ const ACTIVE_STATUSES: OrderStatus[] = [
 export default function DeliveryNotesPage() {
   const [statusFilter, setStatusFilter] = useState<string>('active')
   const [showArchive, setShowArchive] = useState(false)
+  const [search, setSearch] = useState('')
   const { isAdmin, profile } = useAuth()
 
   // useMyOrders: if isAdmin=true it returns all orders, otherwise only assigned to userId
@@ -60,10 +62,20 @@ export default function DeliveryNotesPage() {
   const archivedOrders =
     allOrders?.filter((o) => o.status === 'paid') ?? []
 
-  const filteredActive =
+  const searchLower = search.toLowerCase().trim()
+  function matchesSearch(o: Order) {
+    if (!searchLower) return true
+    return (
+      o.order_number.toLowerCase().includes(searchLower) ||
+      (o.customer?.company_name ?? '').toLowerCase().includes(searchLower)
+    )
+  }
+
+  const filteredActive = (
     statusFilter === 'active'
       ? activeOrders
       : activeOrders.filter((o) => o.status === statusFilter)
+  ).filter(matchesSearch)
 
   return (
     <div className="p-4 lg:p-6 space-y-4">
@@ -72,6 +84,17 @@ export default function DeliveryNotesPage() {
         <p className="text-muted-foreground text-sm">
           {filteredActive.length} active{!isAdmin ? ' assigned' : ''} notes
         </p>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+        <Input
+          placeholder="Search by order number or customer name…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="pl-9"
+        />
       </div>
 
       {/* Filter */}
