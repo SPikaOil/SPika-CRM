@@ -101,6 +101,7 @@ export interface Customer {
   vat_number: string
   coc_number: string
   crib_number: string
+  is_international: boolean
   product_prices: Record<string, number>
   product_discounts: Record<string, number>
   free_products: string[]

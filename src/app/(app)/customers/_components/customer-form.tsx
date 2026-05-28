@@ -44,6 +44,7 @@ const customerSchema = z.object({
   vat_number: z.string(),
   coc_number: z.string(),
   crib_number: z.string(),
+  is_international: z.boolean(),
   status: z.enum(['active', 'inactive']),
   // Address fields (flattened for the form, composed to JSONB on submit)
   billing_street: z.string(),
@@ -174,6 +175,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
     vat_number: '',
     coc_number: '',
     crib_number: '',
+    is_international: false,
     status: 'active',
     billing_street: '',
     billing_city: '',
@@ -516,6 +518,23 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
           <div className="space-y-1.5">
             <Label>CRIB Number <span className="text-muted-foreground text-xs">(Curaçao customs/tax ID)</span></Label>
             <Input {...register('crib_number')} placeholder="e.g. 102471812" />
+          </div>
+          <div className="flex items-center justify-between rounded-lg border p-3">
+            <div>
+              <p className="text-sm font-medium">International Customer</p>
+              <p className="text-xs text-muted-foreground">Customer receives orders shipped internationally via export</p>
+            </div>
+            <label className="flex items-center cursor-pointer">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  {...register('is_international')}
+                />
+                <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-red-600 transition-colors" />
+                <div className="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5" />
+              </div>
+            </label>
           </div>
           <div className="space-y-1.5">
             <Label>Payment Term</Label>

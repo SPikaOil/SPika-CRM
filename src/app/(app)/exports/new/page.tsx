@@ -40,7 +40,8 @@ function NewExportInner() {
   }, [carrierId, carriers])
 
   const eligibleOrders = (orders ?? []).filter(
-    o => o.status === 'invoice_ready' || o.status === 'paid'
+    o => (o.status === 'invoice_ready' || o.status === 'paid') &&
+         (o.customer as any)?.is_international === true
   )
 
   const selectedOrder = eligibleOrders.find(o => o.id === orderId)
@@ -101,7 +102,7 @@ function NewExportInner() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Only Invoice Ready and Paid orders are shown
+                Only Invoice Ready / Paid orders from international customers are shown
               </p>
             </div>
 
