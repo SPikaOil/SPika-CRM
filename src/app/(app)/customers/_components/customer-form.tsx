@@ -22,7 +22,7 @@ import { SPIKA_PRODUCTS } from '@/lib/products'
 
 const customerSchema = z.object({
   company_name: z.string().min(1, 'Required'),
-  customer_category: z.enum(['wholesale', 'horeca', 'dtf', 'other', 'b2c']),
+  customer_category: z.enum(['wholesale', 'horeca', 'dtf', 'other', 'b2c', 'supermarket', 'shops']),
   contact_person: z.string(),
   phone: z.string(),
   whatsapp: z.string(),
@@ -259,6 +259,8 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
                 <SelectContent>
                   <SelectItem value="wholesale">Wholesale (B2B)</SelectItem>
                   <SelectItem value="horeca">HORECA (B2B)</SelectItem>
+                  <SelectItem value="supermarket">Supermarket (B2B)</SelectItem>
+                  <SelectItem value="shops">Shops (B2B)</SelectItem>
                   <SelectItem value="dtf">DTF (B2B)</SelectItem>
                   <SelectItem value="other">Other (B2B)</SelectItem>
                   <SelectItem value="b2c">B2C (Individual)</SelectItem>

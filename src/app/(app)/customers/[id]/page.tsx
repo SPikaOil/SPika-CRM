@@ -21,10 +21,13 @@ import { CustomerForm } from '../_components/customer-form'
 import { Customer, SPIKA_STAND_TYPES } from '@/types'
 
 const categoryColors: Record<string, string> = {
-  wholesale: 'bg-blue-100 text-blue-700',
-  horeca: 'bg-purple-100 text-purple-700',
-  dtf: 'bg-green-100 text-green-700',
-  other: 'bg-gray-100 text-gray-700',
+  wholesale:   'bg-blue-100 text-blue-700',
+  horeca:      'bg-purple-100 text-purple-700',
+  supermarket: 'bg-cyan-100 text-cyan-700',
+  shops:       'bg-pink-100 text-pink-700',
+  dtf:         'bg-green-100 text-green-700',
+  other:       'bg-gray-100 text-gray-700',
+  b2c:         'bg-orange-100 text-orange-700',
 }
 
 export default function CustomerDetailPage({
