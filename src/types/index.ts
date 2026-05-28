@@ -100,6 +100,7 @@ export interface Customer {
   quickbooks_customer_id: string
   vat_number: string
   coc_number: string
+  crib_number: string
   product_prices: Record<string, number>
   product_discounts: Record<string, number>
   free_products: string[]
@@ -213,6 +214,45 @@ export interface Task {
   updated_at: string
   customer?: Customer
   assigned_user?: User
+}
+
+// ── Export Module ──────────────────────────────────────────────────────────────
+
+export type ExportStatus = 'draft' | 'ready' | 'submitted' | 'cleared' | 'delivered'
+
+export type ExportDocumentType = 'commercial_invoice' | 'packing_list' | 'bill_of_lading' | 'received_doc'
+
+export interface Carrier {
+  id: string
+  name: string
+  route: string
+  bol_template: 'don_andres' | 'generic'
+  created_at: string
+}
+
+export interface Export {
+  id: string
+  export_number: string
+  order_id: string | null
+  carrier_id: string | null
+  destination: string
+  export_date: string | null
+  notes: string
+  status: ExportStatus
+  created_by: string | null
+  created_at: string
+  updated_at: string
+  order?: Order
+  carrier?: Carrier
+}
+
+export interface ExportDocument {
+  id: string
+  export_id: string
+  document_type: ExportDocumentType
+  file_url: string
+  file_name: string
+  uploaded_at: string
 }
 
 export interface QuoteTemplate {

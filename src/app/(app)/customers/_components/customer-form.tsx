@@ -42,6 +42,7 @@ const customerSchema = z.object({
   quickbooks_customer_id: z.string(),
   vat_number: z.string(),
   coc_number: z.string(),
+  crib_number: z.string(),
   status: z.enum(['active', 'inactive']),
   // Address fields (flattened for the form, composed to JSONB on submit)
   billing_street: z.string(),
@@ -170,6 +171,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
     quickbooks_customer_id: '',
     vat_number: '',
     coc_number: '',
+    crib_number: '',
     status: 'active',
     billing_street: '',
     billing_city: '',
@@ -506,6 +508,10 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
           <div className="space-y-1.5">
             <Label>CoC Number <span className="text-muted-foreground text-xs">(Kamer van Koophandel)</span></Label>
             <Input {...register('coc_number')} placeholder="e.g. 12345678" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>CRIB Number <span className="text-muted-foreground text-xs">(Curaçao customs/tax ID)</span></Label>
+            <Input {...register('crib_number')} placeholder="e.g. 102471812" />
           </div>
           <div className="space-y-1.5">
             <Label>Discount Agreement</Label>

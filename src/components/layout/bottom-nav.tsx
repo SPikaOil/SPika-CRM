@@ -14,6 +14,7 @@ import {
   Settings,
   UserCog,
   X,
+  PackageCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
@@ -35,6 +36,7 @@ const salesMainItems = [
 const adminMoreItems = [
   { href: '/agenda',       label: 'Agenda',      icon: CalendarDays },
   { href: '/quotations',   label: 'Quotations',  icon: ReceiptText },
+  { href: '/exports',      label: 'Exports',     icon: PackageCheck },
   { href: '/tasks',        label: 'Tasks',       icon: ClipboardList },
   { href: '/team',         label: 'Team',        icon: UserCog },
   { href: '/settings',     label: 'Settings',    icon: Settings },

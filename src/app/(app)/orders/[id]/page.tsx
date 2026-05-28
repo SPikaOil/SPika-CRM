@@ -3,7 +3,7 @@
 import { use, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Truck, CheckCircle, Clock, AlertCircle, Calendar, Download, Upload, FileCheck, X, UserCheck, XCircle, Pencil, Check, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Truck, CheckCircle, Clock, AlertCircle, Calendar, Download, Upload, FileCheck, X, UserCheck, XCircle, Pencil, Check, Plus, Trash2, PackageCheck } from 'lucide-react'
 import { useOrder, useUpdateOrder } from '@/hooks/use-orders'
 import { useUsers } from '@/hooks/use-users'
 import { useAuth } from '@/contexts/auth-context'
@@ -884,6 +884,21 @@ export default function OrderDetailPage({
             )}
           </CardContent>
         </Card>
+      )}
+
+      {/* Create Export shortcut — for invoice_ready and paid orders */}
+      {isAdmin && (order.status === 'invoice_ready' || order.status === 'paid') && (
+        <Link href={`/exports/new?order=${order.id}`}>
+          <Card className="border-emerald-200 hover:bg-accent transition-colors cursor-pointer">
+            <CardContent className="flex items-center gap-3 py-4">
+              <PackageCheck className="h-5 w-5 text-emerald-600 shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium">Create Export</p>
+                <p className="text-xs text-muted-foreground">Generate customs documents for international shipping</p>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
       )}
 
       {/* Details */}
