@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
   totalLabel: { fontSize: 9, color: GRAY, textAlign: 'right', width: 100 },
   totalValue: { fontSize: 9, color: DARK, textAlign: 'right', width: 80 },
   balanceDueLabel: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: DARK, textAlign: 'right', width: 100 },
-  balanceDueValue: { fontSize: 14, fontFamily: 'Helvetica-Bold', color: RED, textAlign: 'right', width: 80 },
+  balanceDueValue: { fontSize: 14, fontFamily: 'Helvetica-Bold', color: RED, textAlign: 'right', width: 120 },
   outOfScope: { fontSize: 7, color: GRAY, textAlign: 'right', marginTop: 2 },
 
   // ── Bank details ──
