@@ -288,7 +288,7 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
               <Text style={styles.totalValue}>XCG {subtotal.toFixed(2)}</Text>
             </View>
             <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>{isB2C ? 'VAT (6%)' : 'VAT (0% — B2B exempt)'}</Text>
+              <Text style={styles.totalLabel}>{isB2C ? 'OB (6%)' : 'OB (0% — OB exempt)'}</Text>
               <Text style={styles.totalValue}>XCG {tax.toFixed(2)}</Text>
             </View>
             {bottleCredit > 0 && (
