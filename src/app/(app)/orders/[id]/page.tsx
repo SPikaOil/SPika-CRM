@@ -604,6 +604,55 @@ export default function OrderDetailPage({
         </CardContent>
       </Card>
 
+      {/* Signature Location — admin only */}
+      {isAdmin && (() => {
+        const sigLoc = (order.delivery as any)?.signature_location
+        const startLoc = (order.delivery as any)?.gps_location
+        if (!sigLoc && !startLoc) return null
+        return (
+          <Card className="border-blue-100">
+            <CardContent className="pt-4 pb-4 space-y-3">
+              <p className="text-sm font-medium flex items-center gap-1.5">
+                <MapPin className="h-4 w-4 text-blue-500" />
+                Signature Location
+                <span className="text-xs font-normal text-muted-foreground ml-1">(admin only)</span>
+              </p>
+              {sigLoc ? (
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">
+                    Captured at time of signing · ±{Math.round(sigLoc.accuracy)}m accuracy
+                  </p>
+                  <a
+                    href={`https://www.google.com/maps?q=${sigLoc.lat},${sigLoc.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline font-medium"
+                  >
+                    <MapPin className="h-3.5 w-3.5" />
+                    {sigLoc.lat.toFixed(5)}, {sigLoc.lng.toFixed(5)}
+                    <span className="text-xs text-muted-foreground ml-0.5">→ Maps</span>
+                  </a>
+                </div>
+              ) : startLoc ? (
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">Delivery start location (signature location unavailable)</p>
+                  <a
+                    href={`https://www.google.com/maps?q=${startLoc.lat},${startLoc.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline font-medium"
+                  >
+                    <MapPin className="h-3.5 w-3.5" />
+                    {startLoc.lat.toFixed(5)}, {startLoc.lng.toFixed(5)}
+                    <span className="text-xs text-muted-foreground ml-0.5">→ Maps</span>
+                  </a>
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
+        )
+      })()}
+
       {/* Mark Invoice Ready — admin action for delivered orders */}
       {isAdmin && order.status === 'delivered' && (
         <Button

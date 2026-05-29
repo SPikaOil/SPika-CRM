@@ -219,6 +219,15 @@ export default function DeliveryPage({
 
     setUploading(true)
     try {
+      // Capture GPS silently at the moment of signing (non-blocking if unavailable)
+      let signatureLocation: { lat: number; lng: number; accuracy: number } | null = null
+      try {
+        const sigCoords = await captureGps()
+        signatureLocation = { lat: sigCoords.latitude, lng: sigCoords.longitude, accuracy: sigCoords.accuracy }
+      } catch {
+        // GPS unavailable at signing — non-fatal, we already have the start location
+      }
+
       let podBlob: Blob
       let signatureDataUrl: string | undefined
       const fileName = `pod/${orderId}-${Date.now()}.png`
@@ -241,6 +250,7 @@ export default function DeliveryPage({
         gps_location: gps
           ? { lat: gps.latitude, lng: gps.longitude, accuracy: gps.accuracy }
           : null,
+        signature_location: signatureLocation,
       }
 
       if (isOnline) {
