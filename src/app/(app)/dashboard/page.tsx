@@ -1,27 +1,26 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertCircle, CheckCircle, Clock, FileText, ShoppingBag, Truck, Users, CreditCard, Copy, Check, X, Mail } from 'lucide-react'
+import { AlertCircle, CheckCircle, Clock, FileText, ShoppingBag, Truck, CreditCard, Copy, Check, X, Mail, ChevronDown, ChevronUp, Package, Pencil } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/auth-context'
-import { useUsers } from '@/hooks/use-users'
 import { useOrders } from '@/hooks/use-orders'
 import { Order } from '@/types'
 
 interface Stats {
-  // Delivery notes (quotes) by status
   notes_draft: number
   notes_sent: number
   notes_accepted: number
-  // Deliveries
   orders_out_for_delivery: number
   deliveries_today: number
   deliveries_missing_pod: number
+  bottles_this_month: number
 }
 
 function StatCard({
@@ -81,11 +80,161 @@ interface OverdueOrder extends Order {
   dueDate: Date
 }
 
+// ── Bottles card with settable monthly target ──────────────────────────────
+const TARGET_KEY = 'dashboard_bottle_target'
+
+function BottlesCard({ bottles, isLoading }: { bottles: number; isLoading: boolean }) {
+  const [target, setTarget] = useState<number>(() => {
+    if (typeof window === 'undefined') return 500
+    return parseInt(localStorage.getItem(TARGET_KEY) ?? '500', 10)
+  })
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(String(target))
+
+  function saveTarget() {
+    const n = parseInt(draft, 10)
+    if (!isNaN(n) && n > 0) {
+      setTarget(n)
+      localStorage.setItem(TARGET_KEY, String(n))
+    }
+    setEditing(false)
+  }
+
+  const pct = target > 0 ? Math.min(100, Math.round((bottles / target) * 100)) : 0
+
+  return (
+    <Card>
+      <CardContent className="pt-5 pb-4">
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-muted-foreground">Bottles Delivered This Month</p>
+            {isLoading ? (
+              <Skeleton className="h-9 w-20 mt-1" />
+            ) : (
+              <div className="flex items-end gap-2 mt-1">
+                <p className="text-4xl font-bold text-blue-600 dark:text-blue-400">{bottles}</p>
+                {!editing && (
+                  <p className="text-sm text-muted-foreground mb-1.5">/ {target}</p>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="p-2 rounded-lg text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30">
+            <Package className="h-5 w-5" />
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        {!isLoading && (
+          <div className="space-y-1.5">
+            <div className="h-2 rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full rounded-full bg-blue-500 transition-all duration-500"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">{pct}% of monthly target</p>
+              {editing ? (
+                <div className="flex items-center gap-1">
+                  <Input
+                    autoFocus
+                    type="number"
+                    value={draft}
+                    onChange={e => setDraft(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveTarget(); if (e.key === 'Escape') setEditing(false) }}
+                    className="h-6 w-20 text-xs text-right px-2"
+                  />
+                  <button onClick={saveTarget} className="text-xs text-blue-600 font-medium hover:underline">Save</button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => { setDraft(String(target)); setEditing(true) }}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Pencil className="h-3 w-3" />
+                  Set target
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+// ── Overdue payments collapsible banner ────────────────────────────────────
+function OverdueBanner({
+  orders,
+  onRemind,
+}: {
+  orders: OverdueOrder[]
+  onRemind: (order: OverdueOrder) => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+
+  if (orders.length === 0) return null
+
+  return (
+    <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/20 overflow-hidden">
+      {/* Collapsed header — always visible */}
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-red-100/40 dark:hover:bg-red-900/20 transition-colors"
+      >
+        <CreditCard className="h-5 w-5 text-red-600 shrink-0" />
+        <div className="flex-1 text-left">
+          <p className="font-semibold text-red-700 dark:text-red-400">
+            {orders.length} overdue payment{orders.length > 1 ? 's' : ''}
+          </p>
+          <p className="text-xs text-red-600/80 dark:text-red-500">
+            {expanded ? 'Click to collapse' : 'Click to view'}
+          </p>
+        </div>
+        <Badge className="bg-red-600 text-white text-sm px-2 shrink-0">{orders.length}</Badge>
+        {expanded
+          ? <ChevronUp className="h-4 w-4 text-red-500 shrink-0" />
+          : <ChevronDown className="h-4 w-4 text-red-500 shrink-0" />
+        }
+      </button>
+
+      {/* Expandable list */}
+      {expanded && (
+        <div className="divide-y divide-red-100 dark:divide-red-900 border-t border-red-200 dark:border-red-800">
+          {orders.map((order) => (
+            <div key={order.id} className="flex items-center justify-between px-4 py-3 gap-3">
+              <Link href={`/orders/${order.id}`} className="flex-1 min-w-0 hover:opacity-70 transition-opacity">
+                <p className="text-sm font-medium">{(order.customer as any)?.company_name}</p>
+                <p className="text-xs text-muted-foreground font-mono">{order.order_number}</p>
+                <p className="text-xs text-red-600 mt-0.5">
+                  Due {order.dueDate.toLocaleDateString('en', { day: 'numeric', month: 'short' })} · {order.daysOverdue}d overdue
+                </p>
+              </Link>
+              <div className="flex items-center gap-2 shrink-0">
+                <p className="text-sm font-bold text-red-700 dark:text-red-400">XCG {Number(order.total).toFixed(2)}</p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs border-red-200 text-red-600 hover:bg-red-50 gap-1"
+                  onClick={() => onRemind(order)}
+                >
+                  <Mail className="h-3 w-3" />
+                  Remind
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Main page ──────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const supabase = createClient()
   const { isAdmin } = useAuth()
-  const { data: users } = useUsers()
-  const { data: allOrders } = useOrders()
   const [stats, setStats] = useState<Stats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [pendingOrders, setPendingOrders] = useState<Order[]>([])
@@ -114,7 +263,7 @@ export default function DashboardPage() {
     today.setHours(0, 0, 0, 0)
 
     const overdue: OverdueOrder[] = ((data ?? []) as Order[])
-      .filter((o) => (o as any).payment_type !== 'cash') // cash orders are paid on delivery
+      .filter((o) => (o as any).payment_type !== 'cash')
       .map((o) => {
         const termDays = (o.customer as any)?.payment_term_days ?? 7
         const due = new Date(o.created_at)
@@ -129,16 +278,32 @@ export default function DashboardPage() {
     setOverdueOrders(overdue)
   }
 
+  async function loadBottlesThisMonth(): Promise<number> {
+    const now = new Date()
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+    const { data } = await supabase
+      .from('orders')
+      .select('items')
+      .in('status', ['delivered', 'invoice_ready', 'invoice_blocked', 'paid'])
+      .gte('created_at', startOfMonth)
+
+    let total = 0
+    for (const order of data ?? []) {
+      const items: { qty: number }[] = order.items ?? []
+      total += items.reduce((sum, item) => sum + (item.qty ?? 0), 0)
+    }
+    return total
+  }
+
   async function loadStats() {
     await Promise.all([loadPendingOrders(), loadOverdueOrders()])
-    const [quotesRes, kpisRes] = await Promise.all([
-      supabase
-        .from('quotes')
-        .select('status'),
+    const [quotesRes, kpisRes, bottlesCount] = await Promise.all([
+      supabase.from('quotes').select('status'),
       supabase
         .from('v_dashboard_kpis')
         .select('orders_out_for_delivery, deliveries_today, deliveries_missing_pod')
         .single(),
+      loadBottlesThisMonth(),
     ])
 
     const quotes = quotesRes.data ?? []
@@ -151,6 +316,7 @@ export default function DashboardPage() {
       orders_out_for_delivery: kpis?.orders_out_for_delivery ?? 0,
       deliveries_today:        kpis?.deliveries_today ?? 0,
       deliveries_missing_pod:  kpis?.deliveries_missing_pod ?? 0,
+      bottles_this_month:      bottlesCount,
     })
     setIsLoading(false)
   }
@@ -175,7 +341,7 @@ export default function DashboardPage() {
         <p className="text-muted-foreground text-sm">Live overview — updates in real time</p>
       </div>
 
-      {/* Customer order approval alert */}
+      {/* Pending orders alert */}
       {isAdmin && pendingOrders.length > 0 && (
         <div className="rounded-xl border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/20 overflow-hidden">
           <div className="flex items-center gap-3 px-4 py-3 border-b border-orange-200 dark:border-orange-800">
@@ -224,48 +390,12 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Overdue Payments */}
-      {isAdmin && overdueOrders.length > 0 && (
-        <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/20 overflow-hidden">
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-red-200 dark:border-red-800">
-            <CreditCard className="h-5 w-5 text-red-600 shrink-0" />
-            <div className="flex-1">
-              <p className="font-semibold text-red-700 dark:text-red-400">
-                {overdueOrders.length} overdue payment{overdueOrders.length > 1 ? 's' : ''}
-              </p>
-              <p className="text-xs text-red-600/80 dark:text-red-500">Send a reminder to collect outstanding balances</p>
-            </div>
-            <Badge className="bg-red-600 text-white text-sm px-2">{overdueOrders.length}</Badge>
-          </div>
-          <div className="divide-y divide-red-100 dark:divide-red-900">
-            {overdueOrders.map((order) => (
-              <div
-                key={order.id}
-                className="flex items-center justify-between px-4 py-3 gap-3"
-              >
-                <Link href={`/orders/${order.id}`} className="flex-1 min-w-0 hover:opacity-70 transition-opacity">
-                  <p className="text-sm font-medium">{(order.customer as any)?.company_name}</p>
-                  <p className="text-xs text-muted-foreground font-mono">{order.order_number}</p>
-                  <p className="text-xs text-red-600 mt-0.5">
-                    Due {order.dueDate.toLocaleDateString('en', { day: 'numeric', month: 'short' })} · {order.daysOverdue}d overdue
-                  </p>
-                </Link>
-                <div className="flex items-center gap-2 shrink-0">
-                  <p className="text-sm font-bold text-red-700 dark:text-red-400">XCG {Number(order.total).toFixed(2)}</p>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs border-red-200 text-red-600 hover:bg-red-50 gap-1"
-                    onClick={() => { setTemplateOrder(order); setSelectedTemplate('first'); setCopied(false) }}
-                  >
-                    <Mail className="h-3 w-3" />
-                    Remind
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+      {/* Overdue payments — collapsible */}
+      {isAdmin && (
+        <OverdueBanner
+          orders={overdueOrders}
+          onRemind={(order) => { setTemplateOrder(order); setSelectedTemplate('first'); setCopied(false) }}
+        />
       )}
 
       {/* Email template modal */}
@@ -279,6 +409,12 @@ export default function DashboardPage() {
           onClose={() => setTemplateOrder(null)}
         />
       )}
+
+      {/* Bottles this month */}
+      <section>
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Performance</h2>
+        <BottlesCard bottles={stats?.bottles_this_month ?? 0} isLoading={isLoading} />
+      </section>
 
       {/* Delivery Notes */}
       <section>
@@ -340,49 +476,11 @@ export default function DashboardPage() {
           />
         </div>
       </section>
-
-      {/* Worker Overview — admin only */}
-      {isAdmin && users && users.length > 0 && (
-        <section>
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Team Overview</h2>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Users className="h-4 w-4" /> Workers
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="divide-y">
-              {users.map((user) => {
-                const assigned = allOrders?.filter((o) => o.assigned_to === user.id) ?? []
-                const pending   = assigned.filter((o) => o.status === 'processing' || o.status === 'out_for_delivery')
-                const delivered = assigned.filter((o) => o.status === 'delivered' || o.status === 'invoice_ready')
-                return (
-                  <div key={user.id} className="py-3 flex items-center justify-between gap-4">
-                    <div>
-                      <p className="font-medium text-sm">{user.name}</p>
-                      <p className="text-xs text-muted-foreground capitalize">{user.role}</p>
-                    </div>
-                    <div className="flex gap-4 text-sm">
-                      <Link href={`/orders?assigned=${user.id}&status=active`} className="text-center hover:opacity-70 transition-opacity">
-                        <p className="font-bold text-yellow-600">{pending.length}</p>
-                        <p className="text-xs text-muted-foreground">Pending</p>
-                      </Link>
-                      <Link href={`/orders?assigned=${user.id}&status=delivered`} className="text-center hover:opacity-70 transition-opacity">
-                        <p className="font-bold text-green-600">{delivered.length}</p>
-                        <p className="text-xs text-muted-foreground">Done</p>
-                      </Link>
-                    </div>
-                  </div>
-                )
-              })}
-            </CardContent>
-          </Card>
-        </section>
-      )}
     </div>
   )
 }
 
+// ── Email template modal ───────────────────────────────────────────────────
 type TemplateKey = 'first' | 'second' | 'final'
 
 const TEMPLATE_LABELS: Record<TemplateKey, string> = {
@@ -477,7 +575,6 @@ function EmailTemplateModal({
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="bg-background rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[90vh] flex flex-col shadow-xl">
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
           <div>
             <p className="font-semibold">Payment Reminder</p>
@@ -490,7 +587,6 @@ function EmailTemplateModal({
           </button>
         </div>
 
-        {/* Template selector */}
         <div className="flex gap-2 px-5 pt-4 shrink-0">
           {(['first', 'second', 'final'] as TemplateKey[]).map((t) => (
             <button
@@ -507,7 +603,6 @@ function EmailTemplateModal({
           ))}
         </div>
 
-        {/* Email preview */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 min-h-0">
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">To</p>
@@ -523,7 +618,6 @@ function EmailTemplateModal({
           </div>
         </div>
 
-        {/* Actions */}
         <div className="px-5 py-4 border-t flex gap-2 shrink-0">
           {customer?.email && (
             <a
