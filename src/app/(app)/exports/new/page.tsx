@@ -49,6 +49,7 @@ function NewExportInner() {
   const [destination, setDestination] = useState('')
   const [exportDate, setExportDate] = useState(new Date().toISOString().split('T')[0])
   const [notes, setNotes] = useState('')
+  const [thtDate, setThtDate] = useState('')
   const [items, setItems] = useState<QuoteItem[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -121,6 +122,7 @@ function NewExportInner() {
         carrier_id: carrierId || null,
         destination,
         export_date: exportDate || null,
+        tht_date: thtDate || null,
         notes,
         items: activeItems,
         status: 'draft',
@@ -207,6 +209,18 @@ function NewExportInner() {
                   onChange={e => setExportDate(e.target.value)}
                 />
               </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>
+                THT Date{' '}
+                <span className="text-muted-foreground text-xs">(Tenminste Houdbaar Tot — best before)</span>
+              </Label>
+              <Input
+                type="date"
+                value={thtDate}
+                onChange={e => setThtDate(e.target.value)}
+              />
             </div>
 
             {exportNumberPreview && (

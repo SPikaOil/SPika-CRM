@@ -4,7 +4,7 @@ import { use, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  ArrowLeft, Download, Upload, Trash2, PackageCheck, FileText,
+  ArrowLeft, Download, Upload, Trash2, PackageCheck, FileText, Pencil, Check, X as XIcon,
 } from 'lucide-react'
 import {
   useExport, useExportDocuments, useUpdateExport,
@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -60,6 +61,8 @@ export default function ExportDetailPage({
   const supabase = createClient()
 
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
+  const [editingTht, setEditingTht] = useState(false)
+  const [thtDraft, setThtDraft] = useState('')
   const receivedFileRef = useRef<HTMLInputElement>(null)
 
   if (!isAdmin) {
@@ -289,6 +292,47 @@ export default function ExportDetailPage({
                   })
                 : '—'}
             </span>
+          </div>
+          {/* THT Date — inline editable */}
+          <div className="flex justify-between items-center gap-4">
+            <span className="text-muted-foreground shrink-0">THT Date</span>
+            {editingTht ? (
+              <div className="flex items-center gap-1.5">
+                <Input
+                  type="date"
+                  autoFocus
+                  value={thtDraft}
+                  onChange={e => setThtDraft(e.target.value)}
+                  className="h-7 w-40 text-sm text-right px-2"
+                />
+                <button
+                  onClick={() => {
+                    updateExport.mutate({ id, values: { tht_date: thtDraft || null } })
+                    setEditingTht(false)
+                  }}
+                  className="text-green-600 hover:text-green-700"
+                >
+                  <Check className="h-4 w-4" />
+                </button>
+                <button onClick={() => setEditingTht(false)} className="text-muted-foreground hover:text-foreground">
+                  <XIcon className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setThtDraft((exp as any).tht_date ?? ''); setEditingTht(true) }}
+                className="flex items-center gap-1.5 font-medium hover:opacity-70 transition-opacity group"
+              >
+                <span>
+                  {(exp as any).tht_date
+                    ? new Date((exp as any).tht_date + 'T12:00:00').toLocaleDateString('en', {
+                        day: 'numeric', month: 'long', year: 'numeric',
+                      })
+                    : <span className="text-muted-foreground">Not set</span>}
+                </span>
+                <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+              </button>
+            )}
           </div>
           <div className="flex justify-between gap-4">
             <span className="text-muted-foreground">Created</span>

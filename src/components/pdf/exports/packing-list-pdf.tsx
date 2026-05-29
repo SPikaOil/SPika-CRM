@@ -84,6 +84,10 @@ export function PackingListPDF({ exportRecord, company = DEFAULT_COMPANY }: Prop
     ? fmt(new Date(exportRecord.export_date + 'T12:00:00'))
     : fmt(new Date())
 
+  const thtDate = (exportRecord as any).tht_date
+    ? fmt(new Date((exportRecord as any).tht_date + 'T12:00:00'))
+    : '—'
+
   const totalQty = activeItems.reduce((sum, i) => sum + i.qty, 0)
   const totalCartons = Math.ceil(totalQty / BOTTLES_PER_CARTON)
   const totalWeight = totalCartons * KG_PER_CARTON
@@ -138,6 +142,7 @@ export function PackingListPDF({ exportRecord, company = DEFAULT_COMPANY }: Prop
             { label: 'Packing List #', value: exportRecord.export_number },
             { label: 'Order Ref',      value: order?.order_number ?? '—' },
             { label: 'Export Date',    value: exportDate },
+            { label: 'THT / Best Before', value: thtDate },
             { label: 'Carrier',        value: exportRecord.carrier?.name ?? '—' },
             { label: 'Total Cartons',  value: `${totalCartons} ctns` },
             { label: 'Gross Weight',   value: `${totalWeight} kg` },

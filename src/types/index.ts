@@ -243,6 +243,7 @@ export interface Export {
   carrier_id: string | null
   destination: string
   export_date: string | null
+  tht_date: string | null
   notes: string
   status: ExportStatus
   items: QuoteItem[]
