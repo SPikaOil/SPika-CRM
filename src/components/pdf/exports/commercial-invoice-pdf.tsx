@@ -10,6 +10,7 @@ import {
 } from '@react-pdf/renderer'
 import { Export, QuoteItem } from '@/types'
 import { CompanyInfo } from '../delivery-note-pdf'
+import { formatTaxId } from '@/lib/tax-id'
 
 const RED = '#CC0000'
 const DARK = '#1a1a1a'
@@ -127,12 +128,14 @@ export function CommercialInvoicePDF({ exportRecord, company = DEFAULT_COMPANY }
                 {customer.billing_address.city}{customer.billing_address.country ? `, ${customer.billing_address.country}` : ''}
               </Text>
             )}
-            {customer?.crib_number && (
-              <Text style={styles.addressLine}>CRIB# {customer.crib_number}</Text>
-            )}
-            {customer?.vat_number && (
-              <Text style={styles.addressLine}>VAT: {customer.vat_number}</Text>
-            )}
+            {(() => {
+              const taxId = formatTaxId(
+                (customer?.billing_address as any)?.country ?? '',
+                customer?.vat_number,
+                customer?.crib_number,
+              )
+              return taxId ? <Text style={styles.addressLine}>{taxId}</Text> : null
+            })()}
             <Text style={styles.addressLine}>Destination: {exportRecord.destination || '—'}</Text>
           </View>
         </View>

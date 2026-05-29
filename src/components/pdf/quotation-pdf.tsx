@@ -9,6 +9,7 @@ import {
   Image,
 } from '@react-pdf/renderer'
 import { Quote } from '@/types'
+import { formatTaxId } from '@/lib/tax-id'
 
 const RED = '#CC0000'
 const DARK = '#1a1a1a'
@@ -136,7 +137,14 @@ export function QuotationPDF({ quote }: QuotationPDFProps) {
             {(customer?.billing_emails ?? []).map((email: string) => (
               <Text key={email} style={[styles.addressLine, { color: RED }]}>{email}</Text>
             ))}
-            {customer?.vat_number ? <Text style={styles.addressLine}>VAT: {customer.vat_number}</Text> : null}
+            {(() => {
+              const taxId = formatTaxId(
+                (customer?.billing_address as any)?.country ?? '',
+                customer?.vat_number,
+                (customer as any)?.crib_number,
+              )
+              return taxId ? <Text style={styles.addressLine}>{taxId}</Text> : null
+            })()}
           </View>
         </View>
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { use, useMemo, useState } from 'react'
+import { formatTaxId } from '@/lib/tax-id'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Edit, Building2, Package, CheckCircle2, Clock, Truck, FileSignature, AlertTriangle, Download, Upload, Info, RefreshCw, CalendarClock } from 'lucide-react'
@@ -462,6 +463,30 @@ export default function CustomerDetailPage({
                     <p>{deliveryAddr.zip} {deliveryAddr.city}</p>
                     <p>{deliveryAddr.country}</p>
                   </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Business / Tax Details */}
+          {(customer.vat_number || customer.crib_number || customer.coc_number || customer.is_international) && (
+            <Card>
+              <CardHeader><CardTitle className="text-base">Business Details</CardTitle></CardHeader>
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                {(() => {
+                  const taxId = formatTaxId(
+                    billingAddr?.country ?? '',
+                    customer.vat_number,
+                    customer.crib_number,
+                  )
+                  return taxId ? <Row label="Tax ID" value={taxId} /> : null
+                })()}
+                {customer.coc_number && <Row label="CoC Number" value={customer.coc_number} />}
+                {customer.is_international && (
+                  <Row label="International" value="Yes — exports eligible" />
+                )}
+                {customer.payment_term_days && (
+                  <Row label="Payment Term" value={`${customer.payment_term_days} days`} />
                 )}
               </CardContent>
             </Card>

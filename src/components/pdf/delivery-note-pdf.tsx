@@ -9,6 +9,7 @@ import {
   Image,
 } from '@react-pdf/renderer'
 import { Order, QuoteItem } from '@/types'
+import { formatTaxId } from '@/lib/tax-id'
 
 const RED = '#CC0000'
 const DARK = '#1a1a1a'
@@ -201,9 +202,14 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
                 {customer.billing_address.city}{customer.billing_address.country ? `, ${customer.billing_address.country}` : ''}
               </Text>
             )}
-            {customer?.vat_number && (
-              <Text style={styles.addressLine}>VAT: {customer.vat_number}</Text>
-            )}
+            {(() => {
+              const taxId = formatTaxId(
+                (customer?.billing_address as any)?.country ?? '',
+                customer?.vat_number,
+                customer?.crib_number,
+              )
+              return taxId ? <Text style={styles.addressLine}>{taxId}</Text> : null
+            })()}
             {customer?.coc_number && (
               <Text style={styles.addressLine}>CoC: {customer.coc_number}</Text>
             )}

@@ -19,6 +19,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Customer, SpikaStand, SPIKA_STAND_TYPES } from '@/types'
 import { SPIKA_PRODUCTS } from '@/lib/products'
+import { getTaxIdInfo } from '@/lib/tax-id'
 
 const customerSchema = z.object({
   company_name: z.string().min(1, 'Required'),
@@ -238,6 +239,8 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
   const category = watch('customer_category')
   const preferredComm = watch('preferred_communication')
   const status = watch('status')
+  const billingCountry = watch('billing_country')
+  const taxIdInfo = getTaxIdInfo(billingCountry ?? '')
 
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
@@ -506,19 +509,43 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
         <CardContent className="space-y-4">
           {category !== 'b2c' && (
             <div className="space-y-1.5">
-              <Label>VAT Number</Label>
-              <Input {...register('vat_number')} placeholder="e.g. NL123456789B01" />
-              <p className="text-xs text-muted-foreground">Business VAT registration number (for tax-exempt invoicing)</p>
+              <Label>
+                {taxIdInfo.label}
+                {taxIdInfo.prefix && (
+                  <span className="ml-1.5 text-xs font-mono bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
+                    {taxIdInfo.prefix}
+                  </span>
+                )}
+              </Label>
+              {taxIdInfo.field === 'vat_number' ? (
+                <Input {...register('vat_number')} placeholder={taxIdInfo.placeholder} />
+              ) : (
+                <Input {...register('crib_number')} placeholder={taxIdInfo.placeholder} />
+              )}
+              <p className="text-xs text-muted-foreground">
+                {taxIdInfo.field === 'vat_number'
+                  ? 'Business VAT registration number (for tax-exempt invoicing)'
+                  : 'Local customs/tax identification number'}
+              </p>
             </div>
           )}
           <div className="space-y-1.5">
             <Label>CoC Number <span className="text-muted-foreground text-xs">(Kamer van Koophandel)</span></Label>
             <Input {...register('coc_number')} placeholder="e.g. 12345678" />
           </div>
-          <div className="space-y-1.5">
-            <Label>CRIB Number <span className="text-muted-foreground text-xs">(Curaçao customs/tax ID)</span></Label>
-            <Input {...register('crib_number')} placeholder="e.g. 102471812" />
-          </div>
+          {/* Show the other tax field only if it already has a value (migration fallback) */}
+          {taxIdInfo.field === 'vat_number' && watch('crib_number') && (
+            <div className="space-y-1.5">
+              <Label>CRIB Number <span className="text-muted-foreground text-xs">(kept from previous entry)</span></Label>
+              <Input {...register('crib_number')} placeholder="e.g. 102471812" />
+            </div>
+          )}
+          {taxIdInfo.field === 'crib_number' && watch('vat_number') && (
+            <div className="space-y-1.5">
+              <Label>VAT Number <span className="text-muted-foreground text-xs">(kept from previous entry)</span></Label>
+              <Input {...register('vat_number')} placeholder="e.g. NL123456789B01" />
+            </div>
+          )}
           <div className="flex items-center justify-between rounded-lg border p-3">
             <div>
               <p className="text-sm font-medium">International Customer</p>
