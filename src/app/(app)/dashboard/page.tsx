@@ -46,22 +46,20 @@ function StatCard({
   }
 
   const inner = (
-    <CardContent className="pt-5 pb-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm text-muted-foreground">{title}</p>
-          {isLoading ? (
-            <Skeleton className="h-9 w-14 mt-1" />
-          ) : (
-            <p className={`text-4xl font-bold mt-1 ${colors[variant].split(' ')[0]}`}>
-              {value}
-            </p>
-          )}
-        </div>
-        <div className={`p-2 rounded-lg ${colors[variant]}`}>
-          <Icon className="h-5 w-5" />
+    <CardContent className="p-3">
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <p className="text-xs text-muted-foreground leading-tight">{title}</p>
+        <div className={`p-1.5 rounded-md ${colors[variant]}`}>
+          <Icon className="h-3.5 w-3.5" />
         </div>
       </div>
+      {isLoading ? (
+        <Skeleton className="h-7 w-10 mt-1" />
+      ) : (
+        <p className={`text-2xl font-bold ${colors[variant].split(' ')[0]}`}>
+          {value}
+        </p>
+      )}
     </CardContent>
   )
 
@@ -104,59 +102,56 @@ function BottlesCard({ bottles, isLoading }: { bottles: number; isLoading: boole
 
   return (
     <Card>
-      <CardContent className="pt-5 pb-4">
-        <div className="flex items-start justify-between gap-3 mb-3">
-          <div className="flex-1 min-w-0">
-            <p className="text-sm text-muted-foreground">Bottles Delivered This Month</p>
-            {isLoading ? (
-              <Skeleton className="h-9 w-20 mt-1" />
-            ) : (
-              <div className="flex items-end gap-2 mt-1">
-                <p className="text-4xl font-bold text-blue-600 dark:text-blue-400">{bottles}</p>
-                {!editing && (
-                  <p className="text-sm text-muted-foreground mb-1.5">/ {target}</p>
-                )}
+      <CardContent className="p-3">
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="p-1.5 rounded-md text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 shrink-0">
+              <Package className="h-3.5 w-3.5" />
+            </div>
+            <p className="text-xs text-muted-foreground">Bottles This Month</p>
+          </div>
+          {!isLoading && (
+            editing ? (
+              <div className="flex items-center gap-1 shrink-0">
+                <Input
+                  autoFocus
+                  type="number"
+                  value={draft}
+                  onChange={e => setDraft(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') saveTarget(); if (e.key === 'Escape') setEditing(false) }}
+                  className="h-6 w-16 text-xs text-right px-2"
+                />
+                <button onClick={saveTarget} className="text-xs text-blue-600 font-medium hover:underline">Save</button>
               </div>
-            )}
-          </div>
-          <div className="p-2 rounded-lg text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30">
-            <Package className="h-5 w-5" />
-          </div>
+            ) : (
+              <button
+                onClick={() => { setDraft(String(target)); setEditing(true) }}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0"
+              >
+                <Pencil className="h-3 w-3" />
+                {target}
+              </button>
+            )
+          )}
         </div>
 
-        {/* Progress bar */}
+        <div className="flex items-end gap-2 mb-2">
+          {isLoading ? (
+            <Skeleton className="h-7 w-16" />
+          ) : (
+            <>
+              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{bottles}</p>
+              <p className="text-xs text-muted-foreground mb-0.5">/ {target} · {pct}%</p>
+            </>
+          )}
+        </div>
+
         {!isLoading && (
-          <div className="space-y-1.5">
-            <div className="h-2 rounded-full bg-muted overflow-hidden">
-              <div
-                className="h-full rounded-full bg-blue-500 transition-all duration-500"
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">{pct}% of monthly target</p>
-              {editing ? (
-                <div className="flex items-center gap-1">
-                  <Input
-                    autoFocus
-                    type="number"
-                    value={draft}
-                    onChange={e => setDraft(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') saveTarget(); if (e.key === 'Escape') setEditing(false) }}
-                    className="h-6 w-20 text-xs text-right px-2"
-                  />
-                  <button onClick={saveTarget} className="text-xs text-blue-600 font-medium hover:underline">Save</button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => { setDraft(String(target)); setEditing(true) }}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <Pencil className="h-3 w-3" />
-                  Set target
-                </button>
-              )}
-            </div>
+          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full rounded-full bg-blue-500 transition-all duration-500"
+              style={{ width: `${pct}%` }}
+            />
           </div>
         )}
       </CardContent>
@@ -335,42 +330,34 @@ export default function DashboardPage() {
   }, [])
 
   return (
-    <div className="p-4 lg:p-6 space-y-6">
+    <div className="p-3 lg:p-6 space-y-3">
       <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground text-sm">Live overview — updates in real time</p>
+        <h1 className="text-xl font-bold">Dashboard</h1>
+        <p className="text-muted-foreground text-xs">Live overview — updates in real time</p>
       </div>
 
       {/* Pending orders alert */}
       {isAdmin && pendingOrders.length > 0 && (
         <div className="rounded-xl border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/20 overflow-hidden">
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-orange-200 dark:border-orange-800">
-            <ShoppingBag className="h-5 w-5 text-orange-600 shrink-0" />
-            <div className="flex-1">
-              <p className="font-semibold text-orange-700 dark:text-orange-400">
-                {pendingOrders.length} customer order{pendingOrders.length > 1 ? 's' : ''} waiting for approval
-              </p>
-              <p className="text-xs text-orange-600/80 dark:text-orange-500">Review and assign to a worker</p>
-            </div>
-            <Badge className="bg-orange-600 text-white text-sm px-2">{pendingOrders.length}</Badge>
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-orange-200 dark:border-orange-800">
+            <ShoppingBag className="h-4 w-4 text-orange-600 shrink-0" />
+            <p className="flex-1 text-sm font-semibold text-orange-700 dark:text-orange-400">
+              {pendingOrders.length} order{pendingOrders.length > 1 ? 's' : ''} waiting for approval
+            </p>
+            <Badge className="bg-orange-600 text-white text-xs px-1.5">{pendingOrders.length}</Badge>
           </div>
           <div className="divide-y divide-orange-100 dark:divide-orange-900">
             {pendingOrders.map((order) => (
               <Link
                 key={order.id}
                 href={`/orders/${order.id}`}
-                className="flex items-center justify-between px-4 py-3 hover:bg-orange-100/50 dark:hover:bg-orange-900/20 transition-colors"
+                className="flex items-center justify-between px-3 py-2 hover:bg-orange-100/50 dark:hover:bg-orange-900/20 transition-colors"
               >
                 <div>
                   <p className="text-sm font-medium">{(order as any).customer?.company_name}</p>
                   <p className="text-xs text-muted-foreground font-mono">{order.order_number}</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold text-orange-700 dark:text-orange-400">XCG {Number(order.total).toFixed(2)}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(order.created_at).toLocaleDateString('en', { day: 'numeric', month: 'short' })}
-                  </p>
-                </div>
+                <p className="text-sm font-bold text-orange-700 dark:text-orange-400">XCG {Number(order.total).toFixed(2)}</p>
               </Link>
             ))}
           </div>
@@ -379,14 +366,11 @@ export default function DashboardPage() {
 
       {/* Missing POD alert */}
       {!isLoading && stats && stats.deliveries_missing_pod > 0 && (
-        <div className="flex items-center gap-3 p-4 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900">
-          <AlertCircle className="h-5 w-5 text-red-600 shrink-0" />
-          <div>
-            <p className="font-semibold text-red-700 dark:text-red-400">
-              {stats.deliveries_missing_pod} {stats.deliveries_missing_pod === 1 ? 'delivery' : 'deliveries'} missing Proof of Delivery
-            </p>
-            <p className="text-sm text-red-600/80">Open the delivery to upload a signature or photo</p>
-          </div>
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900">
+          <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
+          <p className="text-sm font-semibold text-red-700 dark:text-red-400">
+            {stats.deliveries_missing_pod} {stats.deliveries_missing_pod === 1 ? 'delivery' : 'deliveries'} missing POD
+          </p>
         </div>
       )}
 
@@ -411,15 +395,12 @@ export default function DashboardPage() {
       )}
 
       {/* Bottles this month */}
-      <section>
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Performance</h2>
-        <BottlesCard bottles={stats?.bottles_this_month ?? 0} isLoading={isLoading} />
-      </section>
+      <BottlesCard bottles={stats?.bottles_this_month ?? 0} isLoading={isLoading} />
 
       {/* Delivery Notes */}
       <section>
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Delivery Notes</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Delivery Notes</p>
+        <div className="grid grid-cols-3 gap-2">
           <StatCard
             title="Draft"
             value={stats?.notes_draft ?? 0}
@@ -428,7 +409,7 @@ export default function DashboardPage() {
             href="/quotations?status=draft"
           />
           <StatCard
-            title="Sent to Customer"
+            title="Sent"
             value={stats?.notes_sent ?? 0}
             icon={Clock}
             variant="warning"
@@ -448,8 +429,8 @@ export default function DashboardPage() {
 
       {/* Deliveries */}
       <section>
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Deliveries</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Deliveries</p>
+        <div className="grid grid-cols-3 gap-2">
           <StatCard
             title="Out for Delivery"
             value={stats?.orders_out_for_delivery ?? 0}
