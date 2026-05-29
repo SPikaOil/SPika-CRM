@@ -59,6 +59,48 @@ export async function getNextCashOrderNumber(): Promise<string> {
   return `C-${new Date().getFullYear()}-0001`
 }
 
+/**
+ * Generates the next export number for a specific country and month.
+ * Format: {ISO2}{YYYY}{MM}{NN}  e.g. NL20260501
+ *
+ * - ISO2 comes from the customer's billing country (same logic as getTaxIdInfo prefix)
+ * - YYYY + MM are the current (or provided) year + month
+ * - NN is a zero-padded 2-digit counter that resets every month per country
+ *
+ * Example sequence for Netherlands in May 2026:
+ *   NL20260501 → NL20260502 → NL20260503 …
+ */
+export async function getNextExportNumber(
+  countryIso: string,
+  date: Date = new Date()
+): Promise<string> {
+  const supabase = createClient()
+
+  const iso = countryIso.toUpperCase().slice(0, 2)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const prefix = `${iso}${year}${month}`
+
+  // Find the highest export number for this country+month combination
+  const { data } = await supabase
+    .from('exports')
+    .select('export_number')
+    .like('export_number', `${prefix}%`)
+    .order('export_number', { ascending: false })
+    .limit(1)
+    .single()
+
+  if (data?.export_number) {
+    // Extract the trailing counter and increment
+    const counter = parseInt(data.export_number.slice(prefix.length), 10)
+    const next = String((isNaN(counter) ? 0 : counter) + 1).padStart(2, '0')
+    return `${prefix}${next}`
+  }
+
+  // First export this month for this country
+  return `${prefix}01`
+}
+
 export async function getNextQuoteNumber(): Promise<string> {
   const supabase = createClient()
 

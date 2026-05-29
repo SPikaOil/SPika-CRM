@@ -16,6 +16,8 @@ import {
 } from '@/components/ui/select'
 import { QuoteItem } from '@/types'
 import { SPIKA_PRODUCTS } from '@/lib/products'
+import { getNextExportNumber } from '@/lib/order-number'
+import { getTaxIdInfo } from '@/lib/tax-id'
 
 function buildItems(
   productPrices: Record<string, number>,
@@ -88,13 +90,32 @@ function NewExportInner() {
   const activeItems = items.filter(i => i.qty > 0)
   const subtotal = activeItems.reduce((sum, i) => sum + i.line_total, 0)
 
+  // Live export number preview
+  const billingCountryPreview = (selectedCustomer?.billing_address as any)?.country ?? ''
+  const taxInfoPreview = getTaxIdInfo(billingCountryPreview)
+  const isoPreview = taxInfoPreview.prefix || billingCountryPreview.slice(0, 2).toUpperCase() || '??'
+  const datePreview = exportDate ? new Date(exportDate) : new Date()
+  const yearPreview = datePreview.getFullYear()
+  const monthPreview = String(datePreview.getMonth() + 1).padStart(2, '0')
+  const exportNumberPreview = customerId ? `${isoPreview}${yearPreview}${monthPreview}NN` : null
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!customerId) return
     if (activeItems.length === 0) return
     setIsSubmitting(true)
     try {
+      // Derive country ISO from customer billing address
+      const billingCountry = (selectedCustomer?.billing_address as any)?.country ?? ''
+      const taxInfo = getTaxIdInfo(billingCountry)
+      const countryIso = taxInfo.prefix || billingCountry.slice(0, 2).toUpperCase() || 'XX'
+
+      // Generate export number: e.g. NL20260501
+      const exportDate_ = exportDate ? new Date(exportDate) : new Date()
+      const exportNumber = await getNextExportNumber(countryIso, exportDate_)
+
       const exp = await createExport.mutateAsync({
+        export_number: exportNumber,
         customer_id: customerId,
         order_id: null,
         carrier_id: carrierId || null,
@@ -187,6 +208,16 @@ function NewExportInner() {
                 />
               </div>
             </div>
+
+            {exportNumberPreview && (
+              <div className="flex items-center gap-2 bg-muted/60 rounded-lg px-3 py-2">
+                <span className="text-xs text-muted-foreground">Export number:</span>
+                <span className="font-mono font-semibold text-sm tracking-wide">
+                  {exportNumberPreview.replace('NN', '??')}
+                </span>
+                <span className="text-xs text-muted-foreground">(assigned on create)</span>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label>Notes <span className="text-muted-foreground text-xs">(internal)</span></Label>
