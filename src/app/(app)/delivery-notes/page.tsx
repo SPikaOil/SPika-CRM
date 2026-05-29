@@ -59,8 +59,9 @@ export default function DeliveryNotesPage() {
 
   const activeOrders =
     allOrders?.filter((o) => ACTIVE_STATUSES.includes(o.status)) ?? []
+  // Paid orders are only visible to admins — sales workers don't need to see them
   const archivedOrders =
-    allOrders?.filter((o) => o.status === 'paid') ?? []
+    isAdmin ? (allOrders?.filter((o) => o.status === 'paid') ?? []) : []
 
   const searchLower = search.toLowerCase().trim()
   function matchesSearch(o: Order) {

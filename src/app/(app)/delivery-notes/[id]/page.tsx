@@ -243,6 +243,18 @@ export default function DeliveryNoteDetailPage({
     )
   }
 
+  // Sales workers cannot access paid orders
+  if (!isAdmin && order.status === 'paid') {
+    return (
+      <div className="p-4 lg:p-6 flex flex-col items-center py-20 gap-3">
+        <p className="font-medium text-muted-foreground">This order has been paid and is no longer accessible.</p>
+        <Link href="/delivery-notes">
+          <Button variant="outline">Back to Delivery Notes</Button>
+        </Link>
+      </div>
+    )
+  }
+
   const currentStepIndex = TIMELINE.indexOf(order.status as any)
   const items = order.items as QuoteItem[]
   const delivery = (order as any).delivery
