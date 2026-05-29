@@ -114,6 +114,7 @@ export default function DashboardPage() {
     today.setHours(0, 0, 0, 0)
 
     const overdue: OverdueOrder[] = ((data ?? []) as Order[])
+      .filter((o) => (o as any).payment_type !== 'cash') // cash orders are paid on delivery
       .map((o) => {
         const termDays = (o.customer as any)?.payment_term_days ?? 7
         const due = new Date(o.created_at)

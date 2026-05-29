@@ -156,11 +156,14 @@ export interface OrderEditLogEntry {
   new_total: number
 }
 
+export type PaymentType = 'invoice' | 'cash'
+
 export interface Order {
   id: string
   quote_id: string | null
   customer_id: string
   order_number: string
+  payment_type: PaymentType
   items: QuoteItem[]
   total: number
   assigned_to: string

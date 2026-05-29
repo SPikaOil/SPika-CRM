@@ -18,6 +18,7 @@ import { Separator } from '@/components/ui/separator'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { OrderEditLogEntry, OrderStatus, QuoteItem } from '@/types'
 import { SPIKA_PRODUCTS } from '@/lib/products'
+import { getNextCashOrderNumber, getNextOrderNumber } from '@/lib/order-number'
 
 const statusColors: Record<OrderStatus, string> = {
   pending_approval: 'bg-orange-100 text-orange-700',
@@ -287,6 +288,9 @@ export default function OrderDetailPage({
             <Badge className={`text-xs ${statusColors[order.status]}`}>
               {statusLabels[order.status]}
             </Badge>
+            {(order as any).payment_type === 'cash' && (
+              <Badge className="text-xs bg-green-100 text-green-700">Cash</Badge>
+            )}
           </div>
           <p className="text-muted-foreground text-sm">{order.customer?.company_name}</p>
         </div>
@@ -495,6 +499,54 @@ export default function OrderDetailPage({
                   Save
                 </Button>
               )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Payment Type (admin only) */}
+      {isAdmin && (
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium">Payment Type</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Cash orders use a separate number series (C-YYYY-XXXX)
+                </p>
+              </div>
+              <div className="flex rounded-lg border overflow-hidden shrink-0">
+                <button
+                  onClick={async () => {
+                    if ((order as any).payment_type === 'invoice') return
+                    await updateOrder.mutateAsync({ id: order.id, values: { payment_type: 'invoice' } as any })
+                  }}
+                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                    (order as any).payment_type !== 'cash'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-muted-foreground hover:bg-accent'
+                  }`}
+                >
+                  Invoice
+                </button>
+                <button
+                  onClick={async () => {
+                    if ((order as any).payment_type === 'cash') return
+                    const cashNum = await getNextCashOrderNumber()
+                    await updateOrder.mutateAsync({
+                      id: order.id,
+                      values: { payment_type: 'cash', order_number: cashNum } as any,
+                    })
+                  }}
+                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                    (order as any).payment_type === 'cash'
+                      ? 'bg-green-600 text-white'
+                      : 'text-muted-foreground hover:bg-accent'
+                  }`}
+                >
+                  Cash
+                </button>
+              </div>
             </div>
           </CardContent>
         </Card>

@@ -361,6 +361,9 @@ function OrderRow({
             <Badge className={`text-xs ${statusColors[order.status]}`}>
               {statusLabels[order.status]}
             </Badge>
+            {(order as any).payment_type === 'cash' && (
+              <Badge className="text-xs bg-green-100 text-green-700">Cash</Badge>
+            )}
           </div>
           <p className="font-medium mt-0.5">{order.customer?.company_name}</p>
           <p className="text-sm text-muted-foreground">
