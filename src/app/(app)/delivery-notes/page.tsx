@@ -201,6 +201,9 @@ function DeliveryNoteRow({
             {(order as any).payment_type === 'cash' && (
               <Badge className="text-xs bg-green-100 text-green-700">Cash</Badge>
             )}
+            {(order as any).order_type === 'free_bottle_service' && (
+              <Badge className="text-xs bg-emerald-100 text-emerald-700">🎁 Free Bottles</Badge>
+            )}
           </div>
           <p className="font-medium mt-0.5">{order.customer?.company_name}</p>
           <p className="text-sm text-muted-foreground">

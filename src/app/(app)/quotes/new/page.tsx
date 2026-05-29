@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/select'
 import { QuoteItem } from '@/types'
 import { SPIKA_PRODUCTS } from '@/lib/products'
-import { getNextOrderNumber } from '@/lib/order-number'
+import { getNextOrderNumber, getNextFreeBottleOrderNumber } from '@/lib/order-number'
 
 const B2C_TAX_RATE = 0.06
 const B2B_TAX_RATE = 0
@@ -56,6 +56,7 @@ function NewDeliveryNoteInner() {
   const [assignedTo, setAssignedTo] = useState('')
   const [plannedDate, setPlannedDate] = useState('')
   const [orderNumber, setOrderNumber] = useState('')
+  const [orderType, setOrderType] = useState<'normal' | 'free_bottle_service'>('normal')
   const [items, setItems] = useState<QuoteItem[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -63,6 +64,25 @@ function NewDeliveryNoteInner() {
   useEffect(() => {
     getNextOrderNumber().then(setOrderNumber)
   }, [])
+
+  // When order type changes, regenerate the order number
+  async function handleOrderTypeChange(type: 'normal' | 'free_bottle_service') {
+    setOrderType(type)
+    if (type === 'free_bottle_service') {
+      const num = await getNextFreeBottleOrderNumber()
+      setOrderNumber(num)
+      // Set all prices to 0 for free bottle service
+      setItems(prev => prev.map(item => ({ ...item, unit_price: 0, discount: 0, line_total: 0 })))
+    } else {
+      const num = await getNextOrderNumber()
+      setOrderNumber(num)
+      // Restore prices from customer profile
+      const customer = customers?.find(c => c.id === customerId)
+      if (customer) {
+        setItems(buildItemsForCustomer(customer.product_prices ?? {}, customer.product_discounts ?? {}, customer.free_products ?? []))
+      }
+    }
+  }
 
   const selectedCustomer = customers?.find((c) => c.id === customerId)
 
@@ -122,6 +142,11 @@ function NewDeliveryNoteInner() {
 
     setIsSubmitting(true)
     try {
+      const finalOrderNumber = orderNumber || (
+        orderType === 'free_bottle_service'
+          ? await getNextFreeBottleOrderNumber()
+          : await getNextOrderNumber()
+      )
       const order = await createOrder.mutateAsync({
         customer_id: customerId,
         items: activeItems,
@@ -130,7 +155,8 @@ function NewDeliveryNoteInner() {
         assigned_to: assignedTo,
         planned_date: plannedDate || null,
         delivery_notes: '',
-        order_number: orderNumber || await getNextOrderNumber(),
+        order_number: finalOrderNumber,
+        order_type: orderType,
       } as any)
       toast.success('Delivery note created and assigned!')
       router.push(`/orders/${order.id}`)
@@ -142,6 +168,42 @@ function NewDeliveryNoteInner() {
   return (
     <div className="p-4 lg:p-6 max-w-2xl mx-auto space-y-4">
       <h1 className="text-2xl font-bold">New Delivery Note</h1>
+
+      {/* Order type toggle */}
+      <div className="flex rounded-xl border overflow-hidden">
+        <button
+          type="button"
+          onClick={() => handleOrderTypeChange('normal')}
+          className={`flex-1 py-3 text-sm font-semibold transition-colors ${
+            orderType === 'normal'
+              ? 'bg-red-600 text-white'
+              : 'bg-card text-muted-foreground hover:bg-accent'
+          }`}
+        >
+          Normal Order
+        </button>
+        <button
+          type="button"
+          onClick={() => handleOrderTypeChange('free_bottle_service')}
+          className={`flex-1 py-3 text-sm font-semibold transition-colors border-l ${
+            orderType === 'free_bottle_service'
+              ? 'bg-emerald-600 text-white'
+              : 'bg-card text-muted-foreground hover:bg-accent'
+          }`}
+        >
+          🎁 Free Bottle Service
+        </button>
+      </div>
+
+      {orderType === 'free_bottle_service' && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 text-sm text-emerald-700 dark:text-emerald-400">
+          <span className="text-base">🎁</span>
+          <div>
+            <p className="font-semibold">Free Bottle Service</p>
+            <p className="text-xs opacity-80">Uses F-YYYY-XXXX order numbers. All prices set to XCG 0.00.</p>
+          </div>
+        </div>
+      )}
 
       {selectedCustomer?.ob_form_required && !selectedCustomer?.ob_form_signed && (
         <div className="flex items-start gap-3 bg-red-50 dark:bg-red-950/30 border border-red-300 rounded-xl p-4">

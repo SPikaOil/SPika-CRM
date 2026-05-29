@@ -157,6 +157,7 @@ export interface OrderEditLogEntry {
 }
 
 export type PaymentType = 'invoice' | 'cash'
+export type OrderType = 'normal' | 'free_bottle_service'
 
 export interface Order {
   id: string
@@ -164,6 +165,7 @@ export interface Order {
   customer_id: string
   order_number: string
   payment_type: PaymentType
+  order_type: OrderType
   items: QuoteItem[]
   total: number
   assigned_to: string

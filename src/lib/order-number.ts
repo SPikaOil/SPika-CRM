@@ -60,6 +60,35 @@ export async function getNextCashOrderNumber(): Promise<string> {
 }
 
 /**
+ * Generates the next free bottle service order number.
+ * Free bottle orders use a separate "F-YYYY-XXXX" sequence.
+ * e.g. "F-2026-0003" → "F-2026-0004"
+ */
+export async function getNextFreeBottleOrderNumber(): Promise<string> {
+  const supabase = createClient()
+
+  const { data } = await supabase
+    .from('orders')
+    .select('order_number')
+    .not('order_number', 'is', null)
+    .like('order_number', 'F-%')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single()
+
+  const last = data?.order_number ?? ''
+  const match = last.match(/^(.*?)(\d+)$/)
+  if (match) {
+    const prefix = match[1]
+    const num = match[2]
+    const next = String(parseInt(num, 10) + 1).padStart(num.length, '0')
+    return `${prefix}${next}`
+  }
+
+  return `F-${new Date().getFullYear()}-0001`
+}
+
+/**
  * Generates the next export number for a specific country and month.
  * Format: {ISO2}{YYYY}{MM}{NN}  e.g. NL20260501
  *
