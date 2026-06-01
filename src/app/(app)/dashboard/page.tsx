@@ -282,10 +282,13 @@ export default function DashboardPage() {
       .in('status', ['delivered', 'invoice_ready', 'invoice_blocked', 'paid'])
       .gte('created_at', startOfMonth)
 
+    const COUNTED_SKUS = ['oil-100ml', 'oil-50ml']
     let total = 0
     for (const order of data ?? []) {
-      const items: { qty: number }[] = order.items ?? []
-      total += items.reduce((sum, item) => sum + (item.qty ?? 0), 0)
+      const items: { sku: string; qty: number }[] = order.items ?? []
+      total += items
+        .filter(item => COUNTED_SKUS.includes(item.sku))
+        .reduce((sum, item) => sum + (item.qty ?? 0), 0)
     }
     return total
   }
