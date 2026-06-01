@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/auth-context'
-import { useOrders } from '@/hooks/use-orders'
+import { useUsers } from '@/hooks/use-users'
 import { Order } from '@/types'
 
 interface Stats {
@@ -81,7 +81,21 @@ interface OverdueOrder extends Order {
 // ── Bottles card with settable monthly target ──────────────────────────────
 const TARGET_KEY = 'dashboard_bottle_target'
 
-function BottlesCard({ bottles, isLoading }: { bottles: number; isLoading: boolean }) {
+interface WorkerBottles { name: string; count: number }
+
+function BottlesCard({
+  bottles,
+  workerBottles,
+  isLoading,
+  selectedMonth,
+  onMonthChange,
+}: {
+  bottles: number
+  workerBottles: WorkerBottles[]
+  isLoading: boolean
+  selectedMonth: string
+  onMonthChange: (m: string) => void
+}) {
   const [target, setTarget] = useState<number>(() => {
     if (typeof window === 'undefined') return 500
     return parseInt(localStorage.getItem(TARGET_KEY) ?? '500', 10)
@@ -100,58 +114,84 @@ function BottlesCard({ bottles, isLoading }: { bottles: number; isLoading: boole
 
   const pct = target > 0 ? Math.min(100, Math.round((bottles / target) * 100)) : 0
 
+  // Build last 12 months as options
+  const monthOptions = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date()
+    d.setDate(1)
+    d.setMonth(d.getMonth() - i)
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    const label = d.toLocaleDateString('en', { month: 'long', year: 'numeric' })
+    return { value, label }
+  })
+
   return (
     <Card>
-      <CardContent className="p-3">
-        <div className="flex items-center justify-between gap-3 mb-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="p-1.5 rounded-md text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 shrink-0">
+      <CardContent className="p-3 space-y-2">
+        {/* Header row */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-md text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30">
               <Package className="h-3.5 w-3.5" />
             </div>
-            <p className="text-xs text-muted-foreground">Bottles This Month</p>
+            <p className="text-xs font-medium text-muted-foreground">Bottles Sold</p>
           </div>
-          {!isLoading && (
-            editing ? (
-              <div className="flex items-center gap-1 shrink-0">
-                <Input
-                  autoFocus
-                  type="number"
-                  value={draft}
-                  onChange={e => setDraft(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') saveTarget(); if (e.key === 'Escape') setEditing(false) }}
-                  className="h-6 w-16 text-xs text-right px-2"
-                />
-                <button onClick={saveTarget} className="text-xs text-blue-600 font-medium hover:underline">Save</button>
-              </div>
-            ) : (
-              <button
-                onClick={() => { setDraft(String(target)); setEditing(true) }}
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0"
-              >
-                <Pencil className="h-3 w-3" />
-                {target}
-              </button>
-            )
-          )}
+          {/* Month picker */}
+          <select
+            value={selectedMonth}
+            onChange={e => onMonthChange(e.target.value)}
+            className="h-6 text-xs rounded-md border border-input bg-background px-1.5 text-muted-foreground"
+          >
+            {monthOptions.map(o => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
         </div>
 
-        <div className="flex items-end gap-2 mb-2">
-          {isLoading ? (
-            <Skeleton className="h-7 w-16" />
-          ) : (
+        {/* Total + progress */}
+        <div className="flex items-end gap-2">
+          {isLoading ? <Skeleton className="h-7 w-16" /> : (
             <>
               <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{bottles}</p>
               <p className="text-xs text-muted-foreground mb-0.5">/ {target} · {pct}%</p>
+              {editing ? (
+                <div className="flex items-center gap-1 ml-auto shrink-0">
+                  <Input autoFocus type="number" value={draft}
+                    onChange={e => setDraft(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveTarget(); if (e.key === 'Escape') setEditing(false) }}
+                    className="h-6 w-14 text-xs text-right px-2" />
+                  <button onClick={saveTarget} className="text-xs text-blue-600 font-medium hover:underline">Save</button>
+                </div>
+              ) : (
+                <button onClick={() => { setDraft(String(target)); setEditing(true) }}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground ml-auto shrink-0">
+                  <Pencil className="h-3 w-3" />
+                </button>
+              )}
             </>
           )}
         </div>
 
         {!isLoading && (
           <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-            <div
-              className="h-full rounded-full bg-blue-500 transition-all duration-500"
-              style={{ width: `${pct}%` }}
-            />
+            <div className="h-full rounded-full bg-blue-500 transition-all duration-500" style={{ width: `${pct}%` }} />
+          </div>
+        )}
+
+        {/* Per-worker breakdown */}
+        {!isLoading && workerBottles.length > 0 && (
+          <div className="pt-1 space-y-1.5 border-t">
+            {workerBottles.map(w => {
+              const workerPct = bottles > 0 ? Math.round((w.count / bottles) * 100) : 0
+              return (
+                <div key={w.name} className="flex items-center gap-2">
+                  <p className="text-xs text-muted-foreground w-24 truncate shrink-0">{w.name}</p>
+                  <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full rounded-full bg-blue-400/70 transition-all duration-500" style={{ width: `${workerPct}%` }} />
+                  </div>
+                  <p className="text-xs font-medium w-8 text-right shrink-0">{w.count}</p>
+                </div>
+              )
+            })}
           </div>
         )}
       </CardContent>
@@ -227,9 +267,15 @@ function OverdueBanner({
 }
 
 // ── Main page ──────────────────────────────────────────────────────────────
+function currentMonthStr() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
 export default function DashboardPage() {
   const supabase = createClient()
   const { isAdmin } = useAuth()
+  const { data: users } = useUsers()
   const [stats, setStats] = useState<Stats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [pendingOrders, setPendingOrders] = useState<Order[]>([])
@@ -237,6 +283,8 @@ export default function DashboardPage() {
   const [templateOrder, setTemplateOrder] = useState<OverdueOrder | null>(null)
   const [selectedTemplate, setSelectedTemplate] = useState<'first' | 'second' | 'final'>('first')
   const [copied, setCopied] = useState(false)
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthStr)
+  const [workerBottles, setWorkerBottles] = useState<WorkerBottles[]>([])
 
   async function loadPendingOrders() {
     const { data } = await supabase
@@ -273,23 +321,42 @@ export default function DashboardPage() {
     setOverdueOrders(overdue)
   }
 
-  async function loadBottlesThisMonth(): Promise<number> {
-    const now = new Date()
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  async function loadBottlesForMonth(monthStr: string): Promise<number> {
+    const [year, month] = monthStr.split('-').map(Number)
+    const start = new Date(year, month - 1, 1).toISOString()
+    const end = new Date(year, month, 1).toISOString()
+
     const { data } = await supabase
       .from('orders')
-      .select('items')
+      .select('items, assigned_to')
       .in('status', ['delivered', 'invoice_ready', 'invoice_blocked', 'paid'])
-      .gte('created_at', startOfMonth)
+      .gte('created_at', start)
+      .lt('created_at', end)
 
     const COUNTED_SKUS = ['oil-100ml', 'oil-50ml']
     let total = 0
+    const byWorker: Record<string, number> = {}
+
     for (const order of data ?? []) {
       const items: { sku: string; qty: number }[] = order.items ?? []
-      total += items
+      const count = items
         .filter(item => COUNTED_SKUS.includes(item.sku))
         .reduce((sum, item) => sum + (item.qty ?? 0), 0)
+      total += count
+      if (order.assigned_to) {
+        byWorker[order.assigned_to] = (byWorker[order.assigned_to] ?? 0) + count
+      }
     }
+
+    // Map worker IDs to names using current users list
+    const workerList: WorkerBottles[] = Object.entries(byWorker)
+      .map(([uid, count]) => ({
+        name: users?.find(u => u.id === uid)?.name ?? 'Unknown',
+        count,
+      }))
+      .sort((a, b) => b.count - a.count)
+
+    setWorkerBottles(workerList)
     return total
   }
 
@@ -301,7 +368,7 @@ export default function DashboardPage() {
         .from('v_dashboard_kpis')
         .select('orders_out_for_delivery, deliveries_today, deliveries_missing_pod')
         .single(),
-      loadBottlesThisMonth(),
+      loadBottlesForMonth(selectedMonth),
     ])
 
     const quotes = quotesRes.data ?? []
@@ -330,7 +397,17 @@ export default function DashboardPage() {
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Reload bottles when month changes
+  useEffect(() => {
+    if (!isAdmin) return
+    loadBottlesForMonth(selectedMonth).then(count => {
+      setStats(prev => prev ? { ...prev, bottles_this_month: count } : prev)
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMonth])
 
   return (
     <div className="p-3 lg:p-6 space-y-3">
@@ -397,8 +474,16 @@ export default function DashboardPage() {
         />
       )}
 
-      {/* Bottles this month */}
-      <BottlesCard bottles={stats?.bottles_this_month ?? 0} isLoading={isLoading} />
+      {/* Bottles this month — admin only */}
+      {isAdmin && (
+        <BottlesCard
+          bottles={stats?.bottles_this_month ?? 0}
+          workerBottles={workerBottles}
+          isLoading={isLoading}
+          selectedMonth={selectedMonth}
+          onMonthChange={setSelectedMonth}
+        />
+      )}
 
       {/* Delivery Notes */}
       <section>
