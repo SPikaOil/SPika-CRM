@@ -2,11 +2,12 @@
 
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Settings, Users, FileText, Download, Building2, Loader2, Tag } from 'lucide-react'
+import { Settings, Users, FileText, Download, Building2, Loader2, Tag, ChevronDown, ChevronUp } from 'lucide-react'
 import { SPIKA_PRODUCTS } from '@/lib/products'
 import { useAuth } from '@/contexts/auth-context'
 import { useQuoteTemplates } from '@/hooks/use-quotes'
 import { useOrders } from '@/hooks/use-orders'
+import { usePricePresets, useUpdatePricePreset } from '@/hooks/use-price-presets'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -134,6 +135,9 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Price Presets */}
+      <PricePresetsCard />
+
       {/* Product Codes */}
       <ProductCodesCard />
 
@@ -248,6 +252,120 @@ function CompanySettingsCard() {
           {saving && <Loader2 className="h-4 w-4 animate-spin" />}
           Save
         </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+function PricePresetsCard() {
+  const { data: presets, isLoading } = usePricePresets()
+  const { mutateAsync: updatePreset } = useUpdatePricePreset()
+  const [openCategory, setOpenCategory] = useState<string | null>(null)
+  const [localPrices, setLocalPrices] = useState<Record<string, Record<string, number>>>({})
+  const [saving, setSaving] = useState<string | null>(null)
+
+  // Initialise local state when presets load
+  useEffect(() => {
+    if (!presets) return
+    const init: Record<string, Record<string, number>> = {}
+    for (const p of presets) {
+      init[p.category] = { ...p.prices }
+    }
+    setLocalPrices(init)
+  }, [presets])
+
+  async function handleSave(category: string, id: string) {
+    setSaving(category)
+    try {
+      await updatePreset({ id, prices: localPrices[category] ?? {} })
+      toast.success('Price preset saved!')
+    } catch (err: any) {
+      toast.error(err.message)
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  if (isLoading) return <Skeleton className="h-48 rounded-xl" />
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Tag className="h-5 w-5" />
+          Price Presets
+        </CardTitle>
+        <CardDescription>
+          Default prices per customer category. Applied automatically when you create a customer — still editable per customer.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2 p-0 sm:p-6 sm:pt-0">
+        {(presets ?? []).map(preset => {
+          const isOpen = openCategory === preset.category
+          const prices = localPrices[preset.category] ?? {}
+          return (
+            <div key={preset.category} className="border rounded-lg overflow-hidden mx-4 sm:mx-0 mb-2">
+              <button
+                type="button"
+                className="w-full flex items-center justify-between px-4 py-3 hover:bg-accent transition-colors text-left"
+                onClick={() => setOpenCategory(isOpen ? null : preset.category)}
+              >
+                <div>
+                  <p className="text-sm font-medium">{preset.label}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {Object.keys(preset.prices).length > 0
+                      ? `${Object.keys(preset.prices).length} custom prices set`
+                      : 'Using product defaults'}
+                  </p>
+                </div>
+                {isOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+              </button>
+              {isOpen && (
+                <div className="border-t px-4 pb-4 pt-3 space-y-3">
+                  <div className="rounded-lg border divide-y">
+                    {SPIKA_PRODUCTS.map(product => (
+                      <div key={product.sku} className="flex items-center gap-3 px-3 py-2.5">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{product.name}</p>
+                          <p className="text-xs text-muted-foreground">default XCG {product.default_price.toFixed(2)}</p>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-muted-foreground">XCG</span>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            className="w-24 h-8 text-right text-sm"
+                            placeholder={product.default_price.toFixed(2)}
+                            value={prices[product.sku] ?? ''}
+                            onChange={e => {
+                              const val = e.target.value === '' ? undefined : parseFloat(e.target.value)
+                              setLocalPrices(prev => {
+                                const next = { ...prev[preset.category] }
+                                if (val === undefined) delete next[product.sku]
+                                else next[product.sku] = val
+                                return { ...prev, [preset.category]: next }
+                              })
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Leave blank to use the product default price.</p>
+                  <Button
+                    className="bg-red-600 hover:bg-red-700 gap-2"
+                    onClick={() => handleSave(preset.category, preset.id)}
+                    disabled={saving === preset.category}
+                  >
+                    {saving === preset.category && <Loader2 className="h-4 w-4 animate-spin" />}
+                    Save {preset.label} Preset
+                  </Button>
+                </div>
+              )}
+            </div>
+          )
+        })}
       </CardContent>
     </Card>
   )

@@ -22,6 +22,7 @@ import { Customer, SpikaStand, SPIKA_STAND_TYPES } from '@/types'
 import { SPIKA_PRODUCTS } from '@/lib/products'
 import { getTaxIdInfo } from '@/lib/tax-id'
 import { useCustomers } from '@/hooks/use-customers'
+import { usePricePresets } from '@/hooks/use-price-presets'
 
 const customerSchema = z.object({
   company_name: z.string().min(1, 'Required'),
@@ -86,8 +87,10 @@ function toFormValues(customer?: Partial<Customer>): Partial<CustomerFormValues>
 
 export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
   const { data: allCustomers } = useCustomers()
+  const { data: pricePresets } = usePricePresets()
 
   // Product prices — keyed by SKU, pre-filled from existing customer or product defaults
+  // Note: preset is applied reactively when category changes (see Select onValueChange)
   const [productPrices, setProductPrices] = useState<Record<string, number>>(() => {
     const existing = defaultValues?.product_prices ?? {}
     const result: Record<string, number> = {}
@@ -366,7 +369,20 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
               </div>
               <div className="space-y-1.5">
                 <Label>Category *</Label>
-                <Select value={category} onValueChange={(v) => setValue('customer_category', v as any)}>
+                <Select value={category} onValueChange={(v) => {
+                  setValue('customer_category', v as any)
+                  // Apply price preset for this category (only on new customers or when no custom prices set)
+                  const preset = pricePresets?.find(p => p.category === v)
+                  if (preset && Object.keys(preset.prices).length > 0) {
+                    setProductPrices(prev => {
+                      const next = { ...prev }
+                      for (const p of SPIKA_PRODUCTS) {
+                        next[p.sku] = preset.prices[p.sku] ?? p.default_price
+                      }
+                      return next
+                    })
+                  }
+                }}>
                   <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="wholesale">Wholesale (B2B)</SelectItem>
