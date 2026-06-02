@@ -155,6 +155,20 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
     })
   }
 
+  // Same billing/delivery address toggle
+  const [sameAddress, setSameAddress] = useState<boolean>(() => {
+    if (!defaultValues?.id) return true // new customer → default same
+    const b = defaultValues.billing_address as any
+    const d = defaultValues.delivery_address as any
+    if (!b?.street && !d?.street) return true
+    return (
+      (b?.street ?? '') === (d?.street ?? '') &&
+      (b?.city ?? '') === (d?.city ?? '') &&
+      (b?.zip ?? '') === (d?.zip ?? '') &&
+      (b?.country ?? '') === (d?.country ?? '')
+    )
+  })
+
   // Active products — which products this customer actually orders
   // Default: if existing customer has active_products set, use those;
   //          if new customer (no defaultValues), start with nothing selected
@@ -254,7 +268,13 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
         zip: billing_zip,
         country: billing_country,
       },
-      delivery_address: {
+      delivery_address: sameAddress ? {
+        street: billing_street,
+        city: billing_city,
+        state: '',
+        zip: billing_zip,
+        country: billing_country,
+      } : {
         street: delivery_street,
         city: delivery_city,
         state: '',
@@ -534,10 +554,11 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
         </CardContent>
       </Card>
 
-      {/* Billing Address */}
+      {/* Addresses */}
       <Card>
-        <CardHeader><CardTitle className="text-base">Billing Address</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">Address</CardTitle></CardHeader>
         <CardContent className="space-y-4">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Billing Address</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5 sm:col-span-2">
               <Label>Street</Label>
@@ -556,31 +577,40 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
               <Input {...register('billing_country')} placeholder="Netherlands" />
             </div>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Delivery Address */}
-      <Card>
-        <CardHeader><CardTitle className="text-base">Delivery Address</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label>Street</Label>
-              <Input {...register('delivery_street')} placeholder="123 Main St" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>City</Label>
-              <Input {...register('delivery_city')} placeholder="Amsterdam" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Zip Code</Label>
-              <Input {...register('delivery_zip')} placeholder="1234 AB" />
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label>Country</Label>
-              <Input {...register('delivery_country')} placeholder="Netherlands" />
-            </div>
-          </div>
+          <label className="flex items-center gap-2 cursor-pointer pt-1">
+            <input
+              type="checkbox"
+              checked={sameAddress}
+              onChange={e => setSameAddress(e.target.checked)}
+              className="rounded"
+            />
+            <span className="text-sm">Delivery address is the same as billing address</span>
+          </label>
+
+          {!sameAddress && (
+            <>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide pt-2 border-t">Delivery Address</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label>Street</Label>
+                  <Input {...register('delivery_street')} placeholder="123 Main St" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>City</Label>
+                  <Input {...register('delivery_city')} placeholder="Amsterdam" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Zip Code</Label>
+                  <Input {...register('delivery_zip')} placeholder="1234 AB" />
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label>Country</Label>
+                  <Input {...register('delivery_country')} placeholder="Netherlands" />
+                </div>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
