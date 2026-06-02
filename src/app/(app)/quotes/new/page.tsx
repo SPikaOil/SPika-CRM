@@ -29,9 +29,13 @@ const B2B_TAX_RATE = 0
 function buildItemsForCustomer(
   productPrices: Record<string, number>,
   productDiscounts: Record<string, number> = {},
-  freeProducts: string[] = []
+  freeProducts: string[] = [],
+  activeProducts: string[] = []
 ): QuoteItem[] {
-  return SPIKA_PRODUCTS.map((p) => {
+  const products = activeProducts.length > 0
+    ? SPIKA_PRODUCTS.filter(p => activeProducts.includes(p.sku))
+    : SPIKA_PRODUCTS
+  return products.map((p) => {
     const isFree = freeProducts.includes(p.sku)
     return {
       sku: p.sku,
@@ -79,7 +83,7 @@ function NewDeliveryNoteInner() {
       // Restore prices from customer profile
       const customer = customers?.find(c => c.id === customerId)
       if (customer) {
-        setItems(buildItemsForCustomer(customer.product_prices ?? {}, customer.product_discounts ?? {}, customer.free_products ?? []))
+        setItems(buildItemsForCustomer(customer.product_prices ?? {}, customer.product_discounts ?? {}, customer.free_products ?? [], customer.active_products ?? []))
       }
     }
   }
@@ -89,13 +93,13 @@ function NewDeliveryNoteInner() {
   function handleCustomerChange(id: string) {
     setCustomerId(id)
     const customer = customers?.find((c) => c.id === id)
-    setItems(buildItemsForCustomer(customer?.product_prices ?? {}, customer?.product_discounts ?? {}, customer?.free_products ?? []))
+    setItems(buildItemsForCustomer(customer?.product_prices ?? {}, customer?.product_discounts ?? {}, customer?.free_products ?? [], customer?.active_products ?? []))
   }
 
   useEffect(() => {
     if (customerId && customers) {
       const customer = customers.find((c) => c.id === customerId)
-      if (customer) setItems(buildItemsForCustomer(customer.product_prices ?? {}, customer.product_discounts ?? {}))
+      if (customer) setItems(buildItemsForCustomer(customer.product_prices ?? {}, customer.product_discounts ?? {}, customer.free_products ?? [], customer.active_products ?? []))
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customers])

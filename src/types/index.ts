@@ -105,6 +105,7 @@ export interface Customer {
   product_prices: Record<string, number>
   product_discounts: Record<string, number>
   free_products: string[]
+  active_products: string[]
   table_bottle_return_price: number
   payment_term_days: number
   spika_stands: SpikaStand[]

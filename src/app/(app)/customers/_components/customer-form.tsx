@@ -152,6 +152,30 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
     })
   }
 
+  // Active products — which products this customer actually orders
+  // Default: if existing customer has active_products set, use those;
+  //          if new customer (no defaultValues), start with nothing selected
+  //          if existing customer has no active_products yet (legacy), include all
+  const [activeProducts, setActiveProducts] = useState<Set<string>>(() => {
+    const existing = defaultValues?.active_products
+    if (existing && existing.length > 0) return new Set(existing)
+    if (!defaultValues?.id) return new Set() // new customer → nothing pre-selected
+    return new Set(SPIKA_PRODUCTS.map(p => p.sku)) // legacy customer → all active
+  })
+
+  function toggleActiveProduct(sku: string) {
+    setActiveProducts((prev) => {
+      const next = new Set(prev)
+      if (next.has(sku)) next.delete(sku)
+      else next.add(sku)
+      return next
+    })
+  }
+
+  function toggleAllProducts(checked: boolean) {
+    setActiveProducts(checked ? new Set(SPIKA_PRODUCTS.map(p => p.sku)) : new Set())
+  }
+
   const formDefaults: CustomerFormValues = {
     company_name: '',
     customer_category: 'other',
@@ -219,6 +243,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
       product_prices: productPrices,
       product_discounts: productDiscounts,
       free_products: Array.from(freeProducts),
+      active_products: Array.from(activeProducts),
       billing_address: {
         street: billing_street,
         city: billing_city,
@@ -606,79 +631,93 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
       {/* Product Pricing */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Product Pricing</CardTitle>
-          <p className="text-xs text-muted-foreground">Set the agreed price per product for this customer. These prices auto-fill when creating a delivery note.</p>
+          <CardTitle className="text-base">Products & Pricing</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Tick the products this customer orders. Only ticked products appear when creating a delivery note.
+          </p>
         </CardHeader>
         <CardContent className="space-y-0">
-          <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 gap-y-0 items-center text-xs font-medium text-muted-foreground pb-2 border-b">
-            <span>Product</span>
-            <span className="text-right w-20">Standard</span>
-            <span className="text-right w-24">Customer Price</span>
-          </div>
-          <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-3 items-center pb-1.5 border-b mb-1">
+          {/* Header */}
+          <div className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-x-3 items-center pb-1.5 border-b mb-1">
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={activeProducts.size === SPIKA_PRODUCTS.length}
+                onChange={e => toggleAllProducts(e.target.checked)}
+                className="rounded"
+              />
+            </label>
             <span className="text-xs text-muted-foreground font-medium">Product</span>
-            <span className="text-xs text-muted-foreground w-20 text-right">Default</span>
             <span className="text-xs text-muted-foreground w-24 text-center">Price (XCG)</span>
-            <span className="text-xs text-muted-foreground w-24 text-center">Discount (XCG)</span>
-            <span className="text-xs text-muted-foreground w-16 text-center">Free</span>
+            <span className="text-xs text-muted-foreground w-24 text-center">Discount</span>
+            <span className="text-xs text-muted-foreground w-12 text-center">Free</span>
           </div>
+
           {SPIKA_PRODUCTS.map((product) => {
+            const isActive = activeProducts.has(product.sku)
             const isFree = freeProducts.has(product.sku)
             return (
-              <div key={product.sku} className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-3 items-center py-2.5 border-b last:border-0">
+              <div
+                key={product.sku}
+                className={`grid grid-cols-[auto_1fr_auto_auto_auto] gap-x-3 items-center py-2.5 border-b last:border-0 transition-opacity ${
+                  isActive ? '' : 'opacity-40'
+                }`}
+              >
+                {/* Active toggle */}
+                <input
+                  type="checkbox"
+                  checked={isActive}
+                  onChange={() => toggleActiveProduct(product.sku)}
+                  className="rounded cursor-pointer"
+                />
+                {/* Name */}
                 <div>
-                  <p className="text-sm font-medium">{product.name}</p>
-                  <p className="text-xs text-muted-foreground">{product.sku}</p>
+                  <p className={`text-sm font-medium ${isActive ? '' : 'line-through text-muted-foreground'}`}>
+                    {product.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{product.sku} · default XCG {product.default_price.toFixed(2)}</p>
                 </div>
-                <span className="text-sm text-muted-foreground w-20 text-right">
-                  XCG {product.default_price.toFixed(2)}
-                </span>
+                {/* Price */}
                 <div className="w-24">
                   <Input
                     type="number"
                     step="0.01"
                     min="0"
                     value={productPrices[product.sku] ?? product.default_price}
-                    onChange={(e) =>
-                      setProductPrices((prev) => ({
-                        ...prev,
-                        [product.sku]: parseFloat(e.target.value) || 0,
-                      }))
-                    }
+                    onChange={(e) => setProductPrices(prev => ({ ...prev, [product.sku]: parseFloat(e.target.value) || 0 }))}
                     className="h-8 text-right"
-                    disabled={isFree}
+                    disabled={!isActive || isFree}
                   />
                 </div>
+                {/* Discount */}
                 <div className="w-24">
                   <Input
                     type="number"
                     step="0.01"
                     min="0"
                     value={productDiscounts[product.sku] ?? 0}
-                    onChange={(e) =>
-                      setProductDiscounts((prev) => ({
-                        ...prev,
-                        [product.sku]: parseFloat(e.target.value) || 0,
-                      }))
-                    }
+                    onChange={(e) => setProductDiscounts(prev => ({ ...prev, [product.sku]: parseFloat(e.target.value) || 0 }))}
                     className="h-8 text-right"
-                    disabled={isFree}
+                    disabled={!isActive || isFree}
                   />
                 </div>
-                <div className="w-16 flex justify-center">
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={isFree}
-                      onChange={() => toggleFreeProduct(product.sku)}
-                      className="rounded"
-                    />
-                    <span className="text-xs text-green-600 font-medium">Free</span>
-                  </label>
+                {/* Free */}
+                <div className="w-12 flex justify-center">
+                  <input
+                    type="checkbox"
+                    checked={isFree}
+                    onChange={() => toggleFreeProduct(product.sku)}
+                    disabled={!isActive}
+                    className="rounded cursor-pointer accent-green-600"
+                  />
                 </div>
               </div>
             )
           })}
+
+          <p className="text-xs text-muted-foreground pt-2">
+            {activeProducts.size} of {SPIKA_PRODUCTS.length} products active for this customer
+          </p>
         </CardContent>
       </Card>
 

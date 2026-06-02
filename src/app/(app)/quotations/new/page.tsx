@@ -24,9 +24,13 @@ const B2C_TAX_RATE = 0.06
 function buildItemsForCustomer(
   productPrices: Record<string, number>,
   productDiscounts: Record<string, number> = {},
-  freeProducts: string[] = []
+  freeProducts: string[] = [],
+  activeProducts: string[] = []
 ): QuoteItem[] {
-  return SPIKA_PRODUCTS.map((p) => {
+  const products = activeProducts.length > 0
+    ? SPIKA_PRODUCTS.filter(p => activeProducts.includes(p.sku))
+    : SPIKA_PRODUCTS
+  return products.map((p) => {
     const isFree = freeProducts.includes(p.sku)
     return {
       sku: p.sku,
@@ -74,7 +78,8 @@ function NewQuotationInner() {
       setItems(buildItemsForCustomer(
         customer.product_prices ?? {},
         customer.product_discounts ?? {},
-        customer.free_products ?? []
+        customer.free_products ?? [],
+        customer.active_products ?? []
       ))
     }
   }
@@ -86,7 +91,8 @@ function NewQuotationInner() {
         setItems(buildItemsForCustomer(
           customer.product_prices ?? {},
           customer.product_discounts ?? {},
-          customer.free_products ?? []
+          customer.free_products ?? [],
+          customer.active_products ?? []
         ))
       }
     }
