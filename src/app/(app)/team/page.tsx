@@ -3,9 +3,10 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Users, Plus, KeyRound, Edit2, UserX, Check, X, Loader2, ShieldCheck, Truck, UserCircle2
+  Users, Plus, KeyRound, Edit2, UserX, Check, X, Loader2, ShieldCheck, Truck, UserCircle2, Lock
 } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
+import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -27,8 +28,9 @@ const roleConfig: Record<string, { label: string; color: string; icon: React.Ele
 }
 
 export default function TeamPage() {
-  const { isAdmin } = useAuth()
+  const { isAdmin, profile } = useAuth()
   const router = useRouter()
+  const supabase = createClient()
 
   const [users, setUsers] = useState<User[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -57,6 +59,36 @@ export default function TeamPage() {
   // Deactivate confirm
   const [deactivateUser, setDeactivateUser] = useState<User | null>(null)
   const [deactivating, setDeactivating] = useState(false)
+
+  // Own password change
+  const [showOwnPw, setShowOwnPw] = useState(false)
+  const [ownCurrentPw, setOwnCurrentPw] = useState('')
+  const [ownNewPw, setOwnNewPw] = useState('')
+  const [ownConfirmPw, setOwnConfirmPw] = useState('')
+  const [changingOwnPw, setChangingOwnPw] = useState(false)
+
+  async function handleChangeOwnPassword() {
+    if (ownNewPw.length < 6) return toast.error('New password must be at least 6 characters')
+    if (ownNewPw !== ownConfirmPw) return toast.error('Passwords do not match')
+    setChangingOwnPw(true)
+    try {
+      // Re-verify current password first
+      const { error: authErr } = await supabase.auth.signInWithPassword({
+        email: profile?.email ?? '',
+        password: ownCurrentPw,
+      })
+      if (authErr) { toast.error('Current password is incorrect'); return }
+      const { error } = await supabase.auth.updateUser({ password: ownNewPw })
+      if (error) throw error
+      toast.success('Password changed successfully')
+      setShowOwnPw(false)
+      setOwnCurrentPw(''); setOwnNewPw(''); setOwnConfirmPw('')
+    } catch (err: any) {
+      toast.error(err.message)
+    } finally {
+      setChangingOwnPw(false)
+    }
+  }
 
   useEffect(() => {
     if (!isAdmin) { router.replace('/dashboard'); return }
@@ -169,6 +201,24 @@ export default function TeamPage() {
           <Plus className="h-4 w-4" /> Add Member
         </Button>
       </div>
+
+      {/* My Account */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Lock className="h-4 w-4 text-red-600" /> My Account
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex items-center justify-between gap-4">
+          <div>
+            <p className="font-medium text-sm">{profile?.name}</p>
+            <p className="text-xs text-muted-foreground">{profile?.email}</p>
+          </div>
+          <Button variant="outline" size="sm" className="gap-2 shrink-0" onClick={() => setShowOwnPw(true)}>
+            <KeyRound className="h-3.5 w-3.5" /> Change Password
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* User list */}
       <div className="space-y-3">
@@ -308,6 +358,37 @@ export default function TeamPage() {
             <Button variant="outline" onClick={() => setEditUser(null)}>Cancel</Button>
             <Button className="bg-red-600 hover:bg-red-700" onClick={handleEdit} disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Check className="h-4 w-4 mr-1" />Save</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Change own password dialog ── */}
+      <Dialog open={showOwnPw} onOpenChange={v => { setShowOwnPw(v); if (!v) { setOwnCurrentPw(''); setOwnNewPw(''); setOwnConfirmPw('') } }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Change My Password</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Current password <span className="text-red-500">*</span></Label>
+              <Input type="password" value={ownCurrentPw} onChange={e => setOwnCurrentPw(e.target.value)} placeholder="Your current password" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>New password <span className="text-red-500">*</span></Label>
+              <Input type="password" value={ownNewPw} onChange={e => setOwnNewPw(e.target.value)} placeholder="Min. 6 characters" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Confirm new password <span className="text-red-500">*</span></Label>
+              <Input type="password" value={ownConfirmPw} onChange={e => setOwnConfirmPw(e.target.value)} placeholder="Repeat new password" />
+              {ownConfirmPw && ownNewPw !== ownConfirmPw && (
+                <p className="text-xs text-destructive">Passwords do not match</p>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowOwnPw(false)}>Cancel</Button>
+            <Button className="bg-red-600 hover:bg-red-700" onClick={handleChangeOwnPassword}
+              disabled={changingOwnPw || !ownCurrentPw || !ownNewPw || ownNewPw !== ownConfirmPw}>
+              {changingOwnPw ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Check className="h-4 w-4 mr-1" />Update Password</>}
             </Button>
           </DialogFooter>
         </DialogContent>
