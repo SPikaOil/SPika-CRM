@@ -22,9 +22,8 @@ import { toast } from 'sonner'
 import { User } from '@/types'
 
 const roleConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
-  admin:  { label: 'Admin',  color: 'bg-red-100 text-red-700',    icon: ShieldCheck },
-  sales:  { label: 'Sales',  color: 'bg-blue-100 text-blue-700',  icon: UserCircle2 },
-  worker: { label: 'Worker', color: 'bg-green-100 text-green-700', icon: Truck },
+  admin:  { label: 'Admin',  color: 'bg-red-100 text-red-700',   icon: ShieldCheck },
+  sales:  { label: 'Sales',  color: 'bg-blue-100 text-blue-700', icon: UserCircle2 },
 }
 
 export default function TeamPage() {
@@ -39,7 +38,7 @@ export default function TeamPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
   const [newEmail, setNewEmail] = useState('')
-  const [newRole, setNewRole] = useState('worker')
+  const [newRole, setNewRole] = useState('sales')
   const [newPhone, setNewPhone] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [creating, setCreating] = useState(false)
@@ -115,7 +114,7 @@ export default function TeamPage() {
       toast.success(`${newName} added successfully!`)
       setUsers(u => [...u, data])
       setShowCreate(false)
-      setNewName(''); setNewEmail(''); setNewPhone(''); setNewPassword(''); setNewRole('worker')
+      setNewName(''); setNewEmail(''); setNewPhone(''); setNewPassword(''); setNewRole('sales')
     } catch (err: any) {
       toast.error(err.message)
     } finally {
@@ -223,7 +222,7 @@ export default function TeamPage() {
       {/* User list */}
       <div className="space-y-3">
         {users.map(user => {
-          const rc = roleConfig[user.role] ?? roleConfig.worker
+          const rc = roleConfig[user.role] ?? roleConfig.sales
           const Icon = rc.icon
           return (
             <Card key={user.id}>
@@ -282,7 +281,6 @@ export default function TeamPage() {
                   <SelectContent>
                     <SelectItem value="admin">Admin</SelectItem>
                     <SelectItem value="sales">Sales</SelectItem>
-                    <SelectItem value="worker">Worker</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -345,7 +343,6 @@ export default function TeamPage() {
                 <SelectContent>
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="sales">Sales</SelectItem>
-                  <SelectItem value="worker">Worker</SelectItem>
                 </SelectContent>
               </Select>
             </div>

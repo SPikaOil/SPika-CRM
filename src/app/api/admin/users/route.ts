@@ -20,7 +20,7 @@ export async function GET() {
   const { data: profiles, error } = await admin
     .from('users')
     .select('*')
-    .in('role', ['admin', 'sales', 'worker'])
+    .in('role', ['admin', 'sales'])
     .order('created_at', { ascending: true })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
