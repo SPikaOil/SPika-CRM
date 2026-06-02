@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Customer, SpikaStand, SPIKA_STAND_TYPES } from '@/types'
 import { SPIKA_PRODUCTS } from '@/lib/products'
 import { getTaxIdInfo } from '@/lib/tax-id'
@@ -344,477 +345,452 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
 
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
-      {/* Basic Info */}
-      <Card>
-        <CardHeader><CardTitle className="text-base">Basic Information</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>Company Name *</Label>
-              <Input {...register('company_name')} placeholder="Acme Restaurants" />
-              {errors.company_name && <p className="text-xs text-destructive">{errors.company_name.message}</p>}
-              {duplicates.length > 0 && dupWarning(duplicates)}
-            </div>
-            <div className="space-y-1.5">
-              <Label>Category *</Label>
-              <Select
-                value={category}
-                onValueChange={(v) => setValue('customer_category', v as any)}
-              >
-                <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="wholesale">Wholesale (B2B)</SelectItem>
-                  <SelectItem value="horeca">HORECA (B2B)</SelectItem>
-                  <SelectItem value="supermarket">Supermarket (B2B)</SelectItem>
-                  <SelectItem value="shops">Shops (B2B)</SelectItem>
-                  <SelectItem value="dtf">DTF (B2B)</SelectItem>
-                  <SelectItem value="other">Other (B2B)</SelectItem>
-                  <SelectItem value="b2c">B2C (Individual)</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                {category === 'b2c' ? '6% tax applies (B2C)' : '0% tax — tax-exempt B2B customer'}
-              </p>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Contact Person *</Label>
-              <Input {...register('contact_person')} placeholder="John Smith" />
-              {errors.contact_person && <p className="text-xs text-destructive">{errors.contact_person.message}</p>}
-            </div>
-            <div className="space-y-1.5">
-              <Label>Status</Label>
-              <Select value={status} onValueChange={(v) => setValue('status', v as any)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="info" className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="info">Info</TabsTrigger>
+          <TabsTrigger value="address">Address</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
+          <TabsTrigger value="products">Products</TabsTrigger>
+        </TabsList>
 
-      {/* Contact */}
-      <Card>
-        <CardHeader><CardTitle className="text-base">Contact Details</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>Phone</Label>
-              <Input {...register('phone')} placeholder="+1 555 000 0000" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>WhatsApp</Label>
-              <Input {...register('whatsapp')} placeholder="+1 555 000 0000" />
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label>Primary Email</Label>
-              <Input {...register('email')} type="email" placeholder="contact@company.com" />
-              {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label>Billing Emails <span className="text-muted-foreground text-xs font-normal">(invoice CC recipients)</span></Label>
-              <div className="flex gap-2">
-                <Input
-                  type="email"
-                  value={billingEmailInput}
-                  onChange={e => setBillingEmailInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addBillingEmail() } }}
-                  placeholder="billing@company.com"
-                  className="flex-1"
-                />
-                <Button type="button" variant="outline" size="icon" onClick={addBillingEmail}>
-                  <Plus className="h-4 w-4" />
-                </Button>
+        {/* ── Tab: Info ── */}
+        <TabsContent value="info" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader><CardTitle className="text-base">Basic Information</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>Company Name *</Label>
+                <Input {...register('company_name')} placeholder="Acme Restaurants" />
+                {errors.company_name && <p className="text-xs text-destructive">{errors.company_name.message}</p>}
+                {duplicates.length > 0 && dupWarning(duplicates)}
               </div>
-              {billingEmails.length > 0 && (
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {billingEmails.map(email => (
-                    <span key={email} className="flex items-center gap-1 bg-muted text-sm px-2 py-1 rounded-md">
-                      {email}
-                      <button type="button" onClick={() => removeBillingEmail(email)} className="text-muted-foreground hover:text-destructive">
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
+              <div className="space-y-1.5">
+                <Label>Category *</Label>
+                <Select value={category} onValueChange={(v) => setValue('customer_category', v as any)}>
+                  <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="wholesale">Wholesale (B2B)</SelectItem>
+                    <SelectItem value="horeca">HORECA (B2B)</SelectItem>
+                    <SelectItem value="supermarket">Supermarket (B2B)</SelectItem>
+                    <SelectItem value="shops">Shops (B2B)</SelectItem>
+                    <SelectItem value="dtf">DTF (B2B)</SelectItem>
+                    <SelectItem value="other">Other (B2B)</SelectItem>
+                    <SelectItem value="b2c">B2C (Individual)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {category === 'b2c' ? '6% tax applies (B2C)' : '0% tax — tax-exempt B2B customer'}
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Contact Person</Label>
+                  <Input {...register('contact_person')} placeholder="John Smith" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Status</Label>
+                  <Select value={status} onValueChange={(v) => setValue('status', v as any)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="text-base">Contact Details</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Phone</Label>
+                  <Input {...register('phone')} placeholder="+1 555 000 0000" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>WhatsApp</Label>
+                  <Input {...register('whatsapp')} placeholder="+1 555 000 0000" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Primary Email</Label>
+                <Input {...register('email')} type="email" placeholder="contact@company.com" />
+                {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Billing Emails <span className="text-muted-foreground text-xs font-normal">(CC on invoices)</span></Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="email"
+                    value={billingEmailInput}
+                    onChange={e => setBillingEmailInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addBillingEmail() } }}
+                    placeholder="billing@company.com"
+                    className="flex-1"
+                  />
+                  <Button type="button" variant="outline" size="icon" onClick={addBillingEmail}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                {billingEmails.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {billingEmails.map(email => (
+                      <span key={email} className="flex items-center gap-1 bg-muted text-sm px-2 py-1 rounded-md">
+                        {email}
+                        <button type="button" onClick={() => removeBillingEmail(email)} className="text-muted-foreground hover:text-destructive">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Preferred Contact</Label>
+                  <Select value={preferredComm} onValueChange={(v) => setValue('preferred_communication', v as any)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                      <SelectItem value="email">Email</SelectItem>
+                      <SelectItem value="phone">Phone</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Language</Label>
+                  <Input {...register('language')} placeholder="English" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Tab: Address ── */}
+        <TabsContent value="address" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader><CardTitle className="text-base">Address</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Billing Address</p>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label>Street</Label>
+                  <Input {...register('billing_street')} placeholder="123 Main St" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>City</Label>
+                    <Input {...register('billing_city')} placeholder="Amsterdam" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Zip Code</Label>
+                    <Input {...register('billing_zip')} placeholder="1234 AB" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Country</Label>
+                  <Input {...register('billing_country')} placeholder="Netherlands" />
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2 cursor-pointer pt-1">
+                <input
+                  type="checkbox"
+                  checked={sameAddress}
+                  onChange={e => setSameAddress(e.target.checked)}
+                  className="rounded"
+                />
+                <span className="text-sm">Delivery address is the same as billing</span>
+              </label>
+
+              {!sameAddress && (
+                <>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide pt-2 border-t">Delivery Address</p>
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label>Street</Label>
+                      <Input {...register('delivery_street')} placeholder="123 Main St" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label>City</Label>
+                        <Input {...register('delivery_city')} placeholder="Amsterdam" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Zip Code</Label>
+                        <Input {...register('delivery_zip')} placeholder="1234 AB" />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Country</Label>
+                      <Input {...register('delivery_country')} placeholder="Netherlands" />
+                    </div>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Tab: Settings ── */}
+        <TabsContent value="settings" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader><CardTitle className="text-base">Delivery</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>Delivery Time Window</Label>
+                <Input {...register('delivery_time_window')} placeholder="09:00-17:00" />
+              </div>
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" {...register('ob_form_required')} className="rounded" />
+                  <span className="text-sm">OB Form Required</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" {...register('packing_slip_required')} className="rounded" />
+                  <span className="text-sm">Packing Slip Required</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" {...register('hardcopy_required')} className="rounded" />
+                  <span className="text-sm font-medium text-orange-600">🖨️ Hard Copy Required</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" {...register('require_delivery_photo')} className="rounded" />
+                  <span className="text-sm font-medium text-blue-600">📷 Delivery Photo Required</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" {...register('track_table_bottles')} className="rounded" />
+                  <span className="text-sm">Track Table Bottles</span>
+                </label>
+                <div className="flex items-center gap-3 pl-6">
+                  <Label className="text-xs text-muted-foreground whitespace-nowrap">Tables at customer</Label>
+                  <Input type="number" min="0" className="h-7 w-20 text-right text-sm" {...register('table_count')} />
+                </div>
+                <div className="flex items-center gap-3 pl-6">
+                  <Label className="text-xs text-muted-foreground whitespace-nowrap">Return price (XCG)</Label>
+                  <Input type="number" step="0.01" min="0" className="h-7 w-24 text-right text-sm" {...register('table_bottle_return_price', { valueAsNumber: true })} />
+                </div>
+              </div>
+
+              {/* SPika Stands */}
+              <div className="space-y-2 pt-2 border-t">
+                <p className="text-sm font-medium">SPika Stands at Customer</p>
+                <div className="flex flex-wrap gap-2">
+                  {SPIKA_STAND_TYPES.map(st => (
+                    <button key={st.value} type="button" onClick={() => addStand(st.value)}
+                      className="text-xs border rounded-md px-2 py-1 hover:bg-accent transition-colors">
+                      + {st.label}
+                    </button>
                   ))}
                 </div>
-              )}
-              <p className="text-xs text-muted-foreground">These addresses will receive invoice emails in addition to the primary email.</p>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Preferred Communication</Label>
-              <Select value={preferredComm} onValueChange={(v) => setValue('preferred_communication', v as any)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                  <SelectItem value="email">Email</SelectItem>
-                  <SelectItem value="phone">Phone</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Language</Label>
-              <Input {...register('language')} placeholder="English" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Delivery */}
-      <Card>
-        <CardHeader><CardTitle className="text-base">Delivery Preferences</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1.5">
-            <Label>Delivery Time Window</Label>
-            <Input {...register('delivery_time_window')} placeholder="09:00-17:00" />
-          </div>
-          <div className="flex flex-wrap gap-4">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" {...register('ob_form_required')} className="rounded" />
-              <span className="text-sm">OB Form Required</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" {...register('packing_slip_required')} className="rounded" />
-              <span className="text-sm">Packing Slip Required</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" {...register('track_table_bottles')} className="rounded" />
-              <span className="text-sm">Track Table Bottles</span>
-            </label>
-            <div className="flex items-center gap-2 pl-6">
-              <Label className="text-xs text-muted-foreground whitespace-nowrap">Tables at customer</Label>
-              <Input
-                type="number"
-                min="0"
-                className="h-7 w-20 text-right text-sm"
-                {...register('table_count')}
-              />
-            </div>
-            <div className="flex items-center gap-2 pl-6">
-              <Label className="text-xs text-muted-foreground whitespace-nowrap">Return price per bottle (XCG)</Label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                className="h-7 w-24 text-right text-sm"
-                {...register('table_bottle_return_price', { valueAsNumber: true })}
-              />
-            </div>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" {...register('hardcopy_required')} className="rounded" />
-              <span className="text-sm font-medium text-orange-600">🖨️ Hard Copy Required</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" {...register('require_delivery_photo')} className="rounded" />
-              <span className="text-sm font-medium text-blue-600">📷 Delivery Photo Required</span>
-            </label>
-          </div>
-          <p className="text-xs text-muted-foreground">Hard copy: worker is reminded to bring a printed note. Delivery photo: worker must take a photo to complete the delivery.</p>
-
-          {/* SPika Stands */}
-          <div className="space-y-2 pt-2 border-t">
-            <p className="text-sm font-medium">SPika Stands at Customer</p>
-            <p className="text-xs text-muted-foreground">Track which display stands are placed at this customer location.</p>
-            <div className="flex flex-wrap gap-2">
-              {SPIKA_STAND_TYPES.map(st => (
-                <button
-                  key={st.value}
-                  type="button"
-                  onClick={() => addStand(st.value)}
-                  className="text-xs border rounded-md px-2 py-1 hover:bg-accent transition-colors"
-                >
-                  + {st.label}
-                </button>
-              ))}
-            </div>
-            {stands.length > 0 && (
-              <div className="space-y-1.5 mt-2">
-                {stands.map(s => {
-                  const def = SPIKA_STAND_TYPES.find(st => st.value === s.type)!
-                  return (
-                    <div key={s.type} className="flex items-center gap-2">
-                      <span className="text-sm flex-1">{def.label}</span>
-                      <Input
-                        type="number"
-                        min="0"
-                        value={s.qty}
-                        onChange={e => updateStandQty(s.type, Number(e.target.value))}
-                        className="h-7 w-16 text-right text-sm"
-                      />
-                      <button type="button" onClick={() => updateStandQty(s.type, 0)} className="text-muted-foreground hover:text-destructive">
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Addresses */}
-      <Card>
-        <CardHeader><CardTitle className="text-base">Address</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Billing Address</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label>Street</Label>
-              <Input {...register('billing_street')} placeholder="123 Main St" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>City</Label>
-              <Input {...register('billing_city')} placeholder="Amsterdam" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Zip Code</Label>
-              <Input {...register('billing_zip')} placeholder="1234 AB" />
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label>Country</Label>
-              <Input {...register('billing_country')} placeholder="Netherlands" />
-            </div>
-          </div>
-
-          <label className="flex items-center gap-2 cursor-pointer pt-1">
-            <input
-              type="checkbox"
-              checked={sameAddress}
-              onChange={e => setSameAddress(e.target.checked)}
-              className="rounded"
-            />
-            <span className="text-sm">Delivery address is the same as billing address</span>
-          </label>
-
-          {!sameAddress && (
-            <>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide pt-2 border-t">Delivery Address</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label>Street</Label>
-                  <Input {...register('delivery_street')} placeholder="123 Main St" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>City</Label>
-                  <Input {...register('delivery_city')} placeholder="Amsterdam" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Zip Code</Label>
-                  <Input {...register('delivery_zip')} placeholder="1234 AB" />
-                </div>
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label>Country</Label>
-                  <Input {...register('delivery_country')} placeholder="Netherlands" />
-                </div>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Business */}
-      <Card>
-        <CardHeader><CardTitle className="text-base">Business Details</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
-          {category !== 'b2c' && (
-            <div className="space-y-1.5">
-              <Label>
-                {taxIdInfo.label}
-                {taxIdInfo.prefix && (
-                  <span className="ml-1.5 text-xs font-mono bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
-                    {taxIdInfo.prefix}
-                  </span>
+                {stands.length > 0 && (
+                  <div className="space-y-1.5 mt-1">
+                    {stands.map(s => {
+                      const def = SPIKA_STAND_TYPES.find(st => st.value === s.type)!
+                      return (
+                        <div key={s.type} className="flex items-center gap-2">
+                          <span className="text-sm flex-1">{def.label}</span>
+                          <Input type="number" min="0" value={s.qty}
+                            onChange={e => updateStandQty(s.type, Number(e.target.value))}
+                            className="h-7 w-16 text-right text-sm" />
+                          <button type="button" onClick={() => updateStandQty(s.type, 0)} className="text-muted-foreground hover:text-destructive">
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
                 )}
-              </Label>
-              {taxIdInfo.field === 'vat_number' ? (
-                <Input {...register('vat_number')} placeholder={taxIdInfo.placeholder} />
-              ) : (
-                <Input {...register('crib_number')} placeholder={taxIdInfo.placeholder} />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="text-base">Business Details</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              {category !== 'b2c' && (
+                <div className="space-y-1.5">
+                  <Label>
+                    {taxIdInfo.label}
+                    {taxIdInfo.prefix && (
+                      <span className="ml-1.5 text-xs font-mono bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
+                        {taxIdInfo.prefix}
+                      </span>
+                    )}
+                  </Label>
+                  {taxIdInfo.field === 'vat_number'
+                    ? <Input {...register('vat_number')} placeholder={taxIdInfo.placeholder} />
+                    : <Input {...register('crib_number')} placeholder={taxIdInfo.placeholder} />
+                  }
+                  {taxIdInfo.field === 'vat_number' && dupWarning(vatDuplicates)}
+                  {taxIdInfo.field === 'crib_number' && dupWarning(cribDuplicates)}
+                </div>
               )}
-              <p className="text-xs text-muted-foreground">
-                {taxIdInfo.field === 'vat_number'
-                  ? 'Business VAT registration number (for tax-exempt invoicing)'
-                  : 'Local customs/tax identification number'}
-              </p>
-              {taxIdInfo.field === 'vat_number' && dupWarning(vatDuplicates)}
-              {taxIdInfo.field === 'crib_number' && dupWarning(cribDuplicates)}
-            </div>
-          )}
-          <div className="space-y-1.5">
-            <Label>CoC Number <span className="text-muted-foreground text-xs">(Kamer van Koophandel)</span></Label>
-            <Input {...register('coc_number')} placeholder="e.g. 12345678" />
-            {dupWarning(cocDuplicates)}
-          </div>
-          {/* Show the other tax field only if it already has a value (migration fallback) */}
-          {taxIdInfo.field === 'vat_number' && watch('crib_number') && (
-            <div className="space-y-1.5">
-              <Label>CRIB Number <span className="text-muted-foreground text-xs">(kept from previous entry)</span></Label>
-              <Input {...register('crib_number')} placeholder="e.g. 102471812" />
-            </div>
-          )}
-          {taxIdInfo.field === 'crib_number' && watch('vat_number') && (
-            <div className="space-y-1.5">
-              <Label>VAT Number <span className="text-muted-foreground text-xs">(kept from previous entry)</span></Label>
-              <Input {...register('vat_number')} placeholder="e.g. NL123456789B01" />
-            </div>
-          )}
-          <div className="flex items-center justify-between rounded-lg border p-3">
-            <div>
-              <p className="text-sm font-medium">International Customer</p>
-              <p className="text-xs text-muted-foreground">Customer receives orders shipped internationally via export</p>
-            </div>
-            <label className="flex items-center cursor-pointer">
-              <div className="relative">
-                <input
-                  type="checkbox"
-                  className="sr-only peer"
-                  {...register('is_international')}
-                />
-                <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-red-600 transition-colors" />
-                <div className="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5" />
+              <div className="space-y-1.5">
+                <Label>CoC / KVK Number</Label>
+                <Input {...register('coc_number')} placeholder="e.g. 12345678" />
+                {dupWarning(cocDuplicates)}
               </div>
-            </label>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Payment Term</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                min="1"
-                className="h-9 w-24"
-                {...register('payment_term_days', { valueAsNumber: true })}
-              />
-              <span className="text-sm text-muted-foreground">days</span>
-              <div className="flex gap-1 ml-2 flex-wrap">
-                {[7, 14, 21, 30, 45, 60].map(d => (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => setValue('payment_term_days', d)}
-                    className="text-xs px-2 py-1 rounded border hover:bg-accent transition-colors"
-                  >
-                    {d}d
-                  </button>
-                ))}
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">Days until invoice is due. Shown on delivery notes and invoices.</p>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Discount Agreement</Label>
-            <Input {...register('discount_agreement')} placeholder="e.g. 10% on orders >500" />
-          </div>
-          <div className="space-y-1.5">
-            <Label>QuickBooks Customer ID</Label>
-            <Input {...register('quickbooks_customer_id')} placeholder="QB-123" />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Internal Notes</Label>
-            <Textarea {...register('internal_notes')} placeholder="Any internal notes..." rows={3} />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Product Pricing */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Products & Pricing</CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Tick the products this customer orders. Only ticked products appear when creating a delivery note.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-0">
-          {/* Header */}
-          <div className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-x-3 items-center pb-1.5 border-b mb-1">
-            <label className="flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={activeProducts.size === SPIKA_PRODUCTS.length}
-                onChange={e => toggleAllProducts(e.target.checked)}
-                className="rounded"
-              />
-            </label>
-            <span className="text-xs text-muted-foreground font-medium">Product</span>
-            <span className="text-xs text-muted-foreground w-24 text-center">Price (XCG)</span>
-            <span className="text-xs text-muted-foreground w-24 text-center">Discount</span>
-            <span className="text-xs text-muted-foreground w-12 text-center">Free</span>
-          </div>
-
-          {SPIKA_PRODUCTS.map((product) => {
-            const isActive = activeProducts.has(product.sku)
-            const isFree = freeProducts.has(product.sku)
-            return (
-              <div
-                key={product.sku}
-                className={`grid grid-cols-[auto_1fr_auto_auto_auto] gap-x-3 items-center py-2.5 border-b last:border-0 transition-opacity ${
-                  isActive ? '' : 'opacity-40'
-                }`}
-              >
-                {/* Active toggle */}
-                <input
-                  type="checkbox"
-                  checked={isActive}
-                  onChange={() => toggleActiveProduct(product.sku)}
-                  className="rounded cursor-pointer"
-                />
-                {/* Name */}
+              {taxIdInfo.field === 'vat_number' && watch('crib_number') && (
+                <div className="space-y-1.5">
+                  <Label>CRIB Number</Label>
+                  <Input {...register('crib_number')} placeholder="e.g. 102471812" />
+                </div>
+              )}
+              {taxIdInfo.field === 'crib_number' && watch('vat_number') && (
+                <div className="space-y-1.5">
+                  <Label>VAT Number</Label>
+                  <Input {...register('vat_number')} placeholder="e.g. NL123456789B01" />
+                </div>
+              )}
+              <div className="flex items-center justify-between rounded-lg border p-3">
                 <div>
-                  <p className={`text-sm font-medium ${isActive ? '' : 'line-through text-muted-foreground'}`}>
-                    {product.name}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{product.sku} · default XCG {product.default_price.toFixed(2)}</p>
+                  <p className="text-sm font-medium">International Customer</p>
+                  <p className="text-xs text-muted-foreground">Ships internationally via export</p>
                 </div>
-                {/* Price */}
-                <div className="w-24">
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={productPrices[product.sku] ?? product.default_price}
-                    onChange={(e) => setProductPrices(prev => ({ ...prev, [product.sku]: parseFloat(e.target.value) || 0 }))}
-                    className="h-8 text-right"
-                    disabled={!isActive || isFree}
-                  />
-                </div>
-                {/* Discount */}
-                <div className="w-24">
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={productDiscounts[product.sku] ?? 0}
-                    onChange={(e) => setProductDiscounts(prev => ({ ...prev, [product.sku]: parseFloat(e.target.value) || 0 }))}
-                    className="h-8 text-right"
-                    disabled={!isActive || isFree}
-                  />
-                </div>
-                {/* Free */}
-                <div className="w-12 flex justify-center">
-                  <input
-                    type="checkbox"
-                    checked={isFree}
-                    onChange={() => toggleFreeProduct(product.sku)}
-                    disabled={!isActive}
-                    className="rounded cursor-pointer accent-green-600"
-                  />
+                <label className="flex items-center cursor-pointer">
+                  <div className="relative">
+                    <input type="checkbox" className="sr-only peer" {...register('is_international')} />
+                    <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-red-600 transition-colors" />
+                    <div className="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5" />
+                  </div>
+                </label>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Payment Term</Label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Input type="number" min="1" className="h-9 w-20" {...register('payment_term_days', { valueAsNumber: true })} />
+                  <span className="text-sm text-muted-foreground">days</span>
+                  <div className="flex gap-1 flex-wrap">
+                    {[7, 14, 21, 30, 45, 60].map(d => (
+                      <button key={d} type="button" onClick={() => setValue('payment_term_days', d)}
+                        className="text-xs px-2 py-1 rounded border hover:bg-accent transition-colors">
+                        {d}d
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
-            )
-          })}
+              <div className="space-y-1.5">
+                <Label>Discount Agreement</Label>
+                <Input {...register('discount_agreement')} placeholder="e.g. 10% on orders >500" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>QuickBooks ID</Label>
+                <Input {...register('quickbooks_customer_id')} placeholder="QB-123" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Internal Notes</Label>
+                <Textarea {...register('internal_notes')} placeholder="Any internal notes..." rows={3} />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-          <p className="text-xs text-muted-foreground pt-2">
-            {activeProducts.size} of {SPIKA_PRODUCTS.length} products active for this customer
-          </p>
-        </CardContent>
-      </Card>
+        {/* ── Tab: Products ── */}
+        <TabsContent value="products" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Products & Pricing</CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Tick the products this customer orders. Only active products appear on delivery notes.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-0 p-0 sm:p-6 sm:pt-0">
+              {/* Desktop header */}
+              <div className="hidden sm:grid grid-cols-[auto_1fr_auto_auto_auto] gap-x-3 items-center pb-1.5 border-b mb-1 px-6 sm:px-0">
+                <label className="flex items-center cursor-pointer">
+                  <input type="checkbox" checked={activeProducts.size === SPIKA_PRODUCTS.length}
+                    onChange={e => toggleAllProducts(e.target.checked)} className="rounded" />
+                </label>
+                <span className="text-xs text-muted-foreground font-medium">Product</span>
+                <span className="text-xs text-muted-foreground w-20 text-center">Price (XCG)</span>
+                <span className="text-xs text-muted-foreground w-20 text-center">Discount</span>
+                <span className="text-xs text-muted-foreground w-10 text-center">Free</span>
+              </div>
 
-      <Button
-        type="submit"
-        className="w-full bg-red-600 hover:bg-red-700"
-        disabled={isLoading}
-      >
+              {/* Mobile: "select all" */}
+              <div className="sm:hidden flex items-center gap-2 px-4 py-2 border-b">
+                <input type="checkbox" checked={activeProducts.size === SPIKA_PRODUCTS.length}
+                  onChange={e => toggleAllProducts(e.target.checked)} className="rounded" />
+                <span className="text-xs text-muted-foreground">Select all products</span>
+                <span className="ml-auto text-xs text-muted-foreground">{activeProducts.size}/{SPIKA_PRODUCTS.length} active</span>
+              </div>
+
+              {SPIKA_PRODUCTS.map((product) => {
+                const isActive = activeProducts.has(product.sku)
+                const isFree = freeProducts.has(product.sku)
+                return (
+                  <div key={product.sku} className={`transition-opacity ${isActive ? '' : 'opacity-40'}`}>
+                    {/* Mobile layout */}
+                    <div className="sm:hidden px-4 py-3 border-b last:border-0">
+                      <div className="flex items-center gap-3 mb-2">
+                        <input type="checkbox" checked={isActive} onChange={() => toggleActiveProduct(product.sku)} className="rounded cursor-pointer shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium truncate ${isActive ? '' : 'line-through text-muted-foreground'}`}>{product.name}</p>
+                          <p className="text-xs text-muted-foreground">{product.sku}</p>
+                        </div>
+                        <label className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
+                          <input type="checkbox" checked={isFree} onChange={() => toggleFreeProduct(product.sku)} disabled={!isActive} className="rounded cursor-pointer accent-green-600" />
+                          Free
+                        </label>
+                      </div>
+                      <div className="flex gap-3 pl-7">
+                        <div className="flex-1 space-y-1">
+                          <p className="text-xs text-muted-foreground">Price (XCG)</p>
+                          <Input type="number" step="0.01" min="0"
+                            value={productPrices[product.sku] ?? product.default_price}
+                            onChange={e => setProductPrices(prev => ({ ...prev, [product.sku]: parseFloat(e.target.value) || 0 }))}
+                            className="h-8 text-right" disabled={!isActive || isFree} />
+                        </div>
+                        <div className="flex-1 space-y-1">
+                          <p className="text-xs text-muted-foreground">Discount</p>
+                          <Input type="number" step="0.01" min="0"
+                            value={productDiscounts[product.sku] ?? 0}
+                            onChange={e => setProductDiscounts(prev => ({ ...prev, [product.sku]: parseFloat(e.target.value) || 0 }))}
+                            className="h-8 text-right" disabled={!isActive || isFree} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Desktop layout */}
+                    <div className="hidden sm:grid grid-cols-[auto_1fr_auto_auto_auto] gap-x-3 items-center py-2.5 border-b last:border-0">
+                      <input type="checkbox" checked={isActive} onChange={() => toggleActiveProduct(product.sku)} className="rounded cursor-pointer" />
+                      <div>
+                        <p className={`text-sm font-medium ${isActive ? '' : 'line-through text-muted-foreground'}`}>{product.name}</p>
+                        <p className="text-xs text-muted-foreground">{product.sku} · default XCG {product.default_price.toFixed(2)}</p>
+                      </div>
+                      <div className="w-20">
+                        <Input type="number" step="0.01" min="0"
+                          value={productPrices[product.sku] ?? product.default_price}
+                          onChange={e => setProductPrices(prev => ({ ...prev, [product.sku]: parseFloat(e.target.value) || 0 }))}
+                          className="h-8 text-right" disabled={!isActive || isFree} />
+                      </div>
+                      <div className="w-20">
+                        <Input type="number" step="0.01" min="0"
+                          value={productDiscounts[product.sku] ?? 0}
+                          onChange={e => setProductDiscounts(prev => ({ ...prev, [product.sku]: parseFloat(e.target.value) || 0 }))}
+                          className="h-8 text-right" disabled={!isActive || isFree} />
+                      </div>
+                      <div className="w-10 flex justify-center">
+                        <input type="checkbox" checked={isFree} onChange={() => toggleFreeProduct(product.sku)} disabled={!isActive} className="rounded cursor-pointer accent-green-600" />
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+
+              <p className="hidden sm:block text-xs text-muted-foreground pt-2">
+                {activeProducts.size} of {SPIKA_PRODUCTS.length} products active for this customer
+              </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      <Button type="submit" className="w-full bg-red-600 hover:bg-red-700" disabled={isLoading}>
         {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
         Save Customer
       </Button>

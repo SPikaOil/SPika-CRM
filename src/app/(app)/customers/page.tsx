@@ -215,29 +215,17 @@ export default function CustomersPage() {
           </p>
         </div>
         {isAdmin && (
-          <div className="flex gap-2 flex-wrap">
-            <Button
-              variant="outline"
-              onClick={downloadTemplateXML}
-            >
-              <FileDown className="h-4 w-4 mr-2" />
-              Template
+          <div className="flex gap-2 flex-wrap justify-end">
+            <Button variant="outline" size="icon" onClick={downloadTemplateXML} title="Download template">
+              <FileDown className="h-4 w-4" />
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => customers && exportCustomersXML(customers)}
-              disabled={!customers?.length}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Export Excel
+            <Button variant="outline" size="icon" onClick={() => customers && exportCustomersXML(customers)}
+              disabled={!customers?.length} title="Export Excel">
+              <Download className="h-4 w-4" />
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={importing}
-            >
-              <Upload className="h-4 w-4 mr-2" />
-              {importing ? 'Importing…' : 'Import CSV'}
+            <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()}
+              disabled={importing} title="Import CSV">
+              <Upload className="h-4 w-4" />
             </Button>
             <input ref={fileInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleCSVImport} />
             <Link href="/customers/new">
