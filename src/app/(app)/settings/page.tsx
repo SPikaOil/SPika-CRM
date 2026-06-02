@@ -262,22 +262,45 @@ function PricePresetsCard() {
   const { mutateAsync: updatePreset } = useUpdatePricePreset()
   const [openCategory, setOpenCategory] = useState<string | null>(null)
   const [localPrices, setLocalPrices] = useState<Record<string, Record<string, number>>>({})
+  const [localDiscounts, setLocalDiscounts] = useState<Record<string, Record<string, number>>>({})
   const [saving, setSaving] = useState<string | null>(null)
 
-  // Initialise local state when presets load
   useEffect(() => {
     if (!presets) return
-    const init: Record<string, Record<string, number>> = {}
+    const initPrices: Record<string, Record<string, number>> = {}
+    const initDiscounts: Record<string, Record<string, number>> = {}
     for (const p of presets) {
-      init[p.category] = { ...p.prices }
+      initPrices[p.category] = { ...p.prices }
+      initDiscounts[p.category] = { ...(p.discounts ?? {}) }
     }
-    setLocalPrices(init)
+    setLocalPrices(initPrices)
+    setLocalDiscounts(initDiscounts)
   }, [presets])
+
+  function setPrice(category: string, sku: string, raw: string) {
+    const val = raw === '' ? undefined : parseFloat(raw)
+    setLocalPrices(prev => {
+      const next = { ...prev[category] }
+      if (val === undefined) delete next[sku]
+      else next[sku] = val
+      return { ...prev, [category]: next }
+    })
+  }
+
+  function setDiscount(category: string, sku: string, raw: string) {
+    const val = raw === '' ? undefined : parseFloat(raw)
+    setLocalDiscounts(prev => {
+      const next = { ...prev[category] }
+      if (val === undefined) delete next[sku]
+      else next[sku] = val
+      return { ...prev, [category]: next }
+    })
+  }
 
   async function handleSave(category: string, id: string) {
     setSaving(category)
     try {
-      await updatePreset({ id, prices: localPrices[category] ?? {} })
+      await updatePreset({ id, prices: localPrices[category] ?? {}, discounts: localDiscounts[category] ?? {} })
       toast.success('Price preset saved!')
     } catch (err: any) {
       toast.error(err.message)
@@ -296,13 +319,15 @@ function PricePresetsCard() {
           Price Presets
         </CardTitle>
         <CardDescription>
-          Default prices per customer category. Applied automatically when you create a customer — still editable per customer.
+          Default prices &amp; discounts per customer category. Applied automatically when creating a customer — still editable per customer.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2 p-0 sm:p-6 sm:pt-0">
         {(presets ?? []).map(preset => {
           const isOpen = openCategory === preset.category
           const prices = localPrices[preset.category] ?? {}
+          const discounts = localDiscounts[preset.category] ?? {}
+          const customCount = Object.keys(preset.prices).length + Object.keys(preset.discounts ?? {}).length
           return (
             <div key={preset.category} className="border rounded-lg overflow-hidden mx-4 sm:mx-0 mb-2">
               <button
@@ -313,54 +338,58 @@ function PricePresetsCard() {
                 <div>
                   <p className="text-sm font-medium">{preset.label}</p>
                   <p className="text-xs text-muted-foreground">
-                    {Object.keys(preset.prices).length > 0
-                      ? `${Object.keys(preset.prices).length} custom prices set`
-                      : 'Using product defaults'}
+                    {customCount > 0 ? `${customCount} custom values set` : 'Using product defaults'}
                   </p>
                 </div>
                 {isOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
               </button>
               {isOpen && (
-                <div className="border-t px-4 pb-4 pt-3 space-y-3">
-                  <div className="rounded-lg border divide-y">
+                <div className="border-t pb-4 pt-3 space-y-3">
+                  {/* Column headers */}
+                  <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 px-4 pb-1">
+                    <span className="text-xs text-muted-foreground font-medium">Product</span>
+                    <span className="text-xs text-muted-foreground w-24 text-center">Price (XCG)</span>
+                    <span className="text-xs text-muted-foreground w-24 text-center">Discount</span>
+                  </div>
+                  <div className="border-t border-b divide-y mx-0">
                     {SPIKA_PRODUCTS.map(product => (
-                      <div key={product.sku} className="flex items-center gap-3 px-3 py-2.5">
-                        <div className="flex-1 min-w-0">
+                      <div key={product.sku} className="grid grid-cols-[1fr_auto_auto] gap-x-3 items-center px-4 py-2.5">
+                        <div className="min-w-0">
                           <p className="text-sm font-medium truncate">{product.name}</p>
                           <p className="text-xs text-muted-foreground">default XCG {product.default_price.toFixed(2)}</p>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs text-muted-foreground">XCG</span>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            className="w-24 h-8 text-right text-sm"
-                            placeholder={product.default_price.toFixed(2)}
-                            value={prices[product.sku] ?? ''}
-                            onChange={e => {
-                              const val = e.target.value === '' ? undefined : parseFloat(e.target.value)
-                              setLocalPrices(prev => {
-                                const next = { ...prev[preset.category] }
-                                if (val === undefined) delete next[product.sku]
-                                else next[product.sku] = val
-                                return { ...prev, [preset.category]: next }
-                              })
-                            }}
-                          />
-                        </div>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          className="w-24 h-8 text-right text-sm"
+                          placeholder={product.default_price.toFixed(2)}
+                          value={prices[product.sku] ?? ''}
+                          onChange={e => setPrice(preset.category, product.sku, e.target.value)}
+                        />
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          className="w-24 h-8 text-right text-sm"
+                          placeholder="0.00"
+                          value={discounts[product.sku] ?? ''}
+                          onChange={e => setDiscount(preset.category, product.sku, e.target.value)}
+                        />
                       </div>
                     ))}
                   </div>
-                  <p className="text-xs text-muted-foreground">Leave blank to use the product default price.</p>
-                  <Button
-                    className="bg-red-600 hover:bg-red-700 gap-2"
-                    onClick={() => handleSave(preset.category, preset.id)}
-                    disabled={saving === preset.category}
-                  >
-                    {saving === preset.category && <Loader2 className="h-4 w-4 animate-spin" />}
-                    Save {preset.label} Preset
-                  </Button>
+                  <p className="text-xs text-muted-foreground px-4">Leave blank to use product defaults. Discount is a per-unit deduction from the price.</p>
+                  <div className="px-4">
+                    <Button
+                      className="bg-red-600 hover:bg-red-700 gap-2"
+                      onClick={() => handleSave(preset.category, preset.id)}
+                      disabled={saving === preset.category}
+                    >
+                      {saving === preset.category && <Loader2 className="h-4 w-4 animate-spin" />}
+                      Save {preset.label} Preset
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>

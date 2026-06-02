@@ -371,16 +371,27 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
                 <Label>Category *</Label>
                 <Select value={category} onValueChange={(v) => {
                   setValue('customer_category', v as any)
-                  // Apply price preset for this category (only on new customers or when no custom prices set)
+                  // Apply price + discount preset for this category
                   const preset = pricePresets?.find(p => p.category === v)
-                  if (preset && Object.keys(preset.prices).length > 0) {
-                    setProductPrices(prev => {
-                      const next = { ...prev }
-                      for (const p of SPIKA_PRODUCTS) {
-                        next[p.sku] = preset.prices[p.sku] ?? p.default_price
-                      }
-                      return next
-                    })
+                  if (preset) {
+                    if (Object.keys(preset.prices).length > 0) {
+                      setProductPrices(prev => {
+                        const next = { ...prev }
+                        for (const p of SPIKA_PRODUCTS) {
+                          next[p.sku] = preset.prices[p.sku] ?? p.default_price
+                        }
+                        return next
+                      })
+                    }
+                    if (Object.keys(preset.discounts ?? {}).length > 0) {
+                      setProductDiscounts(prev => {
+                        const next = { ...prev }
+                        for (const p of SPIKA_PRODUCTS) {
+                          next[p.sku] = (preset.discounts ?? {})[p.sku] ?? 0
+                        }
+                        return next
+                      })
+                    }
                   }
                 }}>
                   <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
