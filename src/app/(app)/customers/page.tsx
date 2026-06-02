@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import Link from 'next/link'
-import { Plus, Search, Building2, Upload, Download, FileDown, X, CheckCircle, AlertCircle } from 'lucide-react'
+import { Plus, Search, Building2, Upload, Download, FileDown, X, CheckCircle, AlertCircle, MinusCircle } from 'lucide-react'
 import { useCustomers } from '@/hooks/use-customers'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -38,7 +38,7 @@ type ImportRow = {
   [key: string]: string | undefined
 }
 
-type ImportResult = { row: ImportRow; error?: string }
+type ImportResult = { row: ImportRow; error?: string; skipped?: boolean; existingId?: string }
 
 function parseCSV(text: string): ImportRow[] {
   const lines = text.trim().split(/\r?\n/)
@@ -151,6 +151,15 @@ export default function CustomersPage() {
       const supabase = createClient()
       const results: ImportResult[] = []
       for (const row of rows) {
+        // Skip if a customer with the same name already exists
+        const existing = (customers ?? []).find(c =>
+          c.company_name.toLowerCase().trim() === row.company_name.toLowerCase().trim()
+        )
+        if (existing) {
+          results.push({ row, skipped: true, existingId: existing.id })
+          continue
+        }
+
         try {
           const cat = VALID_CATEGORIES.includes(row.customer_category ?? '') ? row.customer_category : 'other'
           const billing_address = (row.street || row.city) ? { street: row.street ?? '', city: row.city ?? '', country: row.country ?? '' } : undefined
@@ -180,9 +189,11 @@ export default function CustomersPage() {
         }
       }
       setImportResults(results)
-      const ok = results.filter(r => !r.error).length
+      const ok = results.filter(r => !r.error && !r.skipped).length
+      const skipped = results.filter(r => r.skipped).length
       const fail = results.filter(r => r.error).length
-      if (ok > 0) { toast.success(`Imported ${ok} customer${ok > 1 ? 's' : ''}${fail > 0 ? `, ${fail} failed` : ''}`) }
+      if (ok > 0) { toast.success(`Imported ${ok} customer${ok > 1 ? 's' : ''}${skipped > 0 ? `, ${skipped} already existed` : ''}${fail > 0 ? `, ${fail} failed` : ''}`) }
+      else if (skipped > 0 && fail === 0) { toast.info(`All ${skipped} customers already exist — nothing imported`) }
       else { toast.error(`All ${fail} rows failed to import`) }
       queryClient.invalidateQueries({ queryKey: ['customers'] })
     } catch (err: any) {
@@ -253,15 +264,24 @@ export default function CustomersPage() {
               <div key={i} className="flex items-center gap-2 text-xs">
                 {r.error
                   ? <AlertCircle className="h-3 w-3 text-red-500 shrink-0" />
+                  : r.skipped
+                  ? <MinusCircle className="h-3 w-3 text-orange-400 shrink-0" />
                   : <CheckCircle className="h-3 w-3 text-green-500 shrink-0" />
                 }
                 <span className="font-medium truncate">{r.row.company_name}</span>
+                {r.skipped && (
+                  <a href={`/customers/${r.existingId}`} className="text-orange-500 hover:underline truncate">
+                    already exists →
+                  </a>
+                )}
                 {r.error && <span className="text-red-500 truncate">{r.error}</span>}
               </div>
             ))}
           </div>
           <p className="text-xs text-muted-foreground">
-            {importResults.filter(r => !r.error).length} succeeded · {importResults.filter(r => r.error).length} failed
+            {importResults.filter(r => !r.error && !r.skipped).length} imported ·{' '}
+            {importResults.filter(r => r.skipped).length} skipped (already exist) ·{' '}
+            {importResults.filter(r => r.error).length} failed
           </p>
         </div>
       )}
