@@ -163,12 +163,11 @@ export default function OrderDetailPage({
         const res = await fetch(signedData.signedUrl)
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const blob = await res.blob()
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `${order.order_number}-signed.pdf`
-        a.click()
-        URL.revokeObjectURL(url)
+        const { triggerDownload } = await import('@/lib/download-pdf')
+        const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[#/\\:*?"<>|]/g, '').trim()
+        const customerName = (order.customer?.company_name ?? '').replace(/[#/\\:*?"<>|]/g, '').trim()
+        const filename = customerName ? `${orderNum} - ${customerName}.pdf` : `${orderNum}.pdf`
+        triggerDownload(blob, filename)
         return
       }
       // Otherwise regenerate unsigned PDF

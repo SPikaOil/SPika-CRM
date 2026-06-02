@@ -1,5 +1,22 @@
 import { Order, Quote } from '@/types'
 
+function sanitize(str: string) {
+  return str.replace(/[#/\\:*?"<>|]/g, '').trim()
+}
+
+export function triggerDownload(blob: Blob, filename: string) {
+  // Wrap in a File with explicit MIME type — fixes iOS opening blob as HTML
+  const file = new File([blob], filename, { type: 'application/pdf' })
+  const url = URL.createObjectURL(file)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  setTimeout(() => URL.revokeObjectURL(url), 10000)
+}
+
 export async function downloadDeliveryNotePDF(
   order: Order,
   showPrices = true,
@@ -13,28 +30,14 @@ export async function downloadDeliveryNotePDF(
   const element = React.createElement(DeliveryNotePDF as any, { order, showPrices, documentType })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const blob = await (pdf as any)(element).toBlob()
-  const url = URL.createObjectURL(blob)
 
-  const filename = `${documentType === 'INVOICE' ? 'invoice' : 'delivery-note'}-${order.order_number || order.id.slice(0, 8)}.pdf`
+  const orderNum = sanitize(order.order_number ?? order.id.slice(0, 8))
+  const customerName = sanitize(order.customer?.company_name ?? '')
+  const filename = customerName
+    ? `${orderNum} - ${customerName}.pdf`
+    : `${orderNum}.pdf`
 
-  // iOS Safari and most mobile browsers don't support the download attribute on blob URLs.
-  // Open in a new tab instead — the user can then use the share sheet to save/print.
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
-  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
-
-  if (isMobile || isSafari) {
-    window.open(url, '_blank')
-    // Don't revoke immediately — the new tab needs time to load the blob
-    setTimeout(() => URL.revokeObjectURL(url), 60000)
-  } else {
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    setTimeout(() => URL.revokeObjectURL(url), 5000)
-  }
+  triggerDownload(blob, filename)
 }
 
 export async function downloadQuotationPDF(quote: Quote) {
@@ -46,16 +49,12 @@ export async function downloadQuotationPDF(quote: Quote) {
   const element = React.createElement(QuotationPDF as any, { quote })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const blob = await (pdf as any)(element).toBlob()
-  const filename = `quotation-${quote.quote_number || quote.id.slice(0, 8)}.pdf`
 
-  // Force download using a named file blob URL — works on all modern browsers including Safari 14+
-  const file = new File([blob], filename, { type: 'application/pdf' })
-  const url = URL.createObjectURL(file)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  setTimeout(() => URL.revokeObjectURL(url), 5000)
+  const quoteNum = sanitize(quote.quote_number ?? quote.id.slice(0, 8))
+  const customerName = sanitize(quote.customer?.company_name ?? '')
+  const filename = customerName
+    ? `${quoteNum} - ${customerName}.pdf`
+    : `${quoteNum}.pdf`
+
+  triggerDownload(blob, filename)
 }

@@ -133,20 +133,15 @@ export default function ExportDetailPage({
 
       const blob = await pdf(element as any).toBlob()
       const labels = {
-        commercial_invoice: 'Commercial-Invoice',
-        packing_list: 'Packing-List',
-        bill_of_lading: 'Bill-of-Lading',
+        commercial_invoice: 'Commercial Invoice',
+        packing_list: 'Packing List',
+        bill_of_lading: 'Bill of Lading',
       }
-      const filename = `${exp.export_number}_${labels[type]}.pdf`
-      const file = new File([blob], filename, { type: 'application/pdf' })
-      const url = URL.createObjectURL(file)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      setTimeout(() => URL.revokeObjectURL(url), 5000)
+      const { triggerDownload } = await import('@/lib/download-pdf')
+      const expNum = exp.export_number.replace(/[#/\\:*?"<>|]/g, '').trim()
+      const customerName = (exp.customer?.company_name ?? '').replace(/[#/\\:*?"<>|]/g, '').trim()
+      const baseName = customerName ? `${expNum} - ${customerName}` : expNum
+      triggerDownload(blob, `${baseName} - ${labels[type]}.pdf`)
     } catch (err) {
       toast.error('Failed to generate PDF')
       console.error(err)
@@ -173,22 +168,18 @@ export default function ExportDetailPage({
         pdf(React.createElement(DonAndresBolPDF, { exportRecord: exp, company }) as any).toBlob(),
       ])
 
+      const expNum = exp.export_number.replace(/[#/\\:*?"<>|]/g, '').trim()
+      const customerName = (exp.customer?.company_name ?? '').replace(/[#/\\:*?"<>|]/g, '').trim()
+      const baseName = customerName ? `${expNum} - ${customerName}` : expNum
+
       const zip = new JSZip()
-      const num = exp.export_number
-      zip.file(`${num}_Commercial-Invoice.pdf`, ciBlob)
-      zip.file(`${num}_Packing-List.pdf`, plBlob)
-      zip.file(`${num}_Bill-of-Lading.pdf`, bolBlob)
+      zip.file(`${baseName} - Commercial Invoice.pdf`, ciBlob)
+      zip.file(`${baseName} - Packing List.pdf`, plBlob)
+      zip.file(`${baseName} - Bill of Lading.pdf`, bolBlob)
 
       const zipBlob = await zip.generateAsync({ type: 'blob' })
-      const zipFile = new File([zipBlob], `${num}_Export-Package.zip`, { type: 'application/zip' })
-      const url = URL.createObjectURL(zipFile)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = zipFile.name
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      setTimeout(() => URL.revokeObjectURL(url), 5000)
+      const { triggerDownload } = await import('@/lib/download-pdf')
+      triggerDownload(zipBlob, `${baseName} - Export Package.zip`)
     } catch (err) {
       toast.error('Failed to generate export package')
       console.error(err)
