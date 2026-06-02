@@ -20,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Customer, SpikaStand, SPIKA_STAND_TYPES } from '@/types'
 import { SPIKA_PRODUCTS } from '@/lib/products'
 import { getTaxIdInfo } from '@/lib/tax-id'
+import { useCustomers } from '@/hooks/use-customers'
 
 const customerSchema = z.object({
   company_name: z.string().min(1, 'Required'),
@@ -83,6 +84,8 @@ function toFormValues(customer?: Partial<Customer>): Partial<CustomerFormValues>
 }
 
 export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
+  const { data: allCustomers } = useCustomers()
+
   // Product prices — keyed by SKU, pre-filled from existing customer or product defaults
   const [productPrices, setProductPrices] = useState<Record<string, number>>(() => {
     const existing = defaultValues?.product_prices ?? {}
@@ -266,6 +269,14 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
   const status = watch('status')
   const billingCountry = watch('billing_country')
   const taxIdInfo = getTaxIdInfo(billingCountry ?? '')
+  const companyName = watch('company_name') ?? ''
+
+  // Live duplicate detection — find customers with similar names, excluding this one
+  const duplicates = (allCustomers ?? []).filter(c => {
+    if (defaultValues?.id && c.id === defaultValues.id) return false // skip self on edit
+    return c.company_name.toLowerCase().includes(companyName.toLowerCase().trim()) ||
+      companyName.toLowerCase().trim().includes(c.company_name.toLowerCase())
+  }).filter(() => companyName.trim().length >= 3)
 
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
@@ -278,6 +289,26 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
               <Label>Company Name *</Label>
               <Input {...register('company_name')} placeholder="Acme Restaurants" />
               {errors.company_name && <p className="text-xs text-destructive">{errors.company_name.message}</p>}
+              {duplicates.length > 0 && (
+                <div className="rounded-lg border border-orange-200 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-800 p-2.5 space-y-1.5">
+                  <p className="text-xs font-semibold text-orange-700 dark:text-orange-400">
+                    ⚠️ Similar customer{duplicates.length > 1 ? 's' : ''} already exist{duplicates.length === 1 ? 's' : ''}
+                  </p>
+                  {duplicates.map(c => (
+                    <a
+                      key={c.id}
+                      href={`/customers/${c.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between text-xs text-orange-700 dark:text-orange-400 hover:underline"
+                    >
+                      <span className="font-medium">{c.company_name}</span>
+                      <span className="text-orange-500 capitalize">{c.customer_category} · {c.status} →</span>
+                    </a>
+                  ))}
+                  <p className="text-xs text-orange-600/70">Check if this is already in the system before saving.</p>
+                </div>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>Category *</Label>
