@@ -271,12 +271,56 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
   const taxIdInfo = getTaxIdInfo(billingCountry ?? '')
   const companyName = watch('company_name') ?? ''
 
+  const vatNumber = watch('vat_number') ?? ''
+  const cribNumber = watch('crib_number') ?? ''
+  const cocNumber = watch('coc_number') ?? ''
+
+  function dupWarning(matches: Customer[]) {
+    if (matches.length === 0) return null
+    return (
+      <div className="rounded-lg border border-orange-200 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-800 p-2.5 space-y-1.5">
+        <p className="text-xs font-semibold text-orange-700 dark:text-orange-400">
+          ⚠️ Already used by another customer
+        </p>
+        {matches.map(c => (
+          <a key={c.id} href={`/customers/${c.id}`} target="_blank" rel="noopener noreferrer"
+            className="flex items-center justify-between text-xs text-orange-700 dark:text-orange-400 hover:underline">
+            <span className="font-medium">{c.company_name}</span>
+            <span className="text-orange-500 capitalize">{c.customer_category} →</span>
+          </a>
+        ))}
+        <p className="text-xs text-orange-600/70">Check if this is already in the system before saving.</p>
+      </div>
+    )
+  }
+
   // Live duplicate detection — find customers with similar names, excluding this one
   const duplicates = (allCustomers ?? []).filter(c => {
-    if (defaultValues?.id && c.id === defaultValues.id) return false // skip self on edit
+    if (defaultValues?.id && c.id === defaultValues.id) return false
     return c.company_name.toLowerCase().includes(companyName.toLowerCase().trim()) ||
       companyName.toLowerCase().trim().includes(c.company_name.toLowerCase())
   }).filter(() => companyName.trim().length >= 3)
+
+  const vatDuplicates = vatNumber.trim().length >= 5
+    ? (allCustomers ?? []).filter(c => {
+        if (defaultValues?.id && c.id === defaultValues.id) return false
+        return c.vat_number?.trim() && c.vat_number.trim().toLowerCase() === vatNumber.trim().toLowerCase()
+      })
+    : []
+
+  const cribDuplicates = cribNumber.trim().length >= 5
+    ? (allCustomers ?? []).filter(c => {
+        if (defaultValues?.id && c.id === defaultValues.id) return false
+        return c.crib_number?.trim() && c.crib_number.trim() === cribNumber.trim()
+      })
+    : []
+
+  const cocDuplicates = cocNumber.trim().length >= 4
+    ? (allCustomers ?? []).filter(c => {
+        if (defaultValues?.id && c.id === defaultValues.id) return false
+        return c.coc_number?.trim() && c.coc_number.trim() === cocNumber.trim()
+      })
+    : []
 
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
@@ -289,26 +333,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
               <Label>Company Name *</Label>
               <Input {...register('company_name')} placeholder="Acme Restaurants" />
               {errors.company_name && <p className="text-xs text-destructive">{errors.company_name.message}</p>}
-              {duplicates.length > 0 && (
-                <div className="rounded-lg border border-orange-200 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-800 p-2.5 space-y-1.5">
-                  <p className="text-xs font-semibold text-orange-700 dark:text-orange-400">
-                    ⚠️ Similar customer{duplicates.length > 1 ? 's' : ''} already exist{duplicates.length === 1 ? 's' : ''}
-                  </p>
-                  {duplicates.map(c => (
-                    <a
-                      key={c.id}
-                      href={`/customers/${c.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-between text-xs text-orange-700 dark:text-orange-400 hover:underline"
-                    >
-                      <span className="font-medium">{c.company_name}</span>
-                      <span className="text-orange-500 capitalize">{c.customer_category} · {c.status} →</span>
-                    </a>
-                  ))}
-                  <p className="text-xs text-orange-600/70">Check if this is already in the system before saving.</p>
-                </div>
-              )}
+              {duplicates.length > 0 && dupWarning(duplicates)}
             </div>
             <div className="space-y-1.5">
               <Label>Category *</Label>
@@ -583,11 +608,14 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
                   ? 'Business VAT registration number (for tax-exempt invoicing)'
                   : 'Local customs/tax identification number'}
               </p>
+              {taxIdInfo.field === 'vat_number' && dupWarning(vatDuplicates)}
+              {taxIdInfo.field === 'crib_number' && dupWarning(cribDuplicates)}
             </div>
           )}
           <div className="space-y-1.5">
             <Label>CoC Number <span className="text-muted-foreground text-xs">(Kamer van Koophandel)</span></Label>
             <Input {...register('coc_number')} placeholder="e.g. 12345678" />
+            {dupWarning(cocDuplicates)}
           </div>
           {/* Show the other tax field only if it already has a value (migration fallback) */}
           {taxIdInfo.field === 'vat_number' && watch('crib_number') && (
