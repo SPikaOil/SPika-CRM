@@ -60,9 +60,10 @@ const categoryColors: Record<CustomerCategory, string> = {
   dtf:         'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
   other:       'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
   b2c:         'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300',
+  export:      'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300',
 }
 
-const VALID_CATEGORIES = ['wholesale', 'horeca', 'supermarket', 'shops', 'dtf', 'other', 'b2c']
+const VALID_CATEGORIES = ['wholesale', 'horeca', 'supermarket', 'shops', 'dtf', 'other', 'b2c', 'export']
 
 const PRICE_COLUMNS = SPIKA_PRODUCTS.map(p => `price_${p.sku.replace(/-/g, '_')}`)
 
