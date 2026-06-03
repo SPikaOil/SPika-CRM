@@ -275,8 +275,8 @@ export default function CustomersPage() {
       )}
 
       {/* Filters */}
-      <div className="flex gap-2 flex-wrap">
-        <div className="relative flex-1 min-w-48">
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search customers..."
@@ -286,7 +286,7 @@ export default function CustomersPage() {
           />
         </div>
         <Select value={category} onValueChange={(v) => setCategory(v ?? 'all')}>
-          <SelectTrigger className="w-36">
+          <SelectTrigger className="w-full sm:w-36">
             <SelectValue placeholder="Category" />
           </SelectTrigger>
           <SelectContent>
@@ -327,8 +327,8 @@ export default function CustomersPage() {
                 </span>
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="font-medium truncate">{customer.company_name}</p>
+                <p className="font-medium truncate leading-tight">{customer.company_name}</p>
+                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                   <Badge
                     variant="secondary"
                     className={`text-xs capitalize ${categoryColors[customer.customer_category]}`}
@@ -340,11 +340,12 @@ export default function CustomersPage() {
                       Inactive
                     </Badge>
                   )}
+                  {(customer.contact_person || customer.phone) && (
+                    <span className="text-xs text-muted-foreground truncate">
+                      {customer.contact_person}{customer.phone ? ` · ${customer.phone}` : ''}
+                    </span>
+                  )}
                 </div>
-                <p className="text-sm text-muted-foreground truncate">
-                  {customer.contact_person}
-                  {customer.phone && ` · ${customer.phone}`}
-                </p>
               </div>
             </Link>
           ))}
