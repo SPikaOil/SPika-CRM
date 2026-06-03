@@ -1141,13 +1141,9 @@ function ExportOrderSection({ order }: { order: Order & { customer?: any } }) {
         const QRCode = (await import('qrcode')).default
         const qrUrl = `${window.location.origin}/exports/${exp.id}`
         const qrCodeDataUrl = await QRCode.toDataURL(qrUrl, { margin: 1, width: 200 })
-        let fragileIconsDataUrl: string | undefined
-        try {
-          const res = await fetch(`/api/image-proxy?url=${encodeURIComponent(window.location.origin + '/fragile-icons.png')}`)
-          const json = await res.json()
-          fragileIconsDataUrl = json.dataUrl
-        } catch { /* non-fatal */ }
-        element = React.createElement(ShippingLabelPDF, { exportRecord: exp, company, qrCodeDataUrl, fragileIconsDataUrl })
+        // Enrich export with customer from the order (useExportByOrderId doesn't join customer)
+        const enrichedExp = { ...exp, customer: order.customer, order: { ...order } }
+        element = React.createElement(ShippingLabelPDF, { exportRecord: enrichedExp as any, company, qrCodeDataUrl })
       } else {
         const { DonAndresBolPDF } = await import('@/components/pdf/exports/don-andres-bol-pdf')
         element = React.createElement(DonAndresBolPDF, { exportRecord: exp, company })
