@@ -176,7 +176,7 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
           <Line x1={0} y1={0} x2={515} y2={0} strokeWidth={1} stroke={RED} />
         </Svg>
 
-        {/* ── From / Bill To ── */}
+        {/* ── From / Bill To / Ship To ── */}
         {(() => {
           const ba = customer?.billing_address as any
           const da = customer?.delivery_address as any
@@ -186,8 +186,10 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
             da.zip !== ba?.zip ||
             da.country !== ba?.country
           )
+          const taxId = formatTaxId(ba?.country ?? '', customer?.vat_number, customer?.crib_number)
           return (
-            <View style={styles.addressRow}>
+            <View style={[styles.addressRow, { gap: hasDifferentDelivery ? 20 : 40 }]}>
+              {/* From */}
               <View style={styles.addressBlock}>
                 <Text style={styles.addressLabel}>From</Text>
                 <Text style={[styles.addressLine, { fontFamily: 'Helvetica-Bold' }]}>{company.name}</Text>
@@ -197,56 +199,36 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
                 <Text style={styles.addressLine}>{company.phone}</Text>
                 <Text style={styles.addressLine}>Crib#{company.crib_number} | CoC#{company.coc_number}</Text>
               </View>
+              {/* Bill To */}
               <View style={styles.addressBlock}>
                 <Text style={styles.addressLabel}>Bill To</Text>
                 <Text style={[styles.addressRed, { fontFamily: 'Helvetica-Bold' }]}>SPika Reseller</Text>
-                <Text style={[styles.addressLine, { fontFamily: 'Helvetica-Bold' }]}>
-                  {customer?.company_name ?? ''}
-                </Text>
-                <Text style={styles.addressLine}>{customer?.contact_person ?? ''}</Text>
-                {ba?.street && (
-                  <Text style={styles.addressLine}>{ba.street}</Text>
-                )}
-                {ba?.city && (
-                  <Text style={styles.addressLine}>{ba.city}</Text>
-                )}
-                {ba?.state && (
-                  <Text style={styles.addressLine}>{ba.state}</Text>
-                )}
-                {ba?.zip && (
-                  <Text style={styles.addressLine}>{ba.zip}</Text>
-                )}
-                {ba?.country && (
-                  <Text style={styles.addressLine}>{ba.country}</Text>
-                )}
-                {(() => {
-                  const taxId = formatTaxId(
-                    ba?.country ?? '',
-                    customer?.vat_number,
-                    customer?.crib_number,
-                  )
-                  return taxId ? <Text style={styles.addressLine}>{taxId}</Text> : null
-                })()}
-                {customer?.coc_number && (
-                  <Text style={styles.addressLine}>CoC: {customer.coc_number}</Text>
-                )}
-                {customer?.email && (
-                  <Text style={styles.addressRed}>{customer.email}</Text>
-                )}
+                <Text style={[styles.addressLine, { fontFamily: 'Helvetica-Bold' }]}>{customer?.company_name ?? ''}</Text>
+                {customer?.contact_person ? <Text style={styles.addressLine}>{customer.contact_person}</Text> : null}
+                {ba?.street ? <Text style={styles.addressLine}>{ba.street}</Text> : null}
+                {ba?.city ? <Text style={styles.addressLine}>{ba.city}</Text> : null}
+                {ba?.state ? <Text style={styles.addressLine}>{ba.state}</Text> : null}
+                {ba?.zip ? <Text style={styles.addressLine}>{ba.zip}</Text> : null}
+                {ba?.country ? <Text style={styles.addressLine}>{ba.country}</Text> : null}
+                {taxId ? <Text style={styles.addressLine}>{taxId}</Text> : null}
+                {customer?.coc_number ? <Text style={styles.addressLine}>CoC: {customer.coc_number}</Text> : null}
+                {customer?.email ? <Text style={styles.addressRed}>{customer.email}</Text> : null}
                 {(customer?.billing_emails ?? []).map((email: string) => (
                   <Text key={email} style={styles.addressRed}>{email}</Text>
                 ))}
-                {hasDifferentDelivery && (
-                  <>
-                    <Text style={[styles.addressLabel, { marginTop: 6 }]}>Ship To</Text>
-                    {da.street && <Text style={styles.addressLine}>{da.street}</Text>}
-                    {da.city && <Text style={styles.addressLine}>{da.city}</Text>}
-                    {da.state && <Text style={styles.addressLine}>{da.state}</Text>}
-                    {da.zip && <Text style={styles.addressLine}>{da.zip}</Text>}
-                    {da.country && <Text style={styles.addressLine}>{da.country}</Text>}
-                  </>
-                )}
               </View>
+              {/* Ship To — only when different from billing */}
+              {hasDifferentDelivery && (
+                <View style={styles.addressBlock}>
+                  <Text style={styles.addressLabel}>Ship To</Text>
+                  <Text style={[styles.addressLine, { fontFamily: 'Helvetica-Bold' }]}>{customer?.company_name ?? ''}</Text>
+                  {da.street ? <Text style={styles.addressLine}>{da.street}</Text> : null}
+                  {da.city ? <Text style={styles.addressLine}>{da.city}</Text> : null}
+                  {da.state ? <Text style={styles.addressLine}>{da.state}</Text> : null}
+                  {da.zip ? <Text style={styles.addressLine}>{da.zip}</Text> : null}
+                  {da.country ? <Text style={styles.addressLine}>{da.country}</Text> : null}
+                </View>
+              )}
             </View>
           )
         })()}
