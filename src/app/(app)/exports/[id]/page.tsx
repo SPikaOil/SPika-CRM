@@ -141,7 +141,16 @@ export default function ExportDetailPage({
         const QRCode = (await import('qrcode')).default
         const qrUrl = `${window.location.origin}/exports/${exp.id}`
         const qrCodeDataUrl = await QRCode.toDataURL(qrUrl, { margin: 1, width: 200 })
-        element = React.createElement(ShippingLabelPDF, { exportRecord: exp, company, qrCodeDataUrl })
+        let fragileIconsDataUrl: string | undefined
+        try {
+          const blob = await fetch('/fragile-icons.png').then(r => r.blob())
+          fragileIconsDataUrl = await new Promise<string>(resolve => {
+            const reader = new FileReader()
+            reader.onload = e => resolve(e.target?.result as string)
+            reader.readAsDataURL(blob)
+          })
+        } catch { /* non-fatal */ }
+        element = React.createElement(ShippingLabelPDF, { exportRecord: exp, company, qrCodeDataUrl, fragileIconsDataUrl })
       } else {
         const { DonAndresBolPDF } = await import('@/components/pdf/exports/don-andres-bol-pdf')
         element = React.createElement(DonAndresBolPDF, { exportRecord: exp, company })
@@ -182,12 +191,21 @@ export default function ExportDetailPage({
       const QRCode = (await import('qrcode')).default
       const qrUrl = `${window.location.origin}/exports/${exp.id}`
       const qrCodeDataUrl = await QRCode.toDataURL(qrUrl, { margin: 1, width: 200 })
+      let fragileIconsDataUrl: string | undefined
+      try {
+        const blob = await fetch('/fragile-icons.png').then(r => r.blob())
+        fragileIconsDataUrl = await new Promise<string>(resolve => {
+          const reader = new FileReader()
+          reader.onload = e => resolve(e.target?.result as string)
+          reader.readAsDataURL(blob)
+        })
+      } catch { /* non-fatal */ }
 
       const [ciBlob, plBlob, bolBlob, slBlob] = await Promise.all([
         pdf(React.createElement(CommercialInvoicePDF, { exportRecord: exp, company }) as any).toBlob(),
         pdf(React.createElement(PackingListPDF, { exportRecord: exp, company }) as any).toBlob(),
         pdf(React.createElement(DonAndresBolPDF, { exportRecord: exp, company }) as any).toBlob(),
-        pdf(React.createElement(ShippingLabelPDF, { exportRecord: exp, company, qrCodeDataUrl }) as any).toBlob(),
+        pdf(React.createElement(ShippingLabelPDF, { exportRecord: exp, company, qrCodeDataUrl, fragileIconsDataUrl }) as any).toBlob(),
       ])
 
       const expNum = exp.export_number.replace(/[#/\\:*?"<>|]/g, '').trim()
