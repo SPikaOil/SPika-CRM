@@ -13,7 +13,7 @@ import {
   CalendarDays,
   UserCog,
   ReceiptText,
-  PackageCheck,
+  Package,
   FolderOpen,
   Globe,
 } from 'lucide-react'
@@ -27,7 +27,7 @@ const allNavItems = [
   { href: '/quotations',      label: 'Quotations',       icon: ReceiptText,     adminOnly: true  },
   { href: '/delivery-notes',  label: 'Delivery Notes',   icon: FileText,        adminOnly: false },
   { href: '/orders',          label: 'Orders',           icon: ShoppingCart,    adminOnly: true  },
-  { href: '/exports',          label: 'Exports',          icon: PackageCheck,    adminOnly: true  },
+  { href: '/products',         label: 'Products',         icon: Package,         adminOnly: true  },
   { href: '/sales-documents', label: 'Sales Docs',       icon: FolderOpen,      adminOnly: false },
   { href: '/tasks',           label: 'Tasks',            icon: ClipboardList,   adminOnly: true  },
   { href: '/agenda',          label: 'Agenda',           icon: CalendarDays,    adminOnly: false },

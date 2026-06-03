@@ -14,7 +14,7 @@ import {
   Settings,
   UserCog,
   X,
-  PackageCheck,
+  Package,
   FolderOpen,
   Globe,
 } from 'lucide-react'
@@ -39,7 +39,7 @@ const salesMainItems = [
 const adminMoreItems = [
   { href: '/agenda',              label: 'Agenda',      icon: CalendarDays },
   { href: '/quotations',          label: 'Quotations',  icon: ReceiptText },
-  { href: '/exports',             label: 'Exports',     icon: PackageCheck },
+  { href: '/products',            label: 'Products',    icon: Package },
   { href: '/sales-documents',     label: 'Sales Docs',  icon: FolderOpen },
   { href: '/tasks',               label: 'Tasks',       icon: ClipboardList },
   { href: '/portal-management',   label: 'Portal',      icon: Globe },
