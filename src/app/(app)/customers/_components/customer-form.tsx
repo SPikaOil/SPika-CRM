@@ -23,6 +23,7 @@ import { SPIKA_PRODUCTS } from '@/lib/products'
 import { getTaxIdInfo } from '@/lib/tax-id'
 import { useCustomers } from '@/hooks/use-customers'
 import { usePricePresets } from '@/hooks/use-price-presets'
+import { PriceInput } from '@/components/ui/price-input'
 
 const customerSchema = z.object({
   company_name: z.string().min(1, 'Required'),
@@ -767,17 +768,21 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
                       <div className="flex gap-3 pl-7">
                         <div className="flex-1 space-y-1">
                           <p className="text-xs text-muted-foreground">Price (XCG)</p>
-                          <Input type="number" step="0.01" min="0"
+                          <PriceInput
                             value={productPrices[product.sku] ?? product.default_price}
-                            onChange={e => setProductPrices(prev => ({ ...prev, [product.sku]: parseFloat(e.target.value) || 0 }))}
-                            className="h-8 text-right" disabled={!isActive || isFree} />
+                            onChange={v => setProductPrices(prev => ({ ...prev, [product.sku]: v }))}
+                            placeholder={product.default_price.toFixed(2)}
+                            className="h-8"
+                            disabled={!isActive || isFree} />
                         </div>
                         <div className="flex-1 space-y-1">
                           <p className="text-xs text-muted-foreground">Discount</p>
-                          <Input type="number" step="0.01" min="0"
+                          <PriceInput
                             value={productDiscounts[product.sku] ?? 0}
-                            onChange={e => setProductDiscounts(prev => ({ ...prev, [product.sku]: parseFloat(e.target.value) || 0 }))}
-                            className="h-8 text-right" disabled={!isActive || isFree} />
+                            onChange={v => setProductDiscounts(prev => ({ ...prev, [product.sku]: v }))}
+                            placeholder="0.00"
+                            className="h-8"
+                            disabled={!isActive || isFree} />
                         </div>
                       </div>
                     </div>
@@ -790,16 +795,20 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
                         <p className="text-xs text-muted-foreground">{product.sku} · default XCG {product.default_price.toFixed(2)}</p>
                       </div>
                       <div className="w-20">
-                        <Input type="number" step="0.01" min="0"
+                        <PriceInput
                           value={productPrices[product.sku] ?? product.default_price}
-                          onChange={e => setProductPrices(prev => ({ ...prev, [product.sku]: parseFloat(e.target.value) || 0 }))}
-                          className="h-8 text-right" disabled={!isActive || isFree} />
+                          onChange={v => setProductPrices(prev => ({ ...prev, [product.sku]: v }))}
+                          placeholder={product.default_price.toFixed(2)}
+                          className="h-8"
+                          disabled={!isActive || isFree} />
                       </div>
                       <div className="w-20">
-                        <Input type="number" step="0.01" min="0"
+                        <PriceInput
                           value={productDiscounts[product.sku] ?? 0}
-                          onChange={e => setProductDiscounts(prev => ({ ...prev, [product.sku]: parseFloat(e.target.value) || 0 }))}
-                          className="h-8 text-right" disabled={!isActive || isFree} />
+                          onChange={v => setProductDiscounts(prev => ({ ...prev, [product.sku]: v }))}
+                          placeholder="0.00"
+                          className="h-8"
+                          disabled={!isActive || isFree} />
                       </div>
                       <div className="w-10 flex justify-center">
                         <input type="checkbox" checked={isFree} onChange={() => toggleFreeProduct(product.sku)} disabled={!isActive} className="rounded cursor-pointer accent-green-600" />

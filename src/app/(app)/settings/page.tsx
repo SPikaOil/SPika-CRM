@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { Settings, Users, FileText, Download, Building2, Loader2, Tag, ChevronDown, ChevronUp } from 'lucide-react'
+import { PriceInput } from '@/components/ui/price-input'
 import { SPIKA_PRODUCTS } from '@/lib/products'
 import { useAuth } from '@/contexts/auth-context'
 import { useQuoteTemplates } from '@/hooks/use-quotes'
@@ -358,23 +359,17 @@ function PricePresetsCard() {
                           <p className="text-sm font-medium truncate">{product.name}</p>
                           <p className="text-xs text-muted-foreground">default XCG {product.default_price.toFixed(2)}</p>
                         </div>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          className="w-24 h-8 text-right text-sm"
+                        <PriceInput
+                          value={prices[product.sku] ?? 0}
+                          onChange={v => setPrice(preset.category, product.sku, v === 0 ? '' : String(v))}
                           placeholder={product.default_price.toFixed(2)}
-                          value={prices[product.sku] ?? ''}
-                          onChange={e => setPrice(preset.category, product.sku, e.target.value)}
+                          className="w-24 h-8 text-sm"
                         />
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          className="w-24 h-8 text-right text-sm"
+                        <PriceInput
+                          value={discounts[product.sku] ?? 0}
+                          onChange={v => setDiscount(preset.category, product.sku, v === 0 ? '' : String(v))}
                           placeholder="0.00"
-                          value={discounts[product.sku] ?? ''}
-                          onChange={e => setDiscount(preset.category, product.sku, e.target.value)}
+                          className="w-24 h-8 text-sm"
                         />
                       </div>
                     ))}
