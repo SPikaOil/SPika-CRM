@@ -11,6 +11,7 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PriceInput } from '@/components/ui/price-input'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -753,18 +754,14 @@ export default function OrderDetailPage({
                     }}
                     className="h-7 text-center px-1 text-sm"
                   />
-                  <Input
-                    type="number"
-                    min={0}
-                    step="0.01"
+                  <PriceInput
                     value={item.unit_price}
-                    onChange={e => {
-                      const unit_price = parseFloat(e.target.value) || 0
+                    onChange={unit_price => {
                       setDraftItems(prev => prev.map((it, idx) =>
                         idx === i ? { ...it, unit_price, line_total: parseFloat(((unit_price - (it.discount ?? 0)) * it.qty).toFixed(2)) } : it
                       ))
                     }}
-                    className="h-7 text-right px-1 text-sm"
+                    className="h-7 px-1 text-sm"
                   />
                   <span className="text-sm text-right font-medium">
                     {item.line_total.toFixed(2)}

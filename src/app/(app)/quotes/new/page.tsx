@@ -10,6 +10,7 @@ import { useUsers } from '@/hooks/use-users'
 import { useAuth } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PriceInput } from '@/components/ui/price-input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -329,25 +330,20 @@ function NewDeliveryNoteInner() {
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Price (XCG)</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
+                      <PriceInput
                         value={item.unit_price}
-                        onChange={(e) => updatePrice(i, Number(e.target.value))}
+                        onChange={(v) => updatePrice(i, v)}
                         className="h-8"
-                        readOnly={!isAdmin}
+                        disabled={!isAdmin}
                       />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Discount (XCG)</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
+                      <PriceInput
                         value={item.discount}
-                        onChange={(e) => updateDiscount(i, Number(e.target.value))}
+                        onChange={(v) => updateDiscount(i, v)}
                         className="h-8"
-                        readOnly={!isAdmin}
+                        disabled={!isAdmin}
                       />
                     </div>
                   </div>
