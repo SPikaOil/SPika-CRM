@@ -12,6 +12,11 @@ interface PriceInputProps {
   disabled?: boolean
 }
 
+function toNum(str: string): number {
+  // Accept both comma and dot as decimal separator
+  return parseFloat(str.replace(',', '.'))
+}
+
 export function PriceInput({ value, onChange, placeholder, className, disabled }: PriceInputProps) {
   const [display, setDisplay] = useState(value === 0 ? '' : String(value))
 
@@ -22,26 +27,28 @@ export function PriceInput({ value, onChange, placeholder, className, disabled }
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const raw = e.target.value
-    // Normalise comma → dot (European mobile keyboards)
-    const normalised = raw.replace(',', '.')
-    // Allow digits, one dot, and leading dot
-    if (!/^[0-9]*\.?[0-9]*$/.test(normalised) && normalised !== '') return
-    setDisplay(normalised)
-    const num = parseFloat(normalised)
+    // Allow digits + one decimal separator (comma OR dot) + leading separator
+    if (!/^[0-9]*[,.]?[0-9]*$/.test(raw) && raw !== '') return
+    setDisplay(raw)
+    const num = toNum(raw)
     if (!isNaN(num)) onChange(num)
-    else if (normalised === '' || normalised === '.') onChange(0)
+    else if (raw === '' || raw === ',' || raw === '.') onChange(0)
   }
 
   function handleBlur() {
-    // Normalise: ".5" → "0.5", "5." → "5"
-    if (display.startsWith('.')) {
-      const normalised = '0' + display
+    // Normalise display on blur: ",5" or ".5" → "0.5", "5," or "5." → "5"
+    const withDot = display.replace(',', '.')
+    if (withDot.startsWith('.')) {
+      const normalised = '0' + withDot
       setDisplay(normalised)
       onChange(parseFloat(normalised))
-    } else if (display.endsWith('.')) {
-      const normalised = display.slice(0, -1)
+    } else if (withDot.endsWith('.')) {
+      const normalised = withDot.slice(0, -1)
       setDisplay(normalised)
       onChange(parseFloat(normalised) || 0)
+    } else if (display.includes(',')) {
+      // Replace comma with dot in display after editing
+      setDisplay(withDot)
     }
   }
 
