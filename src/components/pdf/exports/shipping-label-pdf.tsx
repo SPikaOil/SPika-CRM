@@ -65,11 +65,10 @@ interface Props {
   exportRecord: Export
   company?: CompanyInfo
   qrCodeDataUrl?: string
-  fragileIconsDataUrl?: string
 }
 
 
-export function ShippingLabelPDF({ exportRecord, company = DEFAULT_COMPANY, qrCodeDataUrl, fragileIconsDataUrl }: Props) {
+export function ShippingLabelPDF({ exportRecord, company = DEFAULT_COMPANY, qrCodeDataUrl }: Props) {
   const order = exportRecord.order as any
   const customer = (order?.customer ?? (exportRecord as any).customer) as any
 
@@ -132,9 +131,7 @@ export function ShippingLabelPDF({ exportRecord, company = DEFAULT_COMPANY, qrCo
         </View>
 
         {/* Handling icons */}
-        {fragileIconsDataUrl ? (
-          <Image src={fragileIconsDataUrl} style={{ width: '100%', height: 100, objectFit: 'contain' }} />
-        ) : null}
+        <Image src="/fragile-icons.jpg" style={{ width: '100%', height: 100, objectFit: 'contain' }} />
 
         {/* FRAGILE */}
         <Text style={styles.fragileText}>FRAGILE</Text>
