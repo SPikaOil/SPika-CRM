@@ -121,7 +121,7 @@ export default function ExportDetailPage({
     return data ?? undefined
   }
 
-  async function downloadPdf(type: 'commercial_invoice' | 'packing_list' | 'bill_of_lading') {
+  async function downloadPdf(type: 'commercial_invoice' | 'packing_list' | 'bill_of_lading' | 'shipping_label') {
     setIsDownloadingPdf(true)
     try {
       const React = await import('react')
@@ -136,6 +136,9 @@ export default function ExportDetailPage({
       } else if (type === 'packing_list') {
         const { PackingListPDF } = await import('@/components/pdf/exports/packing-list-pdf')
         element = React.createElement(PackingListPDF, { exportRecord: exp, company })
+      } else if (type === 'shipping_label') {
+        const { ShippingLabelPDF } = await import('@/components/pdf/exports/shipping-label-pdf')
+        element = React.createElement(ShippingLabelPDF, { exportRecord: exp, company })
       } else {
         const { DonAndresBolPDF } = await import('@/components/pdf/exports/don-andres-bol-pdf')
         element = React.createElement(DonAndresBolPDF, { exportRecord: exp, company })
@@ -146,6 +149,7 @@ export default function ExportDetailPage({
         commercial_invoice: 'Commercial Invoice',
         packing_list: 'Packing List',
         bill_of_lading: 'Bill of Lading',
+        shipping_label: 'Shipping Label',
       }
       const { triggerDownload } = await import('@/lib/download-pdf')
       const expNum = exp.export_number.replace(/[#/\\:*?"<>|]/g, '').trim()
@@ -171,11 +175,13 @@ export default function ExportDetailPage({
       const { CommercialInvoicePDF } = await import('@/components/pdf/exports/commercial-invoice-pdf')
       const { PackingListPDF } = await import('@/components/pdf/exports/packing-list-pdf')
       const { DonAndresBolPDF } = await import('@/components/pdf/exports/don-andres-bol-pdf')
+      const { ShippingLabelPDF } = await import('@/components/pdf/exports/shipping-label-pdf')
 
-      const [ciBlob, plBlob, bolBlob] = await Promise.all([
+      const [ciBlob, plBlob, bolBlob, slBlob] = await Promise.all([
         pdf(React.createElement(CommercialInvoicePDF, { exportRecord: exp, company }) as any).toBlob(),
         pdf(React.createElement(PackingListPDF, { exportRecord: exp, company }) as any).toBlob(),
         pdf(React.createElement(DonAndresBolPDF, { exportRecord: exp, company }) as any).toBlob(),
+        pdf(React.createElement(ShippingLabelPDF, { exportRecord: exp, company }) as any).toBlob(),
       ])
 
       const expNum = exp.export_number.replace(/[#/\\:*?"<>|]/g, '').trim()
@@ -186,6 +192,7 @@ export default function ExportDetailPage({
       zip.file(`${baseName} - Commercial Invoice.pdf`, ciBlob)
       zip.file(`${baseName} - Packing List.pdf`, plBlob)
       zip.file(`${baseName} - Bill of Lading.pdf`, bolBlob)
+      zip.file(`${baseName} - Shipping Label.pdf`, slBlob)
 
       const zipBlob = await zip.generateAsync({ type: 'blob' })
       const { triggerDownload } = await import('@/lib/download-pdf')
@@ -423,7 +430,7 @@ export default function ExportDetailPage({
           <p className="text-xs text-muted-foreground">Generate and download the customs documents</p>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <Button
               variant="outline"
               className="gap-2 justify-start"
@@ -450,6 +457,15 @@ export default function ExportDetailPage({
             >
               <Download className="h-4 w-4 shrink-0" />
               Bill of Lading
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2 justify-start"
+              onClick={() => downloadPdf('shipping_label')}
+              disabled={isDownloadingPdf}
+            >
+              <Download className="h-4 w-4 shrink-0" />
+              Shipping Label
             </Button>
           </div>
           <Button
