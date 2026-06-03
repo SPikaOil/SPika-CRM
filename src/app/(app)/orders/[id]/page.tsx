@@ -1,17 +1,18 @@
 'use client'
 
-import { use, useRef, useState } from 'react'
+import { use, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Truck, CheckCircle, Clock, AlertCircle, Calendar, Download, Upload, FileCheck, X, UserCheck, XCircle, Pencil, Check, Plus, Trash2, PackageCheck, MapPin, ExternalLink } from 'lucide-react'
 import { useOrder, useUpdateOrder } from '@/hooks/use-orders'
-import { useExportsByCustomer } from '@/hooks/use-exports'
+import { useExportByOrderId, useCreateExport, useUpdateExport, useCarriers } from '@/hooks/use-exports'
 import { useUsers } from '@/hooks/use-users'
 import { useAuth } from '@/contexts/auth-context'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { PriceInput } from '@/components/ui/price-input'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -984,9 +985,9 @@ export default function OrderDetailPage({
         </Card>
       )}
 
-      {/* Export Card — only for export-category customers */}
+      {/* Export section — only for export-category customers */}
       {isAdmin && order.customer?.customer_category === 'export' && (
-        <ExportCard customerId={order.customer_id} />
+        <ExportOrderSection order={order} />
       )}
 
       {/* Details */}
@@ -1034,74 +1035,285 @@ function Row({ label, value }: { label: string; value: string }) {
   )
 }
 
-const exportStatusColors: Record<string, string> = {
-  draft:     'bg-gray-100 text-gray-700',
-  ready:     'bg-blue-100 text-blue-700',
-  submitted: 'bg-yellow-100 text-yellow-700',
-  cleared:   'bg-green-100 text-green-700',
+const EXP_STATUS_COLORS: Record<string, string> = {
+  draft: 'bg-gray-100 text-gray-700', ready: 'bg-blue-100 text-blue-700',
+  submitted: 'bg-yellow-100 text-yellow-700', cleared: 'bg-green-100 text-green-700',
   delivered: 'bg-emerald-100 text-emerald-700',
 }
-
-const exportStatusLabels: Record<string, string> = {
+const EXP_STATUS_LABELS: Record<string, string> = {
   draft: 'Draft', ready: 'Ready', submitted: 'Submitted', cleared: 'Cleared', delivered: 'Delivered',
 }
+const EXP_STATUSES = ['draft', 'ready', 'submitted', 'cleared', 'delivered']
+const BTLS_PER_CTN = 12
+const KG_PER_CTN = 5
 
-function ExportCard({ customerId }: { customerId: string }) {
-  const { data: exports, isLoading } = useExportsByCustomer(customerId)
+function ExportOrderSection({ order }: { order: Order & { customer?: any } }) {
+  const { data: exp, isLoading } = useExportByOrderId(order.id)
+  const { data: carriers } = useCarriers()
+  const createExport = useCreateExport()
+  const updateExport = useUpdateExport()
+  const { profile } = useAuth()
+  const supabase = createClient()
+
+  const orderItems = (order.items ?? []) as QuoteItem[]
+  const activeItems = orderItems.filter(i => i.qty > 0)
+
+  // Create-form state
+  const [carrierId, setCarrierId] = useState('')
+  const [destination, setDestination] = useState('')
+  const [exportDate, setExportDate] = useState(new Date().toISOString().split('T')[0])
+  const [thtDates, setThtDates] = useState<Record<string, string>>({})
+  const [isCreating, setIsCreating] = useState(false)
+
+  // Edit-THT state (for existing export)
+  const [editingItemTht, setEditingItemTht] = useState<number | null>(null)
+  const [itemThtDraft, setItemThtDraft] = useState('')
+  const [isDownloading, setIsDownloading] = useState(false)
+
+  // Auto-fill destination from carrier
+  useEffect(() => {
+    const carrier = carriers?.find(c => c.id === carrierId)
+    if (carrier?.route) setDestination(carrier.route.split('→').pop()?.trim() ?? '')
+  }, [carrierId, carriers])
+
+  const missingTht = activeItems.some(i => !thtDates[i.sku])
   const fmt = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })
+
+  async function handleCreate() {
+    setIsCreating(true)
+    try {
+      const billingCountry = (order.customer?.billing_address as any)?.country ?? ''
+      const { getTaxIdInfo } = await import('@/lib/tax-id')
+      const taxInfo = getTaxIdInfo(billingCountry)
+      const countryIso = taxInfo.prefix || billingCountry.slice(0, 2).toUpperCase() || 'XX'
+      const { getNextExportNumber } = await import('@/lib/order-number')
+      const exportNumber = await getNextExportNumber(countryIso, exportDate ? new Date(exportDate) : new Date())
+      const itemsWithTht = activeItems.map(item => ({ ...item, tht_date: thtDates[item.sku] || undefined }))
+      await createExport.mutateAsync({
+        export_number: exportNumber,
+        order_id: order.id,
+        customer_id: order.customer_id,
+        carrier_id: carrierId || null,
+        destination,
+        export_date: exportDate || null,
+        items: itemsWithTht,
+        status: 'draft',
+        created_by: profile?.id ?? '',
+      } as any)
+    } catch {
+      toast.error('Failed to create export')
+    } finally {
+      setIsCreating(false)
+    }
+  }
+
+  async function saveItemTht(idx: number, tht_date: string) {
+    if (!exp) return
+    const expItems = (exp.items ?? []) as QuoteItem[]
+    const updated = expItems.map((item, i) => i === idx ? { ...item, tht_date: tht_date || undefined } : item)
+    await updateExport.mutateAsync({ id: exp.id, values: { items: updated } as any })
+    setEditingItemTht(null)
+  }
+
+  async function fetchCompany() {
+    const { data } = await supabase.from('company_settings').select('*').eq('id', '00000000-0000-0000-0000-000000000001').single()
+    return data ?? undefined
+  }
+
+  async function downloadPdf(type: 'commercial_invoice' | 'packing_list' | 'bill_of_lading' | 'shipping_label') {
+    if (!exp) return
+    setIsDownloading(true)
+    try {
+      const React = await import('react')
+      const { pdf } = await import('@react-pdf/renderer')
+      const company = await fetchCompany()
+      const { triggerDownload } = await import('@/lib/download-pdf')
+      const labels = { commercial_invoice: 'Commercial Invoice', packing_list: 'Packing List', bill_of_lading: 'Bill of Lading', shipping_label: 'Shipping Label' }
+      let element: any
+      if (type === 'commercial_invoice') {
+        const { CommercialInvoicePDF } = await import('@/components/pdf/exports/commercial-invoice-pdf')
+        element = React.createElement(CommercialInvoicePDF, { exportRecord: exp, company })
+      } else if (type === 'packing_list') {
+        const { PackingListPDF } = await import('@/components/pdf/exports/packing-list-pdf')
+        element = React.createElement(PackingListPDF, { exportRecord: exp, company })
+      } else if (type === 'shipping_label') {
+        const { ShippingLabelPDF } = await import('@/components/pdf/exports/shipping-label-pdf')
+        element = React.createElement(ShippingLabelPDF, { exportRecord: exp, company })
+      } else {
+        const { DonAndresBolPDF } = await import('@/components/pdf/exports/don-andres-bol-pdf')
+        element = React.createElement(DonAndresBolPDF, { exportRecord: exp, company })
+      }
+      const blob = await pdf(element).toBlob()
+      const expNum = exp.export_number.replace(/[#/\\:*?"<>|]/g, '').trim()
+      const cName = (order.customer?.company_name ?? '').replace(/[#/\\:*?"<>|]/g, '').trim()
+      triggerDownload(blob, `${cName ? `${expNum} - ${cName}` : expNum} - ${labels[type]}.pdf`)
+    } catch { toast.error('Failed to generate PDF') }
+    finally { setIsDownloading(false) }
+  }
+
+  if (isLoading) return <Skeleton className="h-32 rounded-xl" />
+
+  // ── No export yet — setup form ──
+  if (!exp) return (
+    <Card className="border-indigo-200">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <PackageCheck className="h-4 w-4 text-indigo-600" />
+          Export Setup
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">Fill in the export details to generate customs documents</p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label>Carrier</Label>
+            <Select value={carrierId} onValueChange={v => v && setCarrierId(v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select carrier">
+                  {carrierId ? (() => { const c = carriers?.find(c => c.id === carrierId); return c ? `${c.name}${c.route ? ` — ${c.route}` : ''}` : 'Select carrier' })() : 'Select carrier'}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {carriers?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}{c.route ? ` — ${c.route}` : ''}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Destination</Label>
+            <Input value={destination} onChange={e => setDestination(e.target.value)} placeholder="e.g. Netherlands" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Export Date</Label>
+            <Input type="date" value={exportDate} onChange={e => setExportDate(e.target.value)} />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>THT Date per Product <span className="text-red-500">*</span></Label>
+          <div className="divide-y border rounded-lg overflow-hidden">
+            {activeItems.map(item => (
+              <div key={item.sku} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                <p className="text-sm font-medium flex-1 min-w-0 truncate">{item.name}</p>
+                <Input
+                  type="date"
+                  value={thtDates[item.sku] ?? ''}
+                  onChange={e => setThtDates(prev => ({ ...prev, [item.sku]: e.target.value }))}
+                  className={`h-7 w-36 text-xs px-2 ${!thtDates[item.sku] ? 'border-red-300' : ''}`}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {missingTht && <p className="text-xs text-red-500">THT date required for all products</p>}
+
+        <Button
+          className="w-full bg-indigo-600 hover:bg-indigo-700 h-10"
+          disabled={isCreating || missingTht || activeItems.length === 0}
+          onClick={handleCreate}
+        >
+          {isCreating && <Clock className="h-4 w-4 mr-2 animate-spin" />}
+          Create Export
+        </Button>
+      </CardContent>
+    </Card>
+  )
+
+  // ── Export exists — full details ──
+  const expItems = (exp.items ?? []) as QuoteItem[]
+  const expActiveItems = expItems.filter(i => i.qty > 0)
+  const totalQty = expActiveItems.reduce((s, i) => s + i.qty, 0)
+  const totalCartons = Math.ceil(totalQty / BTLS_PER_CTN)
+  const totalWeight = totalCartons * KG_PER_CTN
 
   return (
     <Card className="border-indigo-200">
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="text-base flex items-center gap-2">
             <PackageCheck className="h-4 w-4 text-indigo-600" />
-            Exports
+            Export
+            <span className="font-mono text-sm font-medium text-muted-foreground">{exp.export_number}</span>
           </CardTitle>
-          <Link href="/exports/new">
-            <Button size="sm" variant="outline" className="h-7 gap-1 text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50">
-              <Plus className="h-3 w-3" />
-              New Export
-            </Button>
-          </Link>
+          <Select value={exp.status} onValueChange={v => updateExport.mutate({ id: exp.id, values: { status: v as any } })}>
+            <SelectTrigger className="w-36 h-7 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {EXP_STATUSES.map(s => <SelectItem key={s} value={s}>{EXP_STATUS_LABELS[s]}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
       </CardHeader>
-      <CardContent className="space-y-2">
-        {isLoading ? (
-          <div className="space-y-2">
-            <div className="h-12 rounded-lg bg-muted animate-pulse" />
-            <div className="h-12 rounded-lg bg-muted animate-pulse" />
-          </div>
-        ) : !exports || exports.length === 0 ? (
-          <div className="flex flex-col items-center py-6 gap-2 text-muted-foreground">
-            <PackageCheck className="h-8 w-8 opacity-20" />
-            <p className="text-sm">No exports yet for this customer</p>
-            <Link href="/exports/new">
-              <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 mt-1">Create First Export</Button>
-            </Link>
-          </div>
-        ) : (
-          exports.map(exp => (
-            <Link key={exp.id} href={`/exports/${exp.id}`}>
-              <div className="flex items-center gap-3 p-3 rounded-lg border hover:bg-accent transition-colors">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-mono text-sm font-medium">{exp.export_number || '—'}</p>
-                    <Badge className={`text-xs ${exportStatusColors[exp.status] ?? 'bg-gray-100 text-gray-700'}`}>
-                      {exportStatusLabels[exp.status] ?? exp.status}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {(exp as any).carrier?.name ?? '—'}
-                    {exp.destination ? ` → ${exp.destination}` : ''}
-                    {exp.export_date ? ` · ${fmt(exp.export_date)}` : ''}
-                  </p>
+      <CardContent className="space-y-4">
+        {/* Key info */}
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+          <span className="text-muted-foreground">Carrier</span>
+          <span className="font-medium text-right">{(exp as any).carrier?.name ?? '—'}</span>
+          <span className="text-muted-foreground">Destination</span>
+          <span className="font-medium text-right">{exp.destination || '—'}</span>
+          <span className="text-muted-foreground">Export Date</span>
+          <span className="font-medium text-right">{exp.export_date ? fmt(exp.export_date) : '—'}</span>
+        </div>
+
+        <Separator />
+
+        {/* Cargo + THT */}
+        <div className="space-y-0 divide-y text-sm">
+          {expActiveItems.map((item, i) => {
+            const ctns = Math.ceil(item.qty / BTLS_PER_CTN)
+            const tht = (item as any).tht_date
+            return (
+              <div key={i} className="py-2.5">
+                <div className="flex justify-between gap-4">
+                  <span className="flex-1 min-w-0 truncate">{item.name}</span>
+                  <span>{item.qty} btls</span>
+                  <span className="text-muted-foreground">{ctns} ctns</span>
                 </div>
-                <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="text-xs text-muted-foreground">THT:</span>
+                  {editingItemTht === i ? (
+                    <>
+                      <Input type="date" autoFocus value={itemThtDraft} onChange={e => setItemThtDraft(e.target.value)} className="h-6 text-xs px-2 w-36" />
+                      <button onClick={() => saveItemTht(i, itemThtDraft)} className="text-green-600 hover:text-green-700"><Check className="h-3.5 w-3.5" /></button>
+                      <button onClick={() => setEditingItemTht(null)} className="text-muted-foreground"><X className="h-3.5 w-3.5" /></button>
+                    </>
+                  ) : (
+                    <button onClick={() => { setItemThtDraft(tht ?? ''); setEditingItemTht(i) }} className="flex items-center gap-1 text-xs hover:opacity-70 group">
+                      <span className={tht ? 'font-medium' : 'text-muted-foreground'}>{tht ? fmt(tht) : 'Not set'}</span>
+                      <Pencil className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 text-muted-foreground" />
+                    </button>
+                  )}
+                </div>
               </div>
-            </Link>
-          ))
-        )}
+            )
+          })}
+        </div>
+
+        {/* Totals */}
+        <div className="grid grid-cols-3 gap-2 text-sm">
+          {[{ label: 'Bottles', value: totalQty }, { label: 'Cartons', value: totalCartons }, { label: 'kg gross', value: totalWeight }].map(({ label, value }) => (
+            <div key={label} className="text-center p-2.5 bg-muted rounded-lg">
+              <p className="text-lg font-bold">{value}</p>
+              <p className="text-xs text-muted-foreground">{label}</p>
+            </div>
+          ))}
+        </div>
+
+        <Separator />
+
+        {/* Document downloads */}
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Documents</p>
+          <div className="grid grid-cols-2 gap-2">
+            {(['commercial_invoice', 'packing_list', 'bill_of_lading', 'shipping_label'] as const).map(type => (
+              <Button key={type} variant="outline" size="sm" className="justify-start gap-2 text-xs h-8" disabled={isDownloading} onClick={() => downloadPdf(type)}>
+                <Download className="h-3.5 w-3.5 shrink-0" />
+                {{ commercial_invoice: 'Commercial Invoice', packing_list: 'Packing List', bill_of_lading: 'Bill of Lading', shipping_label: 'Shipping Label' }[type]}
+              </Button>
+            ))}
+          </div>
+        </div>
       </CardContent>
     </Card>
   )

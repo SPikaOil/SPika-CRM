@@ -67,6 +67,23 @@ export function useCarriers() {
   })
 }
 
+export function useExportByOrderId(orderId: string) {
+  const supabase = createClient()
+  return useQuery({
+    queryKey: ['exports', 'order', orderId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('exports')
+        .select('*, carrier:carriers(*)')
+        .eq('order_id', orderId)
+        .maybeSingle()
+      if (error) throw error
+      return data as Export | null
+    },
+    enabled: !!orderId,
+  })
+}
+
 export function useExportsByCustomer(customerId: string) {
   const supabase = createClient()
   return useQuery({
