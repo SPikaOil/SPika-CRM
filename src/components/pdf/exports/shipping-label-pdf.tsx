@@ -5,14 +5,8 @@ import {
   View,
   StyleSheet,
   Svg,
-  Path,
-  Rect,
-  Circle,
   Line,
   Image,
-  G,
-  Polyline,
-  Polygon,
 } from '@react-pdf/renderer'
 import { Export } from '@/types'
 import { CompanyInfo } from '../delivery-note-pdf'
@@ -53,10 +47,6 @@ const styles = StyleSheet.create({
   shipToName: { fontSize: 48, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 4, lineHeight: 1.1 },
   shipToLine: { fontSize: 40, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 2, lineHeight: 1.15 },
 
-  // Icons row
-  iconsRow: { flexDirection: 'row', gap: 14, marginTop: 20, marginBottom: 14, justifyContent: 'flex-start' },
-  iconBox: { width: 80, height: 80, borderWidth: 3, borderColor: DARK, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
-
   // FRAGILE
   fragileText: { fontSize: 84, fontFamily: 'Helvetica-Bold', color: DARK, letterSpacing: 4, marginTop: 4 },
 })
@@ -76,123 +66,6 @@ interface Props {
   company?: CompanyInfo
 }
 
-// ── Shipping icons drawn with SVG ──────────────────────────────────────────
-
-/** Umbrella / Keep Dry */
-function IconUmbrella() {
-  return (
-    <Svg width={50} height={50} viewBox="0 0 100 100">
-      {/* Umbrella dome */}
-      <Path
-        d="M10,55 Q10,10 50,10 Q90,10 90,55 Z"
-        fill="none"
-        stroke={DARK}
-        strokeWidth={7}
-        strokeLinejoin="round"
-      />
-      {/* Center rib */}
-      <Line x1={50} y1={10} x2={50} y2={75} stroke={DARK} strokeWidth={7} strokeLinecap="round" />
-      {/* Handle curve */}
-      <Path
-        d="M50,75 Q50,92 38,92 Q26,92 26,80"
-        fill="none"
-        stroke={DARK}
-        strokeWidth={7}
-        strokeLinecap="round"
-      />
-      {/* Rain drops */}
-      <Circle cx={25} cy={30} r={3} fill={DARK} />
-      <Circle cx={40} cy={22} r={3} fill={DARK} />
-      <Circle cx={60} cy={22} r={3} fill={DARK} />
-      <Circle cx={75} cy={30} r={3} fill={DARK} />
-    </Svg>
-  )
-}
-
-/** This Side Up — two upward arrows */
-function IconThisSideUp() {
-  return (
-    <Svg width={50} height={50} viewBox="0 0 100 100">
-      {/* Left arrow */}
-      <Polygon points="28,45 18,45 28,15 38,45 28,45" fill={DARK} />
-      <Rect x={24} y={44} width={8} height={30} fill={DARK} />
-      {/* Right arrow */}
-      <Polygon points="62,45 52,45 62,15 72,45 62,45" fill={DARK} />
-      <Rect x={58} y={44} width={8} height={30} fill={DARK} />
-      {/* Base line */}
-      <Line x1={12} y1={86} x2={88} y2={86} stroke={DARK} strokeWidth={7} strokeLinecap="round" />
-    </Svg>
-  )
-}
-
-/** Fragile / Breakable — wine glass */
-function IconFragileGlass() {
-  return (
-    <Svg width={50} height={50} viewBox="0 0 100 100">
-      {/* Glass bowl */}
-      <Path
-        d="M30,12 L70,12 L62,50 Q60,65 50,65 Q40,65 38,50 Z"
-        fill="none"
-        stroke={DARK}
-        strokeWidth={7}
-        strokeLinejoin="round"
-      />
-      {/* Stem */}
-      <Line x1={50} y1={65} x2={50} y2={84} stroke={DARK} strokeWidth={7} strokeLinecap="round" />
-      {/* Base */}
-      <Line x1={34} y1={84} x2={66} y2={84} stroke={DARK} strokeWidth={7} strokeLinecap="round" />
-      {/* Crack */}
-      <Path
-        d="M50,18 L44,32 L52,38 L44,55"
-        fill="none"
-        stroke={DARK}
-        strokeWidth={4}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </Svg>
-  )
-}
-
-/** Handle with Care — two hands cupping a box */
-function IconHandleWithCare() {
-  return (
-    <Svg width={50} height={50} viewBox="0 0 100 100">
-      {/* Box/package in center */}
-      <Rect x={36} y={28} width={28} height={28} rx={3} fill="none" stroke={DARK} strokeWidth={6} />
-      {/* Left hand */}
-      <Path
-        d="M8,88 Q8,60 24,52 L36,48"
-        fill="none"
-        stroke={DARK}
-        strokeWidth={6}
-        strokeLinecap="round"
-      />
-      <Path
-        d="M8,88 Q14,78 24,78 L36,70"
-        fill="none"
-        stroke={DARK}
-        strokeWidth={6}
-        strokeLinecap="round"
-      />
-      {/* Right hand */}
-      <Path
-        d="M92,88 Q92,60 76,52 L64,48"
-        fill="none"
-        stroke={DARK}
-        strokeWidth={6}
-        strokeLinecap="round"
-      />
-      <Path
-        d="M92,88 Q86,78 76,78 L64,70"
-        fill="none"
-        stroke={DARK}
-        strokeWidth={6}
-        strokeLinecap="round"
-      />
-    </Svg>
-  )
-}
 
 export function ShippingLabelPDF({ exportRecord, company = DEFAULT_COMPANY }: Props) {
   const order = exportRecord.order as any
@@ -251,12 +124,7 @@ export function ShippingLabelPDF({ exportRecord, company = DEFAULT_COMPANY }: Pr
         </View>
 
         {/* Handling icons */}
-        <View style={styles.iconsRow}>
-          <View style={styles.iconBox}><IconUmbrella /></View>
-          <View style={styles.iconBox}><IconThisSideUp /></View>
-          <View style={styles.iconBox}><IconFragileGlass /></View>
-          <View style={styles.iconBox}><IconHandleWithCare /></View>
-        </View>
+        <Image src="/fragile-icons.png" style={{ width: '100%', height: 90, objectFit: 'contain', objectPositionX: 'left' }} />
 
         {/* FRAGILE */}
         <Text style={styles.fragileText}>FRAGILE</Text>
