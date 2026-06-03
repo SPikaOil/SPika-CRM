@@ -180,7 +180,11 @@ function NewExportInner() {
               <Label>Carrier</Label>
               <Select value={carrierId} onValueChange={(v) => v && setCarrierId(v)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select carrier" />
+                  <SelectValue placeholder="Select carrier">
+                    {carrierId
+                      ? (() => { const c = carriers?.find(c => c.id === carrierId); return c ? `${c.name}${c.route ? ` — ${c.route}` : ''}` : 'Select carrier' })()
+                      : 'Select carrier'}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {carriers?.map(c => (
