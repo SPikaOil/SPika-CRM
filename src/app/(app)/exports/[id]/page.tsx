@@ -138,7 +138,10 @@ export default function ExportDetailPage({
         element = React.createElement(PackingListPDF, { exportRecord: exp, company })
       } else if (type === 'shipping_label') {
         const { ShippingLabelPDF } = await import('@/components/pdf/exports/shipping-label-pdf')
-        element = React.createElement(ShippingLabelPDF, { exportRecord: exp, company })
+        const QRCode = (await import('qrcode')).default
+        const qrUrl = `${window.location.origin}/exports/${exp.id}`
+        const qrCodeDataUrl = await QRCode.toDataURL(qrUrl, { margin: 1, width: 200 })
+        element = React.createElement(ShippingLabelPDF, { exportRecord: exp, company, qrCodeDataUrl })
       } else {
         const { DonAndresBolPDF } = await import('@/components/pdf/exports/don-andres-bol-pdf')
         element = React.createElement(DonAndresBolPDF, { exportRecord: exp, company })
@@ -176,12 +179,15 @@ export default function ExportDetailPage({
       const { PackingListPDF } = await import('@/components/pdf/exports/packing-list-pdf')
       const { DonAndresBolPDF } = await import('@/components/pdf/exports/don-andres-bol-pdf')
       const { ShippingLabelPDF } = await import('@/components/pdf/exports/shipping-label-pdf')
+      const QRCode = (await import('qrcode')).default
+      const qrUrl = `${window.location.origin}/exports/${exp.id}`
+      const qrCodeDataUrl = await QRCode.toDataURL(qrUrl, { margin: 1, width: 200 })
 
       const [ciBlob, plBlob, bolBlob, slBlob] = await Promise.all([
         pdf(React.createElement(CommercialInvoicePDF, { exportRecord: exp, company }) as any).toBlob(),
         pdf(React.createElement(PackingListPDF, { exportRecord: exp, company }) as any).toBlob(),
         pdf(React.createElement(DonAndresBolPDF, { exportRecord: exp, company }) as any).toBlob(),
-        pdf(React.createElement(ShippingLabelPDF, { exportRecord: exp, company }) as any).toBlob(),
+        pdf(React.createElement(ShippingLabelPDF, { exportRecord: exp, company, qrCodeDataUrl }) as any).toBlob(),
       ])
 
       const expNum = exp.export_number.replace(/[#/\\:*?"<>|]/g, '').trim()

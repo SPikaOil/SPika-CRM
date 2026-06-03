@@ -1138,7 +1138,10 @@ function ExportOrderSection({ order }: { order: Order & { customer?: any } }) {
         element = React.createElement(PackingListPDF, { exportRecord: exp, company })
       } else if (type === 'shipping_label') {
         const { ShippingLabelPDF } = await import('@/components/pdf/exports/shipping-label-pdf')
-        element = React.createElement(ShippingLabelPDF, { exportRecord: exp, company })
+        const QRCode = (await import('qrcode')).default
+        const qrUrl = `${window.location.origin}/exports/${exp.id}`
+        const qrCodeDataUrl = await QRCode.toDataURL(qrUrl, { margin: 1, width: 200 })
+        element = React.createElement(ShippingLabelPDF, { exportRecord: exp, company, qrCodeDataUrl })
       } else {
         const { DonAndresBolPDF } = await import('@/components/pdf/exports/don-andres-bol-pdf')
         element = React.createElement(DonAndresBolPDF, { exportRecord: exp, company })

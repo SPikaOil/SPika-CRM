@@ -64,10 +64,11 @@ const DEFAULT_COMPANY: CompanyInfo = {
 interface Props {
   exportRecord: Export
   company?: CompanyInfo
+  qrCodeDataUrl?: string
 }
 
 
-export function ShippingLabelPDF({ exportRecord, company = DEFAULT_COMPANY }: Props) {
+export function ShippingLabelPDF({ exportRecord, company = DEFAULT_COMPANY, qrCodeDataUrl }: Props) {
   const order = exportRecord.order as any
   const customer = (order?.customer ?? (exportRecord as any).customer) as any
 
@@ -87,9 +88,15 @@ export function ShippingLabelPDF({ exportRecord, company = DEFAULT_COMPANY }: Pr
     <Document>
       <Page size="A4" style={styles.page}>
 
-        {/* Logo */}
-        <View style={styles.logoWrap}>
-          <Image src="/spika-banner.png" style={{ width: '85%', height: 56, objectFit: 'contain' }} />
+        {/* Logo + QR code side by side */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+          <Image src="/spika-banner.png" style={{ flex: 1, height: 56, objectFit: 'contain' }} />
+          {qrCodeDataUrl ? (
+            <View style={{ alignItems: 'center', marginLeft: 12 }}>
+              <Image src={qrCodeDataUrl} style={{ width: 70, height: 70 }} />
+              <Text style={{ fontSize: 6, color: GRAY, marginTop: 2 }}>SCAN FOR DETAILS</Text>
+            </View>
+          ) : null}
         </View>
 
         {/* From + ref */}
