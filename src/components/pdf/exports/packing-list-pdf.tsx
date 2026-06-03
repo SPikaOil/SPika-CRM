@@ -40,7 +40,8 @@ const styles = StyleSheet.create({
   tableHeader: { flexDirection: 'row', backgroundColor: RED, paddingVertical: 5, paddingHorizontal: 6 },
   tableRow: { flexDirection: 'row', paddingVertical: 5, paddingHorizontal: 6, borderBottomWidth: 0.5, borderBottomColor: BORDER },
   tableRowAlt: { backgroundColor: LIGHT },
-  colDesc: { flex: 4 },
+  colDesc: { flex: 3 },
+  colTht: { flex: 2, textAlign: 'center' },
   colQty: { flex: 1.5, textAlign: 'center' },
   colCartons: { flex: 1.5, textAlign: 'center' },
   colWeight: { flex: 1.5, textAlign: 'right' },
@@ -157,6 +158,7 @@ export function PackingListPDF({ exportRecord, company = DEFAULT_COMPANY }: Prop
         {/* Items table */}
         <View style={styles.tableHeader}>
           <Text style={[styles.thText, styles.colDesc]}>PRODUCT DESCRIPTION</Text>
+          <Text style={[styles.thText, styles.colTht]}>THT / BEST BEFORE</Text>
           <Text style={[styles.thText, styles.colQty]}>TOTAL QTY</Text>
           <Text style={[styles.thText, styles.colCartons]}>CARTONS</Text>
           <Text style={[styles.thText, styles.colWeight]}>GROSS WEIGHT</Text>
@@ -165,9 +167,13 @@ export function PackingListPDF({ exportRecord, company = DEFAULT_COMPANY }: Prop
         {activeItems.map((item, i) => {
           const cartons = Math.ceil(item.qty / BOTTLES_PER_CARTON)
           const weight = cartons * KG_PER_CARTON
+          const itemTht = (item as any).tht_date
+            ? fmt(new Date((item as any).tht_date + 'T12:00:00'))
+            : thtDate
           return (
             <View key={i} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]}>
               <Text style={[styles.tdText, styles.colDesc]}>{item.name}</Text>
+              <Text style={[styles.tdText, styles.colTht]}>{itemTht}</Text>
               <Text style={[styles.tdText, styles.colQty]}>{item.qty} btls</Text>
               <Text style={[styles.tdText, styles.colCartons]}>{cartons} ctns</Text>
               <Text style={[styles.tdText, styles.colWeight]}>{weight} kg</Text>

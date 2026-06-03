@@ -63,6 +63,8 @@ export default function ExportDetailPage({
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
   const [editingTht, setEditingTht] = useState(false)
   const [thtDraft, setThtDraft] = useState('')
+  const [editingItemTht, setEditingItemTht] = useState<number | null>(null)
+  const [itemThtDraft, setItemThtDraft] = useState('')
   const receivedFileRef = useRef<HTMLInputElement>(null)
 
   if (!isAdmin) {
@@ -95,6 +97,14 @@ export default function ExportDetailPage({
   const totalQty = activeItems.reduce((sum, i) => sum + i.qty, 0)
   const totalCartons = Math.ceil(totalQty / BOTTLES_PER_CARTON)
   const totalWeight = totalCartons * KG_PER_CARTON
+
+  async function saveItemTht(itemIndex: number, tht_date: string) {
+    const updatedItems = items.map((item, i) =>
+      i === itemIndex ? { ...item, tht_date: tht_date || undefined } : item
+    )
+    await updateExport.mutateAsync({ id, values: { items: updatedItems } as any })
+    setEditingItemTht(null)
+  }
 
   async function handleDeleteExport() {
     if (!confirm('Delete this export? This cannot be undone.')) return
@@ -345,11 +355,45 @@ export default function ExportDetailPage({
           <div className="space-y-0 divide-y text-sm">
             {activeItems.map((item, i) => {
               const ctns = Math.ceil(item.qty / BOTTLES_PER_CARTON)
+              const tht = (item as any).tht_date
+              const fmtTht = tht
+                ? new Date(tht + 'T12:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })
+                : null
               return (
-                <div key={i} className="flex justify-between gap-4 py-2.5">
-                  <span className="text-muted-foreground flex-1 min-w-0 truncate">{item.name}</span>
-                  <span>{item.qty} btls</span>
-                  <span className="text-muted-foreground">{ctns} ctns</span>
+                <div key={i} className="py-2.5">
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground flex-1 min-w-0 truncate">{item.name}</span>
+                    <span>{item.qty} btls</span>
+                    <span className="text-muted-foreground">{ctns} ctns</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className="text-xs text-muted-foreground">THT:</span>
+                    {editingItemTht === i ? (
+                      <>
+                        <Input
+                          type="date"
+                          autoFocus
+                          value={itemThtDraft}
+                          onChange={e => setItemThtDraft(e.target.value)}
+                          className="h-6 text-xs px-2 w-36"
+                        />
+                        <button onClick={() => saveItemTht(i, itemThtDraft)} className="text-green-600 hover:text-green-700">
+                          <Check className="h-3.5 w-3.5" />
+                        </button>
+                        <button onClick={() => setEditingItemTht(null)} className="text-muted-foreground hover:text-foreground">
+                          <XIcon className="h-3.5 w-3.5" />
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => { setItemThtDraft(tht ?? ''); setEditingItemTht(i) }}
+                        className="flex items-center gap-1 text-xs hover:opacity-70 transition-opacity group"
+                      >
+                        <span className={fmtTht ? 'font-medium' : 'text-muted-foreground'}>{fmtTht ?? 'Not set'}</span>
+                        <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               )
             })}

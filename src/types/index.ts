@@ -37,6 +37,7 @@ export interface QuoteItem {
   unit_price: number
   discount: number
   line_total: number
+  tht_date?: string
 }
 
 export interface GpsLocation {

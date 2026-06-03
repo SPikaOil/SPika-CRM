@@ -88,6 +88,10 @@ function NewExportInner() {
     )
   }
 
+  function updateTht(index: number, tht_date: string) {
+    setItems(prev => prev.map((item, i) => i === index ? { ...item, tht_date } : item))
+  }
+
   const activeItems = items.filter(i => i.qty > 0)
   const subtotal = activeItems.reduce((sum, i) => sum + i.line_total, 0)
 
@@ -258,26 +262,37 @@ function NewExportInner() {
             </CardHeader>
             <CardContent className="space-y-0 divide-y">
               {items.map((item, i) => (
-                <div key={item.sku} className="py-3 flex items-center gap-3">
-                  <div className="flex-1 min-w-0">
-                    <p className={`font-medium text-sm ${item.qty === 0 ? 'text-muted-foreground' : ''}`}>
-                      {item.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      XCG {item.unit_price.toFixed(2)} / bottle
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Input
-                      type="number"
-                      min="0"
-                      value={item.qty}
-                      onChange={e => updateQty(i, Number(e.target.value))}
-                      className="h-8 w-20 text-right"
-                    />
-                    <span className="text-xs text-muted-foreground w-20 text-right font-medium">
-                      {item.qty > 0 ? `XCG ${item.line_total.toFixed(2)}` : '—'}
-                    </span>
+                <div key={item.sku} className="py-3">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className={`font-medium text-sm ${item.qty === 0 ? 'text-muted-foreground' : ''}`}>
+                        {item.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        XCG {item.unit_price.toFixed(2)} / bottle
+                      </p>
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        <Label className="text-xs text-muted-foreground whitespace-nowrap">THT:</Label>
+                        <Input
+                          type="date"
+                          value={item.tht_date ?? ''}
+                          onChange={e => updateTht(i, e.target.value)}
+                          className="h-6 text-xs px-2 w-36"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Input
+                        type="number"
+                        min="0"
+                        value={item.qty}
+                        onChange={e => updateQty(i, Number(e.target.value))}
+                        className="h-8 w-20 text-right"
+                      />
+                      <span className="text-xs text-muted-foreground w-20 text-right font-medium">
+                        {item.qty > 0 ? `XCG ${item.line_total.toFixed(2)}` : '—'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               ))}
