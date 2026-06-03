@@ -22,17 +22,18 @@ export function PriceInput({ value, onChange, placeholder, className, disabled }
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const raw = e.target.value
+    // Normalise comma → dot (European mobile keyboards)
+    const normalised = raw.replace(',', '.')
     // Allow digits, one dot, and leading dot
-    if (!/^[0-9]*\.?[0-9]*$/.test(raw) && raw !== '') return
-    setDisplay(raw)
-    // Commit valid number immediately so parent state stays in sync
-    const num = parseFloat(raw)
+    if (!/^[0-9]*\.?[0-9]*$/.test(normalised) && normalised !== '') return
+    setDisplay(normalised)
+    const num = parseFloat(normalised)
     if (!isNaN(num)) onChange(num)
-    else if (raw === '' || raw === '.') onChange(0)
+    else if (normalised === '' || normalised === '.') onChange(0)
   }
 
   function handleBlur() {
-    // Normalise: ".5" → "0.5", "5." → "5", "" → ""
+    // Normalise: ".5" → "0.5", "5." → "5"
     if (display.startsWith('.')) {
       const normalised = '0' + display
       setDisplay(normalised)
