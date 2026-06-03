@@ -4,77 +4,61 @@ import {
   Text,
   View,
   StyleSheet,
-  Line,
   Svg,
+  Path,
+  Rect,
+  Circle,
+  Line,
   Image,
+  G,
+  Polyline,
+  Polygon,
 } from '@react-pdf/renderer'
-import { Export, QuoteItem } from '@/types'
+import { Export } from '@/types'
 import { CompanyInfo } from '../delivery-note-pdf'
 
 const RED = '#CC0000'
 const DARK = '#1a1a1a'
-const GRAY = '#666666'
-const LIGHT = '#f5f5f5'
-const BORDER = '#dddddd'
-
-const BOTTLES_PER_CARTON = 12
-const KG_PER_CARTON = 5
+const GRAY = '#555555'
 
 const styles = StyleSheet.create({
   page: {
     fontFamily: 'Helvetica',
     fontSize: 9,
     color: DARK,
-    paddingTop: 28,
-    paddingBottom: 28,
+    paddingTop: 24,
+    paddingBottom: 24,
     paddingHorizontal: 32,
+    backgroundColor: '#ffffff',
   },
-  divider: { marginVertical: 8 },
 
-  // Header
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  title: { fontSize: 22, fontFamily: 'Helvetica-Bold', color: RED },
-  refBox: { backgroundColor: DARK, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 3 },
-  refText: { fontSize: 13, fontFamily: 'Helvetica-Bold', color: '#ffffff', letterSpacing: 1 },
+  // Header logo
+  logoWrap: { alignItems: 'center', marginBottom: 10 },
 
-  // Address section
-  addressRow: { flexDirection: 'row', gap: 16, marginBottom: 12 },
-  addressBox: { flex: 1, padding: 10, borderWidth: 0.5, borderColor: BORDER, borderRadius: 3 },
-  addressBoxTo: { flex: 1.6, padding: 10, borderWidth: 2, borderColor: RED, borderRadius: 3 },
-  addressLabel: {
-    fontSize: 7, fontFamily: 'Helvetica-Bold', color: GRAY,
-    textTransform: 'uppercase', letterSpacing: 1, marginBottom: 5,
-  },
-  addressLabelTo: {
-    fontSize: 7, fontFamily: 'Helvetica-Bold', color: RED,
-    textTransform: 'uppercase', letterSpacing: 1, marginBottom: 5,
-  },
-  addressName: { fontSize: 12, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 2 },
-  addressLine: { fontSize: 9, color: DARK, marginBottom: 1 },
-  addressCountry: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: RED, marginTop: 4 },
+  // From row
+  fromRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
+  fromBlock: { flex: 1 },
+  fromLabel: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: GRAY, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 3 },
+  fromLine: { fontSize: 8.5, color: DARK, marginBottom: 1 },
+  fromName: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 1 },
 
-  // Info grid
-  infoRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  infoBox: { flex: 1, backgroundColor: LIGHT, padding: 8, borderRadius: 3, alignItems: 'center' },
-  infoLabel: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: GRAY, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 },
-  infoValue: { fontSize: 13, fontFamily: 'Helvetica-Bold', color: DARK },
-  infoSub: { fontSize: 8, color: GRAY, marginTop: 1 },
+  refBox: { backgroundColor: DARK, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 3 },
+  refText: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#ffffff', letterSpacing: 1 },
 
-  // Items table
-  tableHeader: { flexDirection: 'row', backgroundColor: RED, paddingVertical: 4, paddingHorizontal: 6 },
-  tableRow: { flexDirection: 'row', paddingVertical: 5, paddingHorizontal: 6, borderBottomWidth: 0.5, borderBottomColor: BORDER },
-  tableRowAlt: { backgroundColor: LIGHT },
-  thText: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: '#ffffff', textTransform: 'uppercase' },
-  tdText: { fontSize: 8.5, color: DARK },
-  colDesc: { flex: 4 },
-  colTht: { flex: 2.5, textAlign: 'center' },
-  colQty: { flex: 1.5, textAlign: 'center' },
-  colCtns: { flex: 1.5, textAlign: 'center' },
+  // Divider
+  divider: { marginVertical: 10 },
 
-  // Footer
-  footer: { marginTop: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
-  footerNote: { fontSize: 7.5, color: GRAY, flex: 1 },
-  footerCarrier: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: DARK, textAlign: 'right' },
+  // Large ship-to
+  shipToLabel: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: RED, textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 8 },
+  shipToName: { fontSize: 48, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 4, lineHeight: 1.1 },
+  shipToLine: { fontSize: 40, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 2, lineHeight: 1.15 },
+
+  // Icons row
+  iconsRow: { flexDirection: 'row', gap: 14, marginTop: 20, marginBottom: 14, justifyContent: 'flex-start' },
+  iconBox: { width: 80, height: 80, borderWidth: 3, borderColor: DARK, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
+
+  // FRAGILE
+  fragileText: { fontSize: 84, fontFamily: 'Helvetica-Bold', color: DARK, letterSpacing: 4, marginTop: 4 },
 })
 
 const DEFAULT_COMPANY: CompanyInfo = {
@@ -92,138 +76,197 @@ interface Props {
   company?: CompanyInfo
 }
 
+// ── Shipping icons drawn with SVG ──────────────────────────────────────────
+
+/** Umbrella / Keep Dry */
+function IconUmbrella() {
+  return (
+    <Svg width={50} height={50} viewBox="0 0 100 100">
+      {/* Umbrella dome */}
+      <Path
+        d="M10,55 Q10,10 50,10 Q90,10 90,55 Z"
+        fill="none"
+        stroke={DARK}
+        strokeWidth={7}
+        strokeLinejoin="round"
+      />
+      {/* Center rib */}
+      <Line x1={50} y1={10} x2={50} y2={75} stroke={DARK} strokeWidth={7} strokeLinecap="round" />
+      {/* Handle curve */}
+      <Path
+        d="M50,75 Q50,92 38,92 Q26,92 26,80"
+        fill="none"
+        stroke={DARK}
+        strokeWidth={7}
+        strokeLinecap="round"
+      />
+      {/* Rain drops */}
+      <Circle cx={25} cy={30} r={3} fill={DARK} />
+      <Circle cx={40} cy={22} r={3} fill={DARK} />
+      <Circle cx={60} cy={22} r={3} fill={DARK} />
+      <Circle cx={75} cy={30} r={3} fill={DARK} />
+    </Svg>
+  )
+}
+
+/** This Side Up — two upward arrows */
+function IconThisSideUp() {
+  return (
+    <Svg width={50} height={50} viewBox="0 0 100 100">
+      {/* Left arrow */}
+      <Polygon points="28,45 18,45 28,15 38,45 28,45" fill={DARK} />
+      <Rect x={24} y={44} width={8} height={30} fill={DARK} />
+      {/* Right arrow */}
+      <Polygon points="62,45 52,45 62,15 72,45 62,45" fill={DARK} />
+      <Rect x={58} y={44} width={8} height={30} fill={DARK} />
+      {/* Base line */}
+      <Line x1={12} y1={86} x2={88} y2={86} stroke={DARK} strokeWidth={7} strokeLinecap="round" />
+    </Svg>
+  )
+}
+
+/** Fragile / Breakable — wine glass */
+function IconFragileGlass() {
+  return (
+    <Svg width={50} height={50} viewBox="0 0 100 100">
+      {/* Glass bowl */}
+      <Path
+        d="M30,12 L70,12 L62,50 Q60,65 50,65 Q40,65 38,50 Z"
+        fill="none"
+        stroke={DARK}
+        strokeWidth={7}
+        strokeLinejoin="round"
+      />
+      {/* Stem */}
+      <Line x1={50} y1={65} x2={50} y2={84} stroke={DARK} strokeWidth={7} strokeLinecap="round" />
+      {/* Base */}
+      <Line x1={34} y1={84} x2={66} y2={84} stroke={DARK} strokeWidth={7} strokeLinecap="round" />
+      {/* Crack */}
+      <Path
+        d="M50,18 L44,32 L52,38 L44,55"
+        fill="none"
+        stroke={DARK}
+        strokeWidth={4}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  )
+}
+
+/** Handle with Care — two hands cupping a box */
+function IconHandleWithCare() {
+  return (
+    <Svg width={50} height={50} viewBox="0 0 100 100">
+      {/* Box/package in center */}
+      <Rect x={36} y={28} width={28} height={28} rx={3} fill="none" stroke={DARK} strokeWidth={6} />
+      {/* Left hand */}
+      <Path
+        d="M8,88 Q8,60 24,52 L36,48"
+        fill="none"
+        stroke={DARK}
+        strokeWidth={6}
+        strokeLinecap="round"
+      />
+      <Path
+        d="M8,88 Q14,78 24,78 L36,70"
+        fill="none"
+        stroke={DARK}
+        strokeWidth={6}
+        strokeLinecap="round"
+      />
+      {/* Right hand */}
+      <Path
+        d="M92,88 Q92,60 76,52 L64,48"
+        fill="none"
+        stroke={DARK}
+        strokeWidth={6}
+        strokeLinecap="round"
+      />
+      <Path
+        d="M92,88 Q86,78 76,78 L64,70"
+        fill="none"
+        stroke={DARK}
+        strokeWidth={6}
+        strokeLinecap="round"
+      />
+    </Svg>
+  )
+}
+
 export function ShippingLabelPDF({ exportRecord, company = DEFAULT_COMPANY }: Props) {
   const order = exportRecord.order as any
   const customer = (order?.customer ?? (exportRecord as any).customer) as any
-  const items: QuoteItem[] = (order?.items ?? exportRecord.items ?? []) as QuoteItem[]
-  const activeItems = items.filter(i => i.qty > 0)
-
-  const totalQty = activeItems.reduce((sum, i) => sum + i.qty, 0)
-  const totalCartons = Math.ceil(totalQty / BOTTLES_PER_CARTON)
-  const totalWeight = totalCartons * KG_PER_CARTON
-
-  const fmt = (d: Date) =>
-    d.toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })
-
-  const exportDate = exportRecord.export_date
-    ? fmt(new Date(exportRecord.export_date + 'T12:00:00'))
-    : fmt(new Date())
 
   const billingAddr = customer?.billing_address ?? {}
   const deliveryAddr = customer?.delivery_address ?? {}
   const shipToAddr = deliveryAddr?.street ? deliveryAddr : billingAddr
+  const destination = exportRecord.destination || billingAddr?.country || ''
 
   const carrier = (exportRecord as any).carrier
-  const destination = exportRecord.destination || billingAddr?.country || '—'
+
+  // Build address lines
+  const nameLine = customer?.company_name ?? '—'
+  const streetLine = shipToAddr?.street ?? ''
+  const cityLine = [shipToAddr?.zip, shipToAddr?.city].filter(Boolean).join(' ')
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
 
         {/* Logo */}
-        <View style={{ marginBottom: 8, alignItems: 'center' }}>
-          <Image src="/spika-banner.png" style={{ width: '90%', height: 64, objectFit: 'contain' }} />
+        <View style={styles.logoWrap}>
+          <Image src="/spika-banner.png" style={{ width: '85%', height: 56, objectFit: 'contain' }} />
         </View>
 
-        {/* Title + Reference */}
-        <View style={styles.header}>
-          <Text style={styles.title}>SHIPPING LABEL</Text>
+        {/* From + ref */}
+        <View style={styles.fromRow}>
+          <View style={styles.fromBlock}>
+            <Text style={styles.fromLabel}>From</Text>
+            <Text style={styles.fromName}>{company.name}</Text>
+            <Text style={styles.fromLine}>{company.address_line1}</Text>
+            <Text style={styles.fromLine}>{company.address_line2}</Text>
+          </View>
           <View style={styles.refBox}>
             <Text style={styles.refText}>{exportRecord.export_number}</Text>
           </View>
         </View>
 
-        <Svg height={1} style={styles.divider}>
-          <Line x1={0} y1={0} x2={531} y2={0} strokeWidth={1.5} stroke={RED} />
+        {/* Red divider */}
+        <Svg height={2} style={styles.divider}>
+          <Line x1={0} y1={0} x2={531} y2={0} strokeWidth={2} stroke={RED} />
         </Svg>
 
-        {/* FROM / TO */}
-        <View style={styles.addressRow}>
-          <View style={styles.addressBox}>
-            <Text style={styles.addressLabel}>Ship From</Text>
-            <Text style={styles.addressName}>{company.name}</Text>
-            <Text style={styles.addressLine}>{company.address_line1}</Text>
-            <Text style={styles.addressLine}>{company.address_line2}</Text>
-            <Text style={styles.addressLine}>{company.phone}</Text>
-            <Text style={[styles.addressLine, { color: RED }]}>{company.email}</Text>
-          </View>
-          <View style={styles.addressBoxTo}>
-            <Text style={styles.addressLabelTo}>Ship To</Text>
-            <Text style={styles.addressName}>{customer?.company_name ?? '—'}</Text>
-            {customer?.contact_person ? (
-              <Text style={styles.addressLine}>{customer.contact_person}</Text>
-            ) : null}
-            {shipToAddr?.street ? <Text style={styles.addressLine}>{shipToAddr.street}</Text> : null}
-            {shipToAddr?.city ? <Text style={styles.addressLine}>{shipToAddr.city}</Text> : null}
-            {shipToAddr?.state ? <Text style={styles.addressLine}>{shipToAddr.state}</Text> : null}
-            {shipToAddr?.zip ? <Text style={styles.addressLine}>{shipToAddr.zip}</Text> : null}
-            <Text style={styles.addressCountry}>{destination.toUpperCase()}</Text>
-          </View>
+        {/* Large ship-to address */}
+        <View style={{ marginTop: 8 }}>
+          <Text style={styles.shipToLabel}>Ship To</Text>
+          <Text style={styles.shipToName}>{nameLine}</Text>
+          {streetLine ? <Text style={styles.shipToLine}>{streetLine}</Text> : null}
+          {cityLine ? <Text style={styles.shipToLine}>{cityLine}</Text> : null}
+          {destination ? (
+            <Text style={[styles.shipToLine, { color: RED, fontSize: 36, marginTop: 4 }]}>
+              {destination.toUpperCase()}
+            </Text>
+          ) : null}
         </View>
 
-        {/* Key info grid */}
-        <View style={styles.infoRow}>
-          <View style={styles.infoBox}>
-            <Text style={styles.infoLabel}>Export Date</Text>
-            <Text style={[styles.infoValue, { fontSize: 10 }]}>{exportDate}</Text>
-          </View>
-          <View style={styles.infoBox}>
-            <Text style={styles.infoLabel}>Total Bottles</Text>
-            <Text style={styles.infoValue}>{totalQty}</Text>
-            <Text style={styles.infoSub}>bottles</Text>
-          </View>
-          <View style={styles.infoBox}>
-            <Text style={styles.infoLabel}>Total Cartons</Text>
-            <Text style={styles.infoValue}>{totalCartons}</Text>
-            <Text style={styles.infoSub}>cartons</Text>
-          </View>
-          <View style={styles.infoBox}>
-            <Text style={styles.infoLabel}>Gross Weight</Text>
-            <Text style={styles.infoValue}>{totalWeight}</Text>
-            <Text style={styles.infoSub}>kg</Text>
-          </View>
-          {carrier && (
-            <View style={styles.infoBox}>
-              <Text style={styles.infoLabel}>Carrier</Text>
-              <Text style={[styles.infoValue, { fontSize: 9 }]}>{carrier.name}</Text>
-              {carrier.route ? <Text style={styles.infoSub}>{carrier.route}</Text> : null}
-            </View>
-          )}
+        {/* Handling icons */}
+        <View style={styles.iconsRow}>
+          <View style={styles.iconBox}><IconUmbrella /></View>
+          <View style={styles.iconBox}><IconThisSideUp /></View>
+          <View style={styles.iconBox}><IconFragileGlass /></View>
+          <View style={styles.iconBox}><IconHandleWithCare /></View>
         </View>
 
-        {/* Items + THT */}
-        <View style={styles.tableHeader}>
-          <Text style={[styles.thText, styles.colDesc]}>Product</Text>
-          <Text style={[styles.thText, styles.colTht]}>THT / Best Before</Text>
-          <Text style={[styles.thText, styles.colQty]}>Qty (btls)</Text>
-          <Text style={[styles.thText, styles.colCtns]}>Cartons</Text>
-        </View>
-        {activeItems.map((item, i) => {
-          const ctns = Math.ceil(item.qty / BOTTLES_PER_CARTON)
-          const thtStr = (item as any).tht_date
-            ? fmt(new Date((item as any).tht_date + 'T12:00:00'))
-            : ((exportRecord as any).tht_date
-              ? fmt(new Date((exportRecord as any).tht_date + 'T12:00:00'))
-              : '—')
-          return (
-            <View key={i} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]}>
-              <Text style={[styles.tdText, styles.colDesc]}>{item.name}</Text>
-              <Text style={[styles.tdText, styles.colTht]}>{thtStr}</Text>
-              <Text style={[styles.tdText, styles.colQty]}>{item.qty}</Text>
-              <Text style={[styles.tdText, styles.colCtns]}>{ctns}</Text>
-            </View>
-          )
-        })}
+        {/* FRAGILE */}
+        <Text style={styles.fragileText}>FRAGILE</Text>
 
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={styles.footerNote}>
-            Handle with care · Do not expose to direct sunlight or heat · Keep upright
+        {/* Carrier note at bottom if present */}
+        {carrier ? (
+          <Text style={{ fontSize: 9, color: GRAY, marginTop: 10 }}>
+            Carrier: {carrier.name}{carrier.route ? `  ·  ${carrier.route}` : ''}
           </Text>
-          <Text style={styles.footerCarrier}>
-            {carrier ? `${carrier.name}${carrier.route ? `  ·  ${carrier.route}` : ''}` : ''}
-          </Text>
-        </View>
+        ) : null}
 
       </Page>
     </Document>
