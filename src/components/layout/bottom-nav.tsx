@@ -16,6 +16,7 @@ import {
   X,
   PackageCheck,
   FolderOpen,
+  Globe,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
@@ -36,13 +37,14 @@ const salesMainItems = [
 ]
 
 const adminMoreItems = [
-  { href: '/agenda',           label: 'Agenda',      icon: CalendarDays },
-  { href: '/quotations',       label: 'Quotations',  icon: ReceiptText },
-  { href: '/exports',          label: 'Exports',     icon: PackageCheck },
-  { href: '/sales-documents',  label: 'Sales Docs',  icon: FolderOpen },
-  { href: '/tasks',            label: 'Tasks',       icon: ClipboardList },
-  { href: '/team',             label: 'Team',        icon: UserCog },
-  { href: '/settings',         label: 'Settings',    icon: Settings },
+  { href: '/agenda',              label: 'Agenda',      icon: CalendarDays },
+  { href: '/quotations',          label: 'Quotations',  icon: ReceiptText },
+  { href: '/exports',             label: 'Exports',     icon: PackageCheck },
+  { href: '/sales-documents',     label: 'Sales Docs',  icon: FolderOpen },
+  { href: '/tasks',               label: 'Tasks',       icon: ClipboardList },
+  { href: '/portal-management',   label: 'Portal',      icon: Globe },
+  { href: '/team',                label: 'Team',        icon: UserCog },
+  { href: '/settings',            label: 'Settings',    icon: Settings },
 ]
 
 export function BottomNav() {

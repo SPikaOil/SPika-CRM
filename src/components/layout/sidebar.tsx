@@ -15,6 +15,7 @@ import {
   ReceiptText,
   PackageCheck,
   FolderOpen,
+  Globe,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
@@ -33,8 +34,9 @@ const allNavItems = [
 ]
 
 const adminOnlyItems = [
-  { href: '/team',     label: 'Team',     icon: UserCog  },
-  { href: '/settings', label: 'Settings', icon: Settings },
+  { href: '/portal-management', label: 'Portal',   icon: Globe    },
+  { href: '/team',              label: 'Team',     icon: UserCog  },
+  { href: '/settings',          label: 'Settings', icon: Settings },
 ]
 
 export function Sidebar() {
