@@ -68,6 +68,7 @@ function OrdersPageInner() {
   }, [isAdmin, profile, router])
 
   const [search, setSearch] = useState('')
+  const [sort, setSort] = useState<'newest' | 'oldest' | 'price_desc' | 'price_asc'>('newest')
   const [showArchive, setShowArchive] = useState(false)
   const [showDeleted, setShowDeleted] = useState(false)
 
@@ -96,10 +97,21 @@ function OrdersPageInner() {
     )
   }
 
-  const filteredActive = (status === 'active'
-    ? activeOrders
-    : activeOrders.filter(o => o.status === status)
-  ).filter(matchesSearch)
+  function applySortOrders(list: Order[]) {
+    return [...list].sort((a, b) => {
+      if (sort === 'oldest') return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      if (sort === 'price_desc') return Number(b.total) - Number(a.total)
+      if (sort === 'price_asc') return Number(a.total) - Number(b.total)
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime() // newest
+    })
+  }
+
+  const filteredActive = applySortOrders(
+    (status === 'active'
+      ? activeOrders
+      : activeOrders.filter(o => o.status === status)
+    ).filter(matchesSearch)
+  )
 
   async function handleMarkPaid(order: Order, e: React.MouseEvent) {
     e.preventDefault()
@@ -168,18 +180,31 @@ function OrdersPageInner() {
         />
       </div>
 
-      {/* Filter */}
-      <Select value={status} onValueChange={(v) => setStatus(v ?? 'active')}>
-        <SelectTrigger className="w-48">
-          <SelectValue placeholder="Active orders" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="active">Active orders</SelectItem>
-          {ACTIVE_STATUSES.map((s) => (
-            <SelectItem key={s} value={s}>{statusLabels[s]}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {/* Filter + Sort */}
+      <div className="flex gap-2 flex-wrap">
+        <Select value={status} onValueChange={(v) => setStatus(v ?? 'active')}>
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="Active orders" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="active">Active orders</SelectItem>
+            {ACTIVE_STATUSES.map((s) => (
+              <SelectItem key={s} value={s}>{statusLabels[s]}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={sort} onValueChange={(v) => setSort(v as typeof sort)}>
+          <SelectTrigger className="w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="newest">Newest first</SelectItem>
+            <SelectItem value="oldest">Oldest first</SelectItem>
+            <SelectItem value="price_desc">Price: high → low</SelectItem>
+            <SelectItem value="price_asc">Price: low → high</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
       {isLoading ? (
         <div className="space-y-3">

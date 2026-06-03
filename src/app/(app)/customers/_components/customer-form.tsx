@@ -27,7 +27,7 @@ import { PriceInput } from '@/components/ui/price-input'
 
 const customerSchema = z.object({
   company_name: z.string().min(1, 'Required'),
-  customer_category: z.enum(['wholesale', 'horeca', 'dtf', 'other', 'b2c', 'supermarket', 'shops']),
+  customer_category: z.enum(['wholesale', 'horeca', 'dtf', 'other', 'b2c', 'supermarket', 'shops', 'export']),
   contact_person: z.string(),
   phone: z.string(),
   whatsapp: z.string(),
@@ -404,6 +404,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
                     <SelectItem value="dtf">DTF (B2B)</SelectItem>
                     <SelectItem value="other">Other (B2B)</SelectItem>
                     <SelectItem value="b2c">B2C (Individual)</SelectItem>
+                    <SelectItem value="export">Export (International)</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">

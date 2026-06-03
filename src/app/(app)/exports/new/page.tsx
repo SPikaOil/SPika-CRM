@@ -53,8 +53,8 @@ function NewExportInner() {
   const [items, setItems] = useState<QuoteItem[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Only international customers
-  const internationalCustomers = (allCustomers ?? []).filter(c => (c as any).is_international === true)
+  // Only export-category customers
+  const internationalCustomers = (allCustomers ?? []).filter(c => c.customer_category === 'export')
 
   const selectedCustomer = internationalCustomers.find(c => c.id === customerId)
 
@@ -162,7 +162,7 @@ function NewExportInner() {
                 <SelectContent>
                   {internationalCustomers.length === 0 ? (
                     <div className="px-3 py-2 text-sm text-muted-foreground">
-                      No international customers — enable the toggle on a customer profile first
+                      No export customers — set a customer's category to "Export" first
                     </div>
                   ) : (
                     internationalCustomers.map(c => (
@@ -172,7 +172,7 @@ function NewExportInner() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Only customers with "International Customer" enabled are shown
+                Only customers with category "Export" are shown
               </p>
             </div>
 
