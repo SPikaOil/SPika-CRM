@@ -3,8 +3,9 @@
 import { use, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Truck, CheckCircle, Clock, AlertCircle, Calendar, Download, Upload, FileCheck, X, UserCheck, XCircle, Pencil, Check, Plus, Trash2, PackageCheck, MapPin } from 'lucide-react'
+import { ArrowLeft, Truck, CheckCircle, Clock, AlertCircle, Calendar, Download, Upload, FileCheck, X, UserCheck, XCircle, Pencil, Check, Plus, Trash2, PackageCheck, MapPin, ExternalLink } from 'lucide-react'
 import { useOrder, useUpdateOrder } from '@/hooks/use-orders'
+import { useExportsByCustomer } from '@/hooks/use-exports'
 import { useUsers } from '@/hooks/use-users'
 import { useAuth } from '@/contexts/auth-context'
 import { createClient } from '@/lib/supabase/client'
@@ -983,19 +984,9 @@ export default function OrderDetailPage({
         </Card>
       )}
 
-      {/* Create Export shortcut — for invoice_ready and paid orders */}
-      {isAdmin && (order.status === 'invoice_ready' || order.status === 'paid') && (
-        <Link href={`/exports/new?order=${order.id}`}>
-          <Card className="border-emerald-200 hover:bg-accent transition-colors cursor-pointer">
-            <CardContent className="flex items-center gap-3 py-4">
-              <PackageCheck className="h-5 w-5 text-emerald-600 shrink-0" />
-              <div className="flex-1">
-                <p className="text-sm font-medium">Create Export</p>
-                <p className="text-xs text-muted-foreground">Generate customs documents for international shipping</p>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
+      {/* Export Card — only for export-category customers */}
+      {isAdmin && order.customer?.customer_category === 'export' && (
+        <ExportCard customerId={order.customer_id} />
       )}
 
       {/* Details */}
@@ -1040,5 +1031,78 @@ function Row({ label, value }: { label: string; value: string }) {
       <span className="text-muted-foreground">{label}</span>
       <span className="font-medium text-right capitalize">{value}</span>
     </div>
+  )
+}
+
+const exportStatusColors: Record<string, string> = {
+  draft:     'bg-gray-100 text-gray-700',
+  ready:     'bg-blue-100 text-blue-700',
+  submitted: 'bg-yellow-100 text-yellow-700',
+  cleared:   'bg-green-100 text-green-700',
+  delivered: 'bg-emerald-100 text-emerald-700',
+}
+
+const exportStatusLabels: Record<string, string> = {
+  draft: 'Draft', ready: 'Ready', submitted: 'Submitted', cleared: 'Cleared', delivered: 'Delivered',
+}
+
+function ExportCard({ customerId }: { customerId: string }) {
+  const { data: exports, isLoading } = useExportsByCustomer(customerId)
+  const fmt = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })
+
+  return (
+    <Card className="border-indigo-200">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <PackageCheck className="h-4 w-4 text-indigo-600" />
+            Exports
+          </CardTitle>
+          <Link href="/exports/new">
+            <Button size="sm" variant="outline" className="h-7 gap-1 text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50">
+              <Plus className="h-3 w-3" />
+              New Export
+            </Button>
+          </Link>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {isLoading ? (
+          <div className="space-y-2">
+            <div className="h-12 rounded-lg bg-muted animate-pulse" />
+            <div className="h-12 rounded-lg bg-muted animate-pulse" />
+          </div>
+        ) : !exports || exports.length === 0 ? (
+          <div className="flex flex-col items-center py-6 gap-2 text-muted-foreground">
+            <PackageCheck className="h-8 w-8 opacity-20" />
+            <p className="text-sm">No exports yet for this customer</p>
+            <Link href="/exports/new">
+              <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 mt-1">Create First Export</Button>
+            </Link>
+          </div>
+        ) : (
+          exports.map(exp => (
+            <Link key={exp.id} href={`/exports/${exp.id}`}>
+              <div className="flex items-center gap-3 p-3 rounded-lg border hover:bg-accent transition-colors">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-mono text-sm font-medium">{exp.export_number || '—'}</p>
+                    <Badge className={`text-xs ${exportStatusColors[exp.status] ?? 'bg-gray-100 text-gray-700'}`}>
+                      {exportStatusLabels[exp.status] ?? exp.status}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {(exp as any).carrier?.name ?? '—'}
+                    {exp.destination ? ` → ${exp.destination}` : ''}
+                    {exp.export_date ? ` · ${fmt(exp.export_date)}` : ''}
+                  </p>
+                </div>
+                <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              </div>
+            </Link>
+          ))
+        )}
+      </CardContent>
+    </Card>
   )
 }
