@@ -129,7 +129,7 @@ export function ShippingLabelPDF({ exportRecord, company = DEFAULT_COMPANY, qrCo
         </View>
 
         {/* Handling icons + FRAGILE */}
-        <Image src="/fragile-icons.jpg" style={{ width: '100%', height: 160, objectFit: 'contain' }} />
+        <Image src="/fragile-icons.jpg" style={{ width: '100%', height: 220, objectFit: 'contain' }} />
 
         {/* Carrier note at bottom if present */}
         {carrier ? (
