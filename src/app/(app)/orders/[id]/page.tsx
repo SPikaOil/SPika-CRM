@@ -3,7 +3,7 @@
 import { use, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Truck, CheckCircle, Clock, AlertCircle, Calendar, Download, Upload, FileCheck, X, UserCheck, XCircle, Pencil, Check, Plus, Trash2, PackageCheck, MapPin, ExternalLink } from 'lucide-react'
+import { ArrowLeft, Truck, CheckCircle, Clock, AlertCircle, Calendar, Download, Upload, FileCheck, X, UserCheck, XCircle, Pencil, Check, Plus, Trash2, PackageCheck, MapPin } from 'lucide-react'
 import { useOrder, useUpdateOrder } from '@/hooks/use-orders'
 import { useExportByOrderId, useCreateExport, useUpdateExport, useCarriers } from '@/hooks/use-exports'
 import { useUsers } from '@/hooks/use-users'
@@ -19,9 +19,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { OrderEditLogEntry, OrderStatus, QuoteItem } from '@/types'
+import { Order, OrderEditLogEntry, OrderStatus, QuoteItem } from '@/types'
 import { SPIKA_PRODUCTS } from '@/lib/products'
-import { getNextCashOrderNumber, getNextOrderNumber } from '@/lib/order-number'
+import { getNextCashOrderNumber } from '@/lib/order-number'
 
 const statusColors: Record<OrderStatus, string> = {
   pending_approval: 'bg-orange-100 text-orange-700',
