@@ -208,9 +208,16 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
                   <Text style={styles.addressLine}>{ba.street}</Text>
                 )}
                 {ba?.city && (
-                  <Text style={styles.addressLine}>
-                    {ba.city}{ba.country ? `, ${ba.country}` : ''}
-                  </Text>
+                  <Text style={styles.addressLine}>{ba.city}</Text>
+                )}
+                {ba?.state && (
+                  <Text style={styles.addressLine}>{ba.state}</Text>
+                )}
+                {ba?.zip && (
+                  <Text style={styles.addressLine}>{ba.zip}</Text>
+                )}
+                {ba?.country && (
+                  <Text style={styles.addressLine}>{ba.country}</Text>
                 )}
                 {(() => {
                   const taxId = formatTaxId(
@@ -233,11 +240,10 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
                   <>
                     <Text style={[styles.addressLabel, { marginTop: 6 }]}>Ship To</Text>
                     {da.street && <Text style={styles.addressLine}>{da.street}</Text>}
-                    {da.city && (
-                      <Text style={styles.addressLine}>
-                        {da.city}{da.country ? `, ${da.country}` : ''}
-                      </Text>
-                    )}
+                    {da.city && <Text style={styles.addressLine}>{da.city}</Text>}
+                    {da.state && <Text style={styles.addressLine}>{da.state}</Text>}
+                    {da.zip && <Text style={styles.addressLine}>{da.zip}</Text>}
+                    {da.country && <Text style={styles.addressLine}>{da.country}</Text>}
                   </>
                 )}
               </View>
