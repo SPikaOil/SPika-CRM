@@ -47,8 +47,6 @@ const styles = StyleSheet.create({
   shipToName: { fontSize: 48, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 4, lineHeight: 1.1 },
   shipToLine: { fontSize: 40, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 2, lineHeight: 1.15 },
 
-  // FRAGILE
-  fragileText: { fontSize: 84, fontFamily: 'Helvetica-Bold', color: DARK, letterSpacing: 4, marginTop: 4 },
 })
 
 const DEFAULT_COMPANY: CompanyInfo = {
@@ -130,11 +128,8 @@ export function ShippingLabelPDF({ exportRecord, company = DEFAULT_COMPANY, qrCo
           ) : null}
         </View>
 
-        {/* Handling icons */}
-        <Image src="/fragile-icons.jpg" style={{ width: '100%', height: 100, objectFit: 'contain' }} />
-
-        {/* FRAGILE */}
-        <Text style={styles.fragileText}>FRAGILE</Text>
+        {/* Handling icons + FRAGILE */}
+        <Image src="/fragile-icons.jpg" style={{ width: '100%', height: 160, objectFit: 'contain' }} />
 
         {/* Carrier note at bottom if present */}
         {carrier ? (
