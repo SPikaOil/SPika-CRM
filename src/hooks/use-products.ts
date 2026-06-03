@@ -6,6 +6,7 @@ export interface ProductRecord {
   sku: string
   name: string
   default_price: number
+  product_code: string | null
   weight_g: number | null
   bottles_per_carton: number | null
   box_height_cm: number | null

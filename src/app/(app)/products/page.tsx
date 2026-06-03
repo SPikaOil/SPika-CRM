@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 
 type EditingRow = {
   id: string
+  product_code: string
   weight_g: string
   bottles_per_carton: string
   box_height_cm: string
@@ -29,6 +30,7 @@ export default function ProductsPage() {
   function startEdit(p: ProductRecord) {
     setEditing({
       id: p.id,
+      product_code: p.product_code ?? '',
       weight_g: num(p.weight_g),
       bottles_per_carton: num(p.bottles_per_carton),
       box_height_cm: num(p.box_height_cm),
@@ -44,6 +46,7 @@ export default function ProductsPage() {
       await updateProduct.mutateAsync({
         id: editing.id,
         values: {
+          product_code: editing.product_code.trim() || null,
           weight_g: parse(editing.weight_g),
           bottles_per_carton: parse(editing.bottles_per_carton) as number | null,
           box_height_cm: parse(editing.box_height_cm),
@@ -53,27 +56,31 @@ export default function ProductsPage() {
       })
       toast.success('Product updated')
       setEditing(null)
-    } catch {
+    } catch (err) {
+      console.error(err)
       toast.error('Failed to save')
     }
   }
 
+  const cols = 8
+
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
         <Package className="h-6 w-6 text-red-600" />
         <div>
           <h1 className="text-2xl font-bold">Products</h1>
-          <p className="text-sm text-muted-foreground">Manage product weights and dimensions for export calculations</p>
+          <p className="text-sm text-muted-foreground">Manage product codes, weights and dimensions for export calculations</p>
         </div>
       </div>
 
-      <div className="rounded-xl border overflow-hidden">
+      <div className="rounded-xl border overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 border-b">
             <tr>
               <th className="text-left px-4 py-3 font-semibold">Product</th>
               <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-xs">SKU</th>
+              <th className="text-center px-3 py-3 font-semibold">Product Code</th>
               <th className="text-center px-3 py-3 font-semibold">Weight (g)</th>
               <th className="text-center px-3 py-3 font-semibold">Btls / Carton</th>
               <th className="text-center px-3 py-3 font-semibold">Height (cm)</th>
@@ -86,7 +93,7 @@ export default function ProductsPage() {
             {isLoading
               ? Array.from({ length: 6 }).map((_, i) => (
                   <tr key={i}>
-                    {Array.from({ length: 8 }).map((_, j) => (
+                    {Array.from({ length: cols }).map((_, j) => (
                       <td key={j} className="px-4 py-3">
                         <Skeleton className="h-5 w-full" />
                       </td>
@@ -97,29 +104,33 @@ export default function ProductsPage() {
                   const isEditing = editing?.id === p.id
                   return (
                     <tr key={p.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-3 font-medium">{p.name}</td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground font-mono">{p.sku}</td>
+                      <td className="px-4 py-3 font-medium whitespace-nowrap">{p.name}</td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground font-mono whitespace-nowrap">{p.sku}</td>
 
                       {isEditing ? (
                         <>
                           <td className="px-2 py-2">
-                            <Input className="h-8 text-center w-24 mx-auto" value={editing.weight_g}
+                            <Input className="h-8 text-center w-28 mx-auto" value={editing.product_code}
+                              onChange={e => setEditing(v => v && ({ ...v, product_code: e.target.value }))} />
+                          </td>
+                          <td className="px-2 py-2">
+                            <Input className="h-8 text-center w-20 mx-auto" type="number" value={editing.weight_g}
                               onChange={e => setEditing(v => v && ({ ...v, weight_g: e.target.value }))} />
                           </td>
                           <td className="px-2 py-2">
-                            <Input className="h-8 text-center w-24 mx-auto" value={editing.bottles_per_carton}
+                            <Input className="h-8 text-center w-20 mx-auto" type="number" value={editing.bottles_per_carton}
                               onChange={e => setEditing(v => v && ({ ...v, bottles_per_carton: e.target.value }))} />
                           </td>
                           <td className="px-2 py-2">
-                            <Input className="h-8 text-center w-24 mx-auto" value={editing.box_height_cm}
+                            <Input className="h-8 text-center w-20 mx-auto" type="number" value={editing.box_height_cm}
                               onChange={e => setEditing(v => v && ({ ...v, box_height_cm: e.target.value }))} />
                           </td>
                           <td className="px-2 py-2">
-                            <Input className="h-8 text-center w-24 mx-auto" value={editing.box_length_cm}
+                            <Input className="h-8 text-center w-20 mx-auto" type="number" value={editing.box_length_cm}
                               onChange={e => setEditing(v => v && ({ ...v, box_length_cm: e.target.value }))} />
                           </td>
                           <td className="px-2 py-2">
-                            <Input className="h-8 text-center w-24 mx-auto" value={editing.box_width_cm}
+                            <Input className="h-8 text-center w-20 mx-auto" type="number" value={editing.box_width_cm}
                               onChange={e => setEditing(v => v && ({ ...v, box_width_cm: e.target.value }))} />
                           </td>
                           <td className="px-3 py-2">
@@ -137,6 +148,7 @@ export default function ProductsPage() {
                         </>
                       ) : (
                         <>
+                          <td className="px-3 py-3 text-center font-mono text-xs">{p.product_code ?? <span className="text-muted-foreground/50">—</span>}</td>
                           <td className="px-3 py-3 text-center">{p.weight_g ?? <span className="text-muted-foreground/50">—</span>}</td>
                           <td className="px-3 py-3 text-center">{p.bottles_per_carton ?? <span className="text-muted-foreground/50">—</span>}</td>
                           <td className="px-3 py-3 text-center">{p.box_height_cm ?? <span className="text-muted-foreground/50">—</span>}</td>
