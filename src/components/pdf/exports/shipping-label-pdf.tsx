@@ -154,11 +154,9 @@ export function ShippingLabelPDF({ exportRecord, company = DEFAULT_COMPANY }: Pr
               <Text style={styles.addressLine}>{customer.contact_person}</Text>
             ) : null}
             {shipToAddr?.street ? <Text style={styles.addressLine}>{shipToAddr.street}</Text> : null}
-            {shipToAddr?.city ? (
-              <Text style={styles.addressLine}>
-                {shipToAddr.city}{shipToAddr.zip ? `  ${shipToAddr.zip}` : ''}
-              </Text>
-            ) : null}
+            {shipToAddr?.city ? <Text style={styles.addressLine}>{shipToAddr.city}</Text> : null}
+            {shipToAddr?.state ? <Text style={styles.addressLine}>{shipToAddr.state}</Text> : null}
+            {shipToAddr?.zip ? <Text style={styles.addressLine}>{shipToAddr.zip}</Text> : null}
             <Text style={styles.addressCountry}>{destination.toUpperCase()}</Text>
           </View>
         </View>
