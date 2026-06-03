@@ -94,6 +94,7 @@ function NewExportInner() {
 
   const activeItems = items.filter(i => i.qty > 0)
   const subtotal = activeItems.reduce((sum, i) => sum + i.line_total, 0)
+  const missingTht = activeItems.some(i => !i.tht_date)
 
   // Live export number preview
   const billingCountryPreview = (selectedCustomer?.billing_address as any)?.country ?? ''
@@ -272,12 +273,14 @@ function NewExportInner() {
                         XCG {item.unit_price.toFixed(2)} / bottle
                       </p>
                       <div className="flex items-center gap-1.5 mt-1.5">
-                        <Label className="text-xs text-muted-foreground whitespace-nowrap">THT:</Label>
+                        <Label className={`text-xs whitespace-nowrap ${item.qty > 0 && !item.tht_date ? 'text-red-500' : 'text-muted-foreground'}`}>
+                          THT{item.qty > 0 ? ' *' : ''}:
+                        </Label>
                         <Input
                           type="date"
                           value={item.tht_date ?? ''}
                           onChange={e => updateTht(i, e.target.value)}
-                          className="h-6 text-xs px-2 w-36"
+                          className={`h-6 text-xs px-2 w-36 ${item.qty > 0 && !item.tht_date ? 'border-red-400 focus-visible:ring-red-400' : ''}`}
                         />
                       </div>
                     </div>
@@ -305,10 +308,15 @@ function NewExportInner() {
           </Card>
         )}
 
+        {missingTht && activeItems.length > 0 && (
+          <p className="text-sm text-red-500 text-center -mb-1">
+            THT date is required for all products with a quantity
+          </p>
+        )}
         <Button
           type="submit"
           className="w-full bg-red-600 hover:bg-red-700 h-12"
-          disabled={isSubmitting || !customerId || activeItems.length === 0}
+          disabled={isSubmitting || !customerId || activeItems.length === 0 || missingTht}
         >
           {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
           Create Export
