@@ -322,9 +322,15 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
   // Live duplicate detection — find customers with similar names, excluding this one
   const duplicates = (allCustomers ?? []).filter(c => {
     if (defaultValues?.id && c.id === defaultValues.id) return false
-    return c.company_name.toLowerCase().includes(companyName.toLowerCase().trim()) ||
-      companyName.toLowerCase().trim().includes(c.company_name.toLowerCase())
-  }).filter(() => companyName.trim().length >= 3)
+    const needle = companyName.toLowerCase().trim()
+    const haystack = c.company_name.toLowerCase().trim()
+    if (needle.length < 4 || haystack.length < 4) return false
+    // Only flag if names are genuinely similar: each must be at least 60% of the other's length
+    const shorter = Math.min(needle.length, haystack.length)
+    const longer = Math.max(needle.length, haystack.length)
+    if (shorter / longer < 0.6) return false
+    return haystack.includes(needle) || needle.includes(haystack)
+  }).filter(() => companyName.trim().length >= 4)
 
   const vatDuplicates = vatNumber.trim().length >= 5
     ? (allCustomers ?? []).filter(c => {
