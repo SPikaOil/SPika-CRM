@@ -236,7 +236,7 @@ function NewExportInner() {
 
             <div className="space-y-1.5">
               <Label>Currency</Label>
-              <Select value={currency} onValueChange={setCurrency}>
+              <Select value={currency} onValueChange={(v) => v && setCurrency(v)}>
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
