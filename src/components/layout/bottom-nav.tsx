@@ -53,6 +53,7 @@ export function BottomNav() {
   const pathname = usePathname()
   const { isAdmin } = useAuth()
   const [moreOpen, setMoreOpen] = useState(false)
+  const [confirmSignOut, setConfirmSignOut] = useState(false)
   const router = useRouter()
 
   async function handleSignOut() {
@@ -60,6 +61,11 @@ export function BottomNav() {
     await supabase.auth.signOut()
     router.push('/login')
     router.refresh()
+  }
+
+  function closeMore() {
+    setMoreOpen(false)
+    setConfirmSignOut(false)
   }
 
   const mainItems = isAdmin ? adminMainItems : salesMainItems
@@ -73,7 +79,7 @@ export function BottomNav() {
       {moreOpen && (
         <div
           className="lg:hidden fixed inset-0 z-40 bg-black/40"
-          onClick={() => setMoreOpen(false)}
+          onClick={closeMore}
         />
       )}
 
@@ -82,7 +88,7 @@ export function BottomNav() {
         <div className="lg:hidden fixed bottom-16 left-0 right-0 z-50 bg-background border-t border-x rounded-t-2xl shadow-xl pb-2">
           <div className="flex items-center justify-between px-4 py-3 border-b">
             <p className="text-sm font-semibold">More</p>
-            <button onClick={() => setMoreOpen(false)} className="text-muted-foreground">
+            <button onClick={closeMore} className="text-muted-foreground">
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -94,7 +100,7 @@ export function BottomNav() {
                 <Link
                   key={item.href}
                   href={item.href}
-                  onClick={() => setMoreOpen(false)}
+                  onClick={closeMore}
                   className={cn(
                     'flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl text-xs font-medium transition-colors',
                     active ? 'bg-red-600 text-white' : 'text-muted-foreground hover:bg-accent'
@@ -106,13 +112,34 @@ export function BottomNav() {
               )
             })}
             <button
-              onClick={handleSignOut}
+              onClick={() => setConfirmSignOut(true)}
               className="flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
             >
               <LogOut className="h-5 w-5" />
               Sign Out
             </button>
           </div>
+
+          {/* Sign out confirmation */}
+          {confirmSignOut && (
+            <div className="mx-3 mb-3 p-4 rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900">
+              <p className="text-sm font-medium text-center mb-3">Are you sure you want to sign out?</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setConfirmSignOut(false)}
+                  className="flex-1 py-2 rounded-lg border text-sm font-medium text-muted-foreground hover:bg-accent transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSignOut}
+                  className="flex-1 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors"
+                >
+                  Sign Out
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
