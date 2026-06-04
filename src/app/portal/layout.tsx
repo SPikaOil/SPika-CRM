@@ -20,6 +20,11 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     }
   }, [isCustomer, isLoading, router])
 
+  useEffect(() => {
+    if (!profile?.id) return
+    fetch('/api/ping', { method: 'POST' })
+  }, [profile?.id])
+
   async function handleSignOut() {
     const supabase = createClient()
     await supabase.auth.signOut()

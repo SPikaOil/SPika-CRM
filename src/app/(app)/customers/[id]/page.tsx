@@ -226,6 +226,14 @@ export default function CustomerDetailPage({
               {customer.email && <Row label="Email" value={customer.email} />}
               <Row label="Preferred" value={customer.preferred_communication} />
               <Row label="Language" value={customer.language} />
+              {isAdmin && (
+                <Row
+                  label="Last seen in portal"
+                  value={(customer as any).last_seen_at
+                    ? new Date((customer as any).last_seen_at).toLocaleString('en', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                    : 'Never'}
+                />
+              )}
             </CardContent>
           </Card>
 
