@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard,
   Users,
@@ -17,9 +17,11 @@ import {
   Package,
   FolderOpen,
   Globe,
+  LogOut,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
+import { createClient } from '@/lib/supabase/client'
 import { useState } from 'react'
 
 const adminMainItems = [
@@ -51,6 +53,14 @@ export function BottomNav() {
   const pathname = usePathname()
   const { isAdmin } = useAuth()
   const [moreOpen, setMoreOpen] = useState(false)
+  const router = useRouter()
+
+  async function handleSignOut() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/login')
+    router.refresh()
+  }
 
   const mainItems = isAdmin ? adminMainItems : salesMainItems
 
@@ -95,6 +105,13 @@ export function BottomNav() {
                 </Link>
               )
             })}
+            <button
+              onClick={handleSignOut}
+              className="flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
+            >
+              <LogOut className="h-5 w-5" />
+              Sign Out
+            </button>
           </div>
         </div>
       )}
