@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Users, Plus, KeyRound, Edit2, UserX, Check, X, Loader2, ShieldCheck, Truck, UserCircle2, Lock
+  Users, Plus, KeyRound, Edit2, UserX, Check, X, Loader2, ShieldCheck, Truck, UserCircle2, Lock, Clock
 } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
 import { createClient } from '@/lib/supabase/client'
@@ -237,6 +237,12 @@ export default function TeamPage() {
                   </div>
                   <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                   {user.phone && <p className="text-xs text-muted-foreground">{user.phone}</p>}
+                  <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                    <Clock className="h-3 w-3" />
+                    {(user as any).last_sign_in_at
+                      ? `Last login: ${new Date((user as any).last_sign_in_at).toLocaleString('en', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+                      : 'Never logged in'}
+                  </p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <Button
