@@ -208,7 +208,7 @@ export default function CustomersPage() {
   return (
     <div className="p-4 lg:p-6 space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Customers</h1>
           <p className="text-muted-foreground text-sm">
@@ -216,7 +216,7 @@ export default function CustomersPage() {
           </p>
         </div>
         {isAdmin && (
-          <div className="flex gap-2 flex-wrap justify-end">
+          <div className="flex gap-2 flex-wrap">
             <Button variant="outline" size="icon" onClick={downloadTemplateXML} title="Download template">
               <FileDown className="h-4 w-4" />
             </Button>

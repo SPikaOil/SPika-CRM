@@ -110,9 +110,9 @@ export default function DeliveryNotesPage() {
       </div>
 
       {/* Filter + Sort */}
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-2">
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v ?? 'active')}>
-          <SelectTrigger className="w-44">
+          <SelectTrigger className="flex-1 min-w-0">
             <SelectValue placeholder="Active" />
           </SelectTrigger>
           <SelectContent>
@@ -123,7 +123,7 @@ export default function DeliveryNotesPage() {
           </SelectContent>
         </Select>
         <Select value={sort} onValueChange={(v) => setSort(v as typeof sort)}>
-          <SelectTrigger className="w-44">
+          <SelectTrigger className="flex-1 min-w-0">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

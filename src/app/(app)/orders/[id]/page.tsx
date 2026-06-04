@@ -729,9 +729,9 @@ export default function OrderDetailPage({
         </CardHeader>
         <CardContent className="space-y-2">
           {editingItems ? (
-            <>
+            <div className="overflow-x-auto -mx-1 px-1">
               {/* Edit mode header */}
-              <div className="grid grid-cols-[1fr_60px_90px_90px_32px] gap-2 text-xs text-muted-foreground pb-1 border-b">
+              <div className="grid grid-cols-[1fr_60px_90px_90px_32px] gap-2 text-xs text-muted-foreground pb-1 border-b min-w-[340px]">
                 <span>Product</span>
                 <span className="text-center">Qty</span>
                 <span className="text-right">Price (XCG)</span>
@@ -739,7 +739,7 @@ export default function OrderDetailPage({
                 <span />
               </div>
               {draftItems.map((item, i) => (
-                <div key={i} className="grid grid-cols-[1fr_60px_90px_90px_32px] gap-2 items-center py-1 border-b last:border-0">
+                <div key={i} className="grid grid-cols-[1fr_60px_90px_90px_32px] gap-2 items-center py-1 border-b last:border-0 min-w-[340px]">
                   <div>
                     <p className="text-sm font-medium leading-tight">{item.name}</p>
                     <p className="text-xs text-muted-foreground">{item.sku}</p>
@@ -870,7 +870,7 @@ export default function OrderDetailPage({
                   Cancel
                 </Button>
               </div>
-            </>
+            </div>
           ) : (
             <>
               {items.map((item, i) => (
@@ -1168,7 +1168,7 @@ function ExportOrderSection({ order }: { order: Order & { customer?: any } }) {
         <p className="text-xs text-muted-foreground">Fill in the export details to generate customs documents</p>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label>Carrier</Label>
             <Select value={carrierId} onValueChange={v => v && setCarrierId(v)}>
