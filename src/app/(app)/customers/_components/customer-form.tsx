@@ -349,7 +349,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
       <Tabs defaultValue="info" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto gap-1">
           <TabsTrigger value="info">Info</TabsTrigger>
           <TabsTrigger value="address">Address</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
