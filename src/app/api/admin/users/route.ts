@@ -17,24 +17,14 @@ export async function GET() {
   if (!caller) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const admin = createAdminClient()
-  const [{ data: profiles, error }, { data: authData }] = await Promise.all([
-    admin.from('users').select('*').in('role', ['admin', 'sales']).order('created_at', { ascending: true }),
-    admin.auth.admin.listUsers({ perPage: 1000 }),
-  ])
+  const { data: profiles, error } = await admin
+    .from('users')
+    .select('*')
+    .in('role', ['admin', 'sales'])
+    .order('created_at', { ascending: true })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  const lastSignInMap: Record<string, string | null> = {}
-  for (const u of authData?.users ?? []) {
-    lastSignInMap[u.id] = u.last_sign_in_at ?? null
-  }
-
-  const enriched = (profiles ?? []).map(p => ({
-    ...p,
-    last_sign_in_at: lastSignInMap[p.id] ?? null,
-  }))
-
-  return NextResponse.json(enriched)
+  return NextResponse.json(profiles)
 }
 
 // POST /api/admin/users — create a new staff user
