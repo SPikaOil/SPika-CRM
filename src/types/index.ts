@@ -249,6 +249,7 @@ export interface Export {
   export_date: string | null
   tht_date: string | null
   notes: string
+  currency: string
   status: ExportStatus
   items: QuoteItem[]
   created_by: string | null

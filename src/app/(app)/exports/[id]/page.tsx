@@ -347,6 +347,24 @@ export default function ExportDetailPage({
               </button>
             )}
           </div>
+          <div className="flex justify-between items-center gap-4">
+            <span className="text-muted-foreground shrink-0">Currency</span>
+            <Select
+              value={exp.currency ?? 'XCG'}
+              onValueChange={(v) => updateExport.mutate({ id, values: { currency: v } as any })}
+            >
+              <SelectTrigger className="w-40 h-7 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="XCG">XCG</SelectItem>
+                <SelectItem value="USD">USD</SelectItem>
+                <SelectItem value="EUR">EUR</SelectItem>
+                <SelectItem value="ANG">ANG</SelectItem>
+                <SelectItem value="AWG">AWG</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex justify-between gap-4">
             <span className="text-muted-foreground">Created</span>
             <span className="font-medium">{new Date(exp.created_at).toLocaleString()}</span>

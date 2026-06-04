@@ -50,6 +50,7 @@ function NewExportInner() {
   const [exportDate, setExportDate] = useState(new Date().toISOString().split('T')[0])
   const [notes, setNotes] = useState('')
   const [thtDate, setThtDate] = useState('')
+  const [currency, setCurrency] = useState('XCG')
   const [items, setItems] = useState<QuoteItem[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -129,6 +130,7 @@ function NewExportInner() {
         export_date: exportDate || null,
         tht_date: thtDate || null,
         notes,
+        currency,
         items: activeItems,
         status: 'draft',
         created_by: profile?.id ?? '',
@@ -232,6 +234,22 @@ function NewExportInner() {
               />
             </div>
 
+            <div className="space-y-1.5">
+              <Label>Currency</Label>
+              <Select value={currency} onValueChange={setCurrency}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="XCG">XCG — Caribbean Guilder</SelectItem>
+                  <SelectItem value="USD">USD — US Dollar</SelectItem>
+                  <SelectItem value="EUR">EUR — Euro</SelectItem>
+                  <SelectItem value="ANG">ANG — Netherlands Antillean Guilder</SelectItem>
+                  <SelectItem value="AWG">AWG — Aruban Florin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             {exportNumberPreview && (
               <div className="flex items-center gap-2 bg-muted/60 rounded-lg px-3 py-2">
                 <span className="text-xs text-muted-foreground">Export number:</span>
@@ -270,7 +288,7 @@ function NewExportInner() {
                         {item.name}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        XCG {item.unit_price.toFixed(2)} / bottle
+                        {currency} {item.unit_price.toFixed(2)} / bottle
                       </p>
                       <div className="flex items-center gap-1.5 mt-1.5">
                         <Label className={`text-xs whitespace-nowrap ${item.qty > 0 && !item.tht_date ? 'text-red-500' : 'text-muted-foreground'}`}>
@@ -293,7 +311,7 @@ function NewExportInner() {
                         className="h-8 w-20 text-right"
                       />
                       <span className="text-xs text-muted-foreground w-20 text-right font-medium">
-                        {item.qty > 0 ? `XCG ${item.line_total.toFixed(2)}` : '—'}
+                        {item.qty > 0 ? `${currency} ${item.line_total.toFixed(2)}` : '—'}
                       </span>
                     </div>
                   </div>
@@ -302,7 +320,7 @@ function NewExportInner() {
 
               <div className="pt-3 text-sm flex justify-between font-bold">
                 <span>Total Value</span>
-                <span>XCG {subtotal.toFixed(2)}</span>
+                <span>{currency} {subtotal.toFixed(2)}</span>
               </div>
             </CardContent>
           </Card>

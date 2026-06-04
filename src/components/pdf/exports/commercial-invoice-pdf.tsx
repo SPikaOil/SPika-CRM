@@ -79,6 +79,7 @@ export function CommercialInvoicePDF({ exportRecord, company = DEFAULT_COMPANY }
   const items: QuoteItem[] = (order?.items ?? exportRecord.items ?? []) as QuoteItem[]
   const activeItems = items.filter(i => i.qty > 0)
   const subtotal = activeItems.reduce((sum, i) => sum + i.line_total, 0)
+  const currency = exportRecord.currency ?? 'XCG'
 
   const fmt = (d: Date) =>
     d.toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -146,7 +147,7 @@ export function CommercialInvoicePDF({ exportRecord, company = DEFAULT_COMPANY }
             { label: 'Invoice #',    value: exportRecord.export_number },
             { label: 'Order Ref',    value: order?.order_number ?? '—' },
             { label: 'Export Date',  value: exportDate },
-            { label: 'Currency',     value: 'XCG' },
+            { label: 'Currency',     value: currency },
             { label: 'Country of Origin', value: 'Curaçao' },
             { label: 'Carrier',      value: exportRecord.carrier?.name ?? '—' },
           ].map(({ label, value }) => (
@@ -171,8 +172,8 @@ export function CommercialInvoicePDF({ exportRecord, company = DEFAULT_COMPANY }
             <Text style={[styles.tdText, styles.colDesc]}>{item.name}</Text>
             <Text style={[styles.tdText, styles.colHs]}>—</Text>
             <Text style={[styles.tdText, styles.colQty]}>{item.qty}</Text>
-            <Text style={[styles.tdText, styles.colUnit]}>XCG {item.unit_price.toFixed(2)}</Text>
-            <Text style={[styles.tdText, styles.colTotal]}>XCG {item.line_total.toFixed(2)}</Text>
+            <Text style={[styles.tdText, styles.colUnit]}>{currency} {item.unit_price.toFixed(2)}</Text>
+            <Text style={[styles.tdText, styles.colTotal]}>{currency} {item.line_total.toFixed(2)}</Text>
           </View>
         ))}
 
@@ -180,7 +181,7 @@ export function CommercialInvoicePDF({ exportRecord, company = DEFAULT_COMPANY }
         <View style={styles.totalsSection}>
           <View style={[styles.totalRow, { marginTop: 4, paddingTop: 4, borderTopWidth: 0.5, borderTopColor: BORDER }]}>
             <Text style={styles.grandLabel}>TOTAL VALUE</Text>
-            <Text style={styles.grandValue}>XCG {subtotal.toFixed(2)}</Text>
+            <Text style={styles.grandValue}>{currency} {subtotal.toFixed(2)}</Text>
           </View>
         </View>
 
