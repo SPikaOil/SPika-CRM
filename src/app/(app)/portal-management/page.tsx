@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, Mail, MailCheck, ShieldOff, RefreshCw, Globe } from 'lucide-react'
+import { Search, Mail, MailCheck, ShieldOff, RefreshCw, Globe, Clock } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
 import { useCustomers } from '@/hooks/use-customers'
 import { createClient } from '@/lib/supabase/client'
@@ -203,6 +203,14 @@ export default function PortalManagementPage() {
                   {(customer as any).portal_invited_at && (
                     <p className="text-xs text-muted-foreground">
                       Invited {new Date((customer as any).portal_invited_at).toLocaleDateString()}
+                    </p>
+                  )}
+                  {hasAccess && (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                      <Clock className="h-3 w-3" />
+                      {(customer as any).last_seen_at
+                        ? `Last seen: ${new Date((customer as any).last_seen_at).toLocaleString('en', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+                        : 'Never logged in'}
                     </p>
                   )}
                 </div>
