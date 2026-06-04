@@ -160,8 +160,8 @@ export default function NewOrderPage() {
               return (
                 <div key={product.sku} className="py-3">
                   <div className="flex items-start justify-between gap-2 mb-2">
-                    <div>
-                      <p className={`font-medium text-sm ${qty === 0 ? 'text-muted-foreground' : ''}`}>{product.name}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className={`font-medium text-sm truncate ${qty === 0 ? 'text-muted-foreground' : ''}`}>{product.name}</p>
                       <p className="text-xs text-muted-foreground">XCG {price.toFixed(2)} each</p>
                     </div>
                     {qty > 0 && (

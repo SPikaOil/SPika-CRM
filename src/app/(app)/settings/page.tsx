@@ -346,31 +346,33 @@ function PricePresetsCard() {
               </button>
               {isOpen && (
                 <div className="border-t pb-4 pt-3 space-y-3">
-                  {/* Column headers */}
-                  <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 px-4 pb-1">
-                    <span className="text-xs text-muted-foreground font-medium">Product</span>
-                    <span className="text-xs text-muted-foreground w-24 text-center">Price (XCG)</span>
-                    <span className="text-xs text-muted-foreground w-24 text-center">Discount</span>
-                  </div>
                   <div className="border-t border-b divide-y mx-0">
                     {SPIKA_PRODUCTS.map(product => (
-                      <div key={product.sku} className="grid grid-cols-[1fr_auto_auto] gap-x-3 items-center px-4 py-2.5">
+                      <div key={product.sku} className="px-4 py-2.5 space-y-2">
                         <div className="min-w-0">
                           <p className="text-sm font-medium truncate">{product.name}</p>
                           <p className="text-xs text-muted-foreground">default XCG {product.default_price.toFixed(2)}</p>
                         </div>
-                        <PriceInput
-                          value={prices[product.sku] ?? 0}
-                          onChange={v => setPrice(preset.category, product.sku, v === 0 ? '' : String(v))}
-                          placeholder={product.default_price.toFixed(2)}
-                          className="w-24 h-8 text-sm"
-                        />
-                        <PriceInput
-                          value={discounts[product.sku] ?? 0}
-                          onChange={v => setDiscount(preset.category, product.sku, v === 0 ? '' : String(v))}
-                          placeholder="0.00"
-                          className="w-24 h-8 text-sm"
-                        />
+                        <div className="flex gap-3">
+                          <div className="flex-1 space-y-1">
+                            <p className="text-xs text-muted-foreground">Price (XCG)</p>
+                            <PriceInput
+                              value={prices[product.sku] ?? 0}
+                              onChange={v => setPrice(preset.category, product.sku, v === 0 ? '' : String(v))}
+                              placeholder={product.default_price.toFixed(2)}
+                              className="h-8"
+                            />
+                          </div>
+                          <div className="flex-1 space-y-1">
+                            <p className="text-xs text-muted-foreground">Discount</p>
+                            <PriceInput
+                              value={discounts[product.sku] ?? 0}
+                              onChange={v => setDiscount(preset.category, product.sku, v === 0 ? '' : String(v))}
+                              placeholder="0.00"
+                              className="h-8"
+                            />
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -439,7 +441,7 @@ function ProductCodesCard() {
                 <p className="text-xs text-muted-foreground">{product.sku}</p>
               </div>
               <Input
-                className="w-32 h-8 text-sm font-mono"
+                className="w-32 h-8 font-mono"
                 placeholder="e.g. SP-001"
                 value={codes[product.sku] ?? ''}
                 onChange={e => setCodes(c => ({ ...c, [product.sku]: e.target.value }))}
@@ -462,10 +464,10 @@ function InviteUserForm() {
 
   return (
     <div className="flex gap-2">
-      <input
+      <Input
         type="email"
         placeholder="team@spika.com"
-        className="flex-1 h-9 rounded-md border px-3 text-sm bg-background"
+        className="flex-1"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
       />

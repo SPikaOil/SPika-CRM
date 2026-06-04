@@ -103,13 +103,13 @@ function OrderCard({ order, dimmed }: { order: Order; dimmed?: boolean }) {
     <Card className={`${dimmed ? 'opacity-70' : ''} hover:border-red-300 transition-colors cursor-pointer`}>
       <CardContent className="pt-4 pb-4 space-y-3">
         <div className="flex items-start justify-between gap-2">
-          <div>
+          <div className="min-w-0 flex-1">
             <p className="font-mono text-sm font-medium flex items-center gap-1">{order.order_number || 'Order'} <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" /></p>
             <p className="text-xs text-muted-foreground mt-0.5">
               {new Date(order.created_at).toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })}
             </p>
           </div>
-          <Badge className={`${status.color} flex items-center gap-1 text-xs`}>
+          <Badge className={`${status.color} flex items-center gap-1 text-xs shrink-0`}>
             <Icon className="h-3 w-3" />
             {status.label}
           </Badge>
