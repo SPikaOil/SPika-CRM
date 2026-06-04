@@ -394,7 +394,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
                     }
                   }
                 }}>
-                  <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Select category" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="wholesale">Wholesale (B2B)</SelectItem>
                     <SelectItem value="horeca">HORECA (B2B)</SelectItem>
@@ -418,7 +418,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
                 <div className="space-y-1.5">
                   <Label>Status</Label>
                   <Select value={status} onValueChange={(v) => setValue('status', v as any)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="active">Active</SelectItem>
                       <SelectItem value="inactive">Inactive</SelectItem>
@@ -479,7 +479,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
                 <div className="space-y-1.5">
                   <Label>Preferred Contact</Label>
                   <Select value={preferredComm} onValueChange={(v) => setValue('preferred_communication', v as any)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="whatsapp">WhatsApp</SelectItem>
                       <SelectItem value="email">Email</SelectItem>
@@ -790,8 +790,8 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
                     {/* Desktop layout */}
                     <div className="hidden sm:grid grid-cols-[auto_1fr_auto_auto_auto] gap-x-3 items-center py-2.5 border-b last:border-0">
                       <input type="checkbox" checked={isActive} onChange={() => toggleActiveProduct(product.sku)} className="rounded cursor-pointer" />
-                      <div>
-                        <p className={`text-sm font-medium ${isActive ? '' : 'line-through text-muted-foreground'}`}>{product.name}</p>
+                      <div className="min-w-0">
+                        <p className={`text-sm font-medium truncate ${isActive ? '' : 'line-through text-muted-foreground'}`}>{product.name}</p>
                         <p className="text-xs text-muted-foreground">{product.sku} · default XCG {product.default_price.toFixed(2)}</p>
                       </div>
                       <div className="w-20">

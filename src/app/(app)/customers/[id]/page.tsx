@@ -153,7 +153,7 @@ export default function CustomerDetailPage({
 
   if (editing) {
     return (
-      <div className="p-4 lg:p-6 max-w-2xl mx-auto space-y-4">
+      <div className="p-4 lg:p-6 max-w-2xl mx-auto space-y-4 overflow-x-hidden">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => setEditing(false)}>
             <ArrowLeft className="h-5 w-5" />
