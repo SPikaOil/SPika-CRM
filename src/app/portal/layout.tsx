@@ -283,7 +283,7 @@ function PortalLogin() {
       {/* Right — SPika image panel (hidden on mobile) */}
       <div className="hidden md:block md:w-1/2 relative overflow-hidden">
         <img
-          src="/spika-banner.png"
+          src="/SPika Portal Launch.jpg.webp"
           alt="SPika Oil"
           className="absolute inset-0 w-full h-full object-cover"
         />
