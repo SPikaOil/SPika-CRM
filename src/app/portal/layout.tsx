@@ -150,23 +150,24 @@ function PortalLogin() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-950/20 dark:to-orange-950/20 p-4">
-      <div className="w-full max-w-sm space-y-6">
-        {/* Brand */}
-        <div className="flex flex-col items-center gap-2">
-          <div className="flex items-center gap-2">
-            <Flame className="h-10 w-10 text-red-600" />
-            <span className="font-bold text-3xl tracking-tight">SPika Oil</span>
+    <div className="min-h-screen flex">
+      {/* Left — login panel */}
+      <div className="w-full md:w-1/2 flex flex-col items-center justify-center p-8 bg-background">
+        <div className="w-full max-w-sm space-y-6">
+          {/* Brand */}
+          <div className="flex flex-col items-start gap-1 mb-2">
+            <div className="flex items-center gap-2">
+              <Flame className="h-8 w-8 text-red-600" />
+              <span className="font-bold text-2xl tracking-tight">SPika Oil</span>
+            </div>
+            <p className="text-muted-foreground text-sm">B2B Customer Portal</p>
           </div>
-          <p className="text-muted-foreground text-sm">B2B Customer Portal</p>
-        </div>
 
-        <div className="bg-background rounded-2xl border shadow-sm p-6 space-y-5">
           {magicSent ? (
-            <div className="text-center py-4 space-y-3">
+            <div className="text-center py-8 space-y-3">
               <Mail className="h-12 w-12 text-red-600 mx-auto" />
               <div>
-                <p className="font-semibold">Check your inbox!</p>
+                <p className="font-semibold text-lg">Check your inbox!</p>
                 <p className="text-sm text-muted-foreground mt-1">
                   We sent a login link to <span className="font-medium text-foreground">{email}</span>
                 </p>
@@ -181,8 +182,8 @@ function PortalLogin() {
           ) : (
             <>
               <div>
-                <h2 className="text-lg font-semibold">Sign in</h2>
-                <p className="text-sm text-muted-foreground">
+                <h1 className="text-2xl font-bold">Sign in</h1>
+                <p className="text-sm text-muted-foreground mt-1">
                   Access your orders and place new ones
                 </p>
               </div>
@@ -276,6 +277,23 @@ function PortalLogin() {
               )}
             </>
           )}
+        </div>
+      </div>
+
+      {/* Right — SPika image panel (hidden on mobile) */}
+      <div className="hidden md:block md:w-1/2 relative overflow-hidden">
+        <img
+          src="/spika-banner.png"
+          alt="SPika Oil"
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+        {/* Overlay with brand text */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent flex flex-col justify-end p-10">
+          <p className="text-white/80 text-sm uppercase tracking-widest mb-2">Welcome to</p>
+          <h2 className="text-white text-4xl font-bold leading-tight">SPika Oil<br />B2B Portal</h2>
+          <p className="text-white/70 mt-3 text-sm max-w-xs">
+            Order fuel products, track deliveries, and manage your account — all in one place.
+          </p>
         </div>
       </div>
     </div>
