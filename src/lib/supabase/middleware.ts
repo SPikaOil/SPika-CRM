@@ -41,6 +41,11 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse
   }
 
+  // Portal is public — the portal layout handles its own auth/login display
+  if (pathname.startsWith('/portal')) {
+    return supabaseResponse
+  }
+
   // Protected routes — redirect to login if not authenticated
   if (!user) {
     const url = request.nextUrl.clone()
