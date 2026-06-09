@@ -269,6 +269,20 @@ export interface ExportDocument {
   uploaded_at: string
 }
 
+export interface AccessRequest {
+  id: string
+  created_at: string
+  name: string
+  email: string
+  company_name: string
+  phone?: string
+  message?: string
+  status: 'pending' | 'approved' | 'denied'
+  reviewed_by?: string
+  reviewed_at?: string
+  review_notes?: string
+}
+
 export interface QuoteTemplate {
   id: string
   name: string

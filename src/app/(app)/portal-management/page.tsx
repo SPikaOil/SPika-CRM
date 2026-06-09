@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, Mail, MailCheck, ShieldOff, RefreshCw, Globe, Clock } from 'lucide-react'
+import { Search, Mail, MailCheck, ShieldOff, RefreshCw, Globe, Clock, UserPlus, CheckCircle, XCircle, Inbox } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
 import { useCustomers } from '@/hooks/use-customers'
 import { createClient } from '@/lib/supabase/client'
-import { Customer } from '@/types'
+import { Customer, AccessRequest } from '@/types'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -30,14 +30,31 @@ export default function PortalManagementPage() {
   const { isAdmin, isLoading: authLoading } = useAuth()
   const router = useRouter()
   const { data: customers, isLoading: customersLoading } = useCustomers()
-  const [portalUsers, setPortalUsers] = useState<Record<string, string>>({}) // customer_id → user_id
+  const [portalUsers, setPortalUsers] = useState<Record<string, string>>({})
   const [search, setSearch] = useState('')
-  const [loading, setLoading] = useState<string | null>(null) // customer_id being actioned
+  const [loading, setLoading] = useState<string | null>(null)
+  const [tab, setTab] = useState<'customers' | 'requests'>('customers')
+  const [requests, setRequests] = useState<AccessRequest[]>([])
+  const [requestsLoading, setRequestsLoading] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
     if (!authLoading && !isAdmin) router.replace('/dashboard')
   }, [isAdmin, authLoading, router])
+
+  // Load access requests
+  useEffect(() => {
+    if (!isAdmin) return
+    setRequestsLoading(true)
+    supabase
+      .from('access_requests')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        setRequests((data as AccessRequest[]) ?? [])
+        setRequestsLoading(false)
+      })
+  }, [isAdmin])
 
   // Load all portal users (role=customer) to determine per-customer status
   useEffect(() => {
@@ -109,6 +126,27 @@ export default function PortalManagementPage() {
     }
   }
 
+  async function handleReview(requestId: string, action: 'approve' | 'deny') {
+    setLoading(requestId)
+    try {
+      const res = await fetch(`/api/admin/access-requests/${requestId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      toast.success(action === 'approve' ? 'Request approved — customer account created' : 'Request denied')
+      setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: action === 'approve' ? 'approved' : 'denied' } : r))
+    } catch (err: any) {
+      toast.error(err.message)
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  const pendingCount = requests.filter(r => r.status === 'pending').length
+
   const filtered = (customers ?? [])
     .filter(c => c.status === 'active')
     .filter(c =>
@@ -145,6 +183,81 @@ export default function PortalManagementPage() {
         </p>
       </div>
 
+      {/* Tabs */}
+      <div className="flex rounded-lg border p-0.5 gap-0.5 bg-muted w-fit">
+        <button
+          onClick={() => setTab('customers')}
+          className={`px-4 py-1.5 text-sm rounded-md font-medium transition-colors ${tab === 'customers' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+        >
+          Customers
+        </button>
+        <button
+          onClick={() => setTab('requests')}
+          className={`px-4 py-1.5 text-sm rounded-md font-medium transition-colors flex items-center gap-1.5 ${tab === 'requests' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+        >
+          Access Requests
+          {pendingCount > 0 && (
+            <span className="bg-red-600 text-white text-xs rounded-full px-1.5 py-0.5 leading-none">{pendingCount}</span>
+          )}
+        </button>
+      </div>
+
+      {/* Access Requests tab */}
+      {tab === 'requests' && (
+        <div className="space-y-3">
+          {requestsLoading && <div className="h-16 rounded-xl bg-muted animate-pulse" />}
+          {!requestsLoading && requests.length === 0 && (
+            <div className="text-center py-12 text-muted-foreground">
+              <Inbox className="h-8 w-8 mx-auto mb-2 opacity-40" />
+              <p className="text-sm">No access requests yet</p>
+            </div>
+          )}
+          {requests.map(req => (
+            <Card key={req.id}>
+              <CardContent className="py-3 px-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-medium">{req.company_name}</p>
+                      {req.status === 'pending' && <Badge className="bg-orange-500 text-white text-xs">Pending</Badge>}
+                      {req.status === 'approved' && <Badge className="bg-green-600 text-white text-xs">Approved</Badge>}
+                      {req.status === 'denied' && <Badge variant="outline" className="text-xs">Denied</Badge>}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">{req.name} · {req.email}{req.phone ? ` · ${req.phone}` : ''}</p>
+                    {req.message && <p className="text-xs text-muted-foreground mt-1 italic">"{req.message}"</p>}
+                    <p className="text-xs text-muted-foreground mt-1">{new Date(req.created_at).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                  </div>
+                  {req.status === 'pending' && (
+                    <div className="flex gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        className="gap-1.5 text-xs bg-green-600 hover:bg-green-700 h-8"
+                        disabled={loading === req.id}
+                        onClick={() => handleReview(req.id, 'approve')}
+                      >
+                        <CheckCircle className="h-3 w-3" />
+                        Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5 text-xs text-red-600 border-red-200 hover:bg-red-50 h-8"
+                        disabled={loading === req.id}
+                        onClick={() => handleReview(req.id, 'deny')}
+                      >
+                        <XCircle className="h-3 w-3" />
+                        Deny
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {tab === 'customers' && <>
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-3">
         <Card>
@@ -260,6 +373,7 @@ export default function PortalManagementPage() {
           <p className="text-center text-muted-foreground text-sm py-8">No customers found</p>
         )}
       </div>
+      </>}
     </div>
   )
 }

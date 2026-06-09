@@ -243,6 +243,12 @@ function PortalLogin() {
                     {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                     Sign In
                   </Button>
+                  <p className="text-center text-sm text-muted-foreground">
+                    No account yet?{' '}
+                    <Link href="/portal/request-access" className="text-foreground underline underline-offset-4 hover:text-red-600">
+                      Request access
+                    </Link>
+                  </p>
                 </form>
             </>
           )}
