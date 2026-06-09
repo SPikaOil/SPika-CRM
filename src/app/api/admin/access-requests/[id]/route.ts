@@ -29,7 +29,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (reqError || !request) return NextResponse.json({ error: 'Request not found' }, { status: 404 })
 
   if (action === 'resend') {
-    if (request.status !== 'link_sent') return NextResponse.json({ error: 'Can only resend for invited requests' }, { status: 409 })
+    if (request.status !== 'link_sent' && request.status !== 'approved') return NextResponse.json({ error: 'Can only resend for invited requests' }, { status: 409 })
     // Send a password reset email — acts as "set your password" for new users
     const serverClient = await createServerClient()
     const { error: resetError } = await serverClient.auth.resetPasswordForEmail(request.email, {
