@@ -60,8 +60,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     )
   }
 
-  // Not authenticated — show customer login
+  // Not authenticated — allow request-access page through, show login for everything else
   if (!session) {
+    if (pathname === '/portal/request-access') return <>{children}</>
     return <PortalLogin />
   }
 
