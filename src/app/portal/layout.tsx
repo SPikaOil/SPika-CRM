@@ -18,6 +18,21 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const router = useRouter()
   const pathname = usePathname()
 
+  // Exchange PKCE code for session if present in URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const code = params.get('code')
+    if (!code) return
+    const supabase = createClient()
+    supabase.auth.exchangeCodeForSession(code).then(() => {
+      // Remove code from URL then refresh auth state
+      const url = new URL(window.location.href)
+      url.searchParams.delete('code')
+      window.history.replaceState({}, '', url.toString())
+      router.refresh()
+    })
+  }, [router])
+
   // Redirect staff/admin away from the portal
   useEffect(() => {
     if (!isLoading && session && !isCustomer) {
