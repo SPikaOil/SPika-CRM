@@ -41,8 +41,8 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse
   }
 
-  // Portal is public — the portal layout handles its own auth/login display
-  if (pathname.startsWith('/portal')) {
+  // Portal and its public API routes are public
+  if (pathname.startsWith('/portal') || pathname.startsWith('/api/portal')) {
     return supabaseResponse
   }
 
