@@ -58,14 +58,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: custError?.message || 'Failed to create customer' }, { status: 500 })
     }
 
-    // Create Supabase auth user + portal user record
-    const { data: authData, error: authError } = await admin.auth.admin.createUser({
-      email: request.email,
-      email_confirm: true,
-    })
+    // Invite user — creates auth user AND sends invite email with set-password link
+    const { data: authData, error: authError } = await admin.auth.admin.inviteUserByEmail(
+      request.email,
+      { redirectTo: `${process.env.NEXT_PUBLIC_SUPABASE_URL?.replace('.supabase.co', '') ? 'https://s-pika-crm.vercel.app' : 'https://s-pika-crm.vercel.app'}/portal` }
+    )
 
     if (authError || !authData.user) {
-      return NextResponse.json({ error: authError?.message || 'Failed to create auth user' }, { status: 500 })
+      return NextResponse.json({ error: authError?.message || 'Failed to invite user' }, { status: 500 })
     }
 
     await admin.from('users').insert({
@@ -74,13 +74,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       name: request.name,
       role: 'customer',
       customer_id: customer.id,
-    })
-
-    // Send password reset so customer sets their own password
-    await admin.auth.admin.generateLink({
-      type: 'recovery',
-      email: request.email,
-      options: { redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/portal` },
     })
 
     // Mark request as approved
