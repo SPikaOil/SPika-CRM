@@ -27,6 +27,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .single()
 
   if (reqError || !request) return NextResponse.json({ error: 'Request not found' }, { status: 404 })
+
+  if (action === 'resend') {
+    if (request.status !== 'link_sent') return NextResponse.json({ error: 'Can only resend for invited requests' }, { status: 409 })
+    // Send a password reset email — acts as "set your password" for new users
+    const serverClient = await createServerClient()
+    const { error: resetError } = await serverClient.auth.resetPasswordForEmail(request.email, {
+      redirectTo: 'https://s-pika-crm.vercel.app/portal',
+    })
+    if (resetError) return NextResponse.json({ error: resetError.message }, { status: 500 })
+    return NextResponse.json({ ok: true })
+  }
+
   if (request.status !== 'pending') return NextResponse.json({ error: 'Request already reviewed' }, { status: 409 })
 
   if (action === 'deny') {

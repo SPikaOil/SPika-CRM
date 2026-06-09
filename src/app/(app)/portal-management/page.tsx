@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, Mail, MailCheck, ShieldOff, RefreshCw, Globe, Clock, UserPlus, CheckCircle, XCircle, Inbox } from 'lucide-react'
+import { Search, Mail, MailCheck, ShieldOff, RefreshCw, Globe, Clock, UserPlus, CheckCircle, XCircle, Inbox, Send } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
 import { useCustomers } from '@/hooks/use-customers'
 import { createClient } from '@/lib/supabase/client'
@@ -120,6 +120,24 @@ export default function PortalManagementPage() {
         delete next[customer.id]
         return next
       })
+    } catch (err: any) {
+      toast.error(err.message)
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  async function handleResend(requestId: string) {
+    setLoading(requestId)
+    try {
+      const res = await fetch(`/api/admin/access-requests/${requestId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'resend' }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      toast.success('Invite email resent')
     } catch (err: any) {
       toast.error(err.message)
     } finally {
@@ -250,6 +268,18 @@ export default function PortalManagementPage() {
                         Deny
                       </Button>
                     </div>
+                  )}
+                  {req.status === 'link_sent' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 text-xs h-8 shrink-0"
+                      disabled={loading === req.id}
+                      onClick={() => handleResend(req.id)}
+                    >
+                      <Send className={`h-3 w-3 ${loading === req.id ? 'animate-spin' : ''}`} />
+                      Resend
+                    </Button>
                   )}
                 </div>
               </CardContent>
