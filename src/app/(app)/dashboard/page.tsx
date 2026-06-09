@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertCircle, CheckCircle, Clock, FileText, ShoppingBag, Truck, CreditCard, Copy, Check, X, Mail, ChevronDown, ChevronUp, Package, Pencil } from 'lucide-react'
+import { AlertCircle, CheckCircle, Clock, FileText, ShoppingBag, Truck, CreditCard, Copy, Check, X, Mail, ChevronDown, ChevronUp, Package, Pencil, UserPlus } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
@@ -285,6 +285,7 @@ export default function DashboardPage() {
   const [copied, setCopied] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState(currentMonthStr)
   const [workerBottles, setWorkerBottles] = useState<WorkerBottles[]>([])
+  const [pendingAccessRequests, setPendingAccessRequests] = useState(0)
 
   async function loadPendingOrders() {
     const { data } = await supabase
@@ -360,8 +361,16 @@ export default function DashboardPage() {
     return total
   }
 
+  async function loadAccessRequests() {
+    const { count } = await supabase
+      .from('access_requests')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pending')
+    setPendingAccessRequests(count ?? 0)
+  }
+
   async function loadStats() {
-    await Promise.all([loadPendingOrders(), loadOverdueOrders()])
+    await Promise.all([loadPendingOrders(), loadOverdueOrders(), loadAccessRequests()])
     const [quotesRes, kpisRes, bottlesCount] = await Promise.all([
       supabase.from('quotes').select('status'),
       supabase
@@ -442,6 +451,19 @@ export default function DashboardPage() {
             ))}
           </div>
         </div>
+      )}
+
+      {/* Pending access requests */}
+      {isAdmin && pendingAccessRequests > 0 && (
+        <Link href="/portal-management">
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 hover:bg-blue-100/60 dark:hover:bg-blue-900/20 transition-colors">
+            <UserPlus className="h-5 w-5 text-blue-600 shrink-0" />
+            <p className="flex-1 text-sm font-semibold text-blue-700 dark:text-blue-400">
+              {pendingAccessRequests} reseller request{pendingAccessRequests > 1 ? 's' : ''} awaiting approval
+            </p>
+            <Badge className="bg-blue-600 text-white text-xs px-1.5">{pendingAccessRequests}</Badge>
+          </div>
+        </Link>
       )}
 
       {/* Missing POD alert */}
