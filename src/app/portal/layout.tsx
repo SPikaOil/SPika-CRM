@@ -139,7 +139,7 @@ function PortalLogin() {
     setLoading(true)
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: { emailRedirectTo: `${window.location.origin}/portal` },
     })
     setLoading(false)
     if (error) {
