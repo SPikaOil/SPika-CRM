@@ -76,9 +76,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       customer_id: customer.id,
     })
 
-    // Mark request as approved
+    // Mark request as link_sent — moves to accepted once customer logs in
     await admin.from('access_requests').update({
-      status: 'approved',
+      status: 'link_sent',
       reviewed_by: caller.id,
       reviewed_at: new Date().toISOString(),
       review_notes: notes || null,

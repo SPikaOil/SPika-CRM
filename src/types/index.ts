@@ -277,7 +277,7 @@ export interface AccessRequest {
   company_name: string
   phone?: string
   message?: string
-  status: 'pending' | 'approved' | 'denied'
+  status: 'pending' | 'link_sent' | 'accepted' | 'denied'
   reviewed_by?: string
   reviewed_at?: string
   review_notes?: string

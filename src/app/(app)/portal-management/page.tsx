@@ -51,7 +51,8 @@ export default function PortalManagementPage() {
       .select('*')
       .order('created_at', { ascending: false })
       .then(({ data }) => {
-        setRequests((data as AccessRequest[]) ?? [])
+        // Hide accepted requests — customer is now active in the Customers tab
+        setRequests(((data as AccessRequest[]) ?? []).filter(r => r.status !== 'accepted'))
         setRequestsLoading(false)
       })
   }, [isAdmin])
@@ -136,8 +137,8 @@ export default function PortalManagementPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      toast.success(action === 'approve' ? 'Request approved — customer account created' : 'Request denied')
-      setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: action === 'approve' ? 'approved' : 'denied' } : r))
+      toast.success(action === 'approve' ? 'Invite sent — awaiting customer sign-up' : 'Request denied')
+      setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: action === 'approve' ? 'link_sent' : 'denied' } : r))
     } catch (err: any) {
       toast.error(err.message)
     } finally {
@@ -145,7 +146,7 @@ export default function PortalManagementPage() {
     }
   }
 
-  const pendingCount = requests.filter(r => r.status === 'pending').length
+  const pendingCount = requests.filter(r => r.status === 'pending' || r.status === 'link_sent').length
 
   const filtered = (customers ?? [])
     .filter(c => c.status === 'active')
@@ -220,7 +221,7 @@ export default function PortalManagementPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-medium">{req.company_name}</p>
                       {req.status === 'pending' && <Badge className="bg-orange-500 text-white text-xs">Pending</Badge>}
-                      {req.status === 'approved' && <Badge className="bg-green-600 text-white text-xs">Approved</Badge>}
+                      {req.status === 'link_sent' && <Badge className="bg-blue-600 text-white text-xs">Invite Sent</Badge>}
                       {req.status === 'denied' && <Badge variant="outline" className="text-xs">Denied</Badge>}
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">{req.name} · {req.email}{req.phone ? ` · ${req.phone}` : ''}</p>

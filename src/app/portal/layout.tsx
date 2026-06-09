@@ -43,6 +43,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (!profile?.id) return
     fetch('/api/ping', { method: 'POST' })
+    fetch('/api/portal/confirm', { method: 'POST' })
   }, [profile?.id])
 
   async function handleSignOut() {
