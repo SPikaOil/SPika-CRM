@@ -164,7 +164,7 @@ export default function PortalManagementPage() {
     }
   }
 
-  const pendingCount = requests.filter(r => r.status === 'pending' || r.status === 'link_sent').length
+  const pendingCount = requests.filter(r => r.status === 'pending' || r.status === 'link_sent' || r.status === 'approved').length
 
   const filtered = (customers ?? [])
     .filter(c => c.status === 'active')
@@ -239,7 +239,7 @@ export default function PortalManagementPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-medium">{req.company_name}</p>
                       {req.status === 'pending' && <Badge className="bg-orange-500 text-white text-xs">Pending</Badge>}
-                      {req.status === 'link_sent' && <Badge className="bg-blue-600 text-white text-xs">Invite Sent</Badge>}
+                      {(req.status === 'link_sent' || req.status === 'approved') && <Badge className="bg-blue-600 text-white text-xs">Invite Sent</Badge>}
                       {req.status === 'denied' && <Badge variant="outline" className="text-xs">Denied</Badge>}
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">{req.name} · {req.email}{req.phone ? ` · ${req.phone}` : ''}</p>
@@ -269,7 +269,7 @@ export default function PortalManagementPage() {
                       </Button>
                     </div>
                   )}
-                  {req.status === 'link_sent' && (
+                  {(req.status === 'link_sent' || req.status === 'approved') && (
                     <Button
                       size="sm"
                       variant="outline"
