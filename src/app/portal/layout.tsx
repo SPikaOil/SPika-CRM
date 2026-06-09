@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Flame, ShoppingBag, ClipboardList, LogOut, Loader2, Mail } from 'lucide-react'
+import { Flame, ShoppingBag, ClipboardList, LogOut, Loader2, Mail, KeyRound } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
@@ -129,8 +129,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 function PortalLogin() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [mode, setMode] = useState<'password' | 'magic'>('magic')
-  const [magicSent, setMagicSent] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const supabase = createClient()
@@ -148,19 +147,20 @@ function PortalLogin() {
     }
   }
 
-  async function handleMagicLink(e: React.FormEvent) {
-    e.preventDefault()
-    if (!email) return
+  async function handleForgotPassword() {
+    if (!email) {
+      toast.error('Enter your email address first')
+      return
+    }
     setLoading(true)
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/portal`,
     })
     setLoading(false)
     if (error) {
       toast.error(error.message)
     } else {
-      setMagicSent(true)
+      setResetSent(true)
     }
   }
 
@@ -178,20 +178,20 @@ function PortalLogin() {
             <p className="text-muted-foreground text-sm">B2B Customer Portal</p>
           </div>
 
-          {magicSent ? (
+          {resetSent ? (
             <div className="text-center py-8 space-y-3">
               <Mail className="h-12 w-12 text-red-600 mx-auto" />
               <div>
                 <p className="font-semibold text-lg">Check your inbox!</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  We sent a login link to <span className="font-medium text-foreground">{email}</span>
+                  We sent a password reset link to <span className="font-medium text-foreground">{email}</span>
                 </p>
               </div>
               <button
                 className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-4"
-                onClick={() => { setMagicSent(false) }}
+                onClick={() => setResetSent(false)}
               >
-                Send again
+                Back to sign in
               </button>
             </div>
           ) : (
@@ -203,60 +203,6 @@ function PortalLogin() {
                 </p>
               </div>
 
-              {/* Mode toggle */}
-              <div className="flex rounded-lg border p-0.5 gap-0.5 bg-muted">
-                <button
-                  type="button"
-                  onClick={() => setMode('magic')}
-                  className={cn(
-                    'flex-1 text-sm py-1.5 rounded-md font-medium transition-colors',
-                    mode === 'magic'
-                      ? 'bg-background shadow-sm text-foreground'
-                      : 'text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  Magic Link
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMode('password')}
-                  className={cn(
-                    'flex-1 text-sm py-1.5 rounded-md font-medium transition-colors',
-                    mode === 'password'
-                      ? 'bg-background shadow-sm text-foreground'
-                      : 'text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  Password
-                </button>
-              </div>
-
-              {mode === 'magic' ? (
-                <form onSubmit={handleMagicLink} className="space-y-4">
-                  <div className="space-y-1.5">
-                    <Label>Email</Label>
-                    <Input
-                      type="email"
-                      placeholder="you@company.com"
-                      value={email}
-                      onChange={e => setEmail(e.target.value)}
-                      required
-                      autoComplete="email"
-                    />
-                  </div>
-                  <Button
-                    type="submit"
-                    className="w-full bg-red-600 hover:bg-red-700 h-11"
-                    disabled={loading}
-                  >
-                    {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    Send Login Link
-                  </Button>
-                  <p className="text-xs text-center text-muted-foreground">
-                    We'll email you a one-click login link — no password needed.
-                  </p>
-                </form>
-              ) : (
                 <form onSubmit={handlePassword} className="space-y-4">
                   <div className="space-y-1.5">
                     <Label>Email</Label>
@@ -270,7 +216,16 @@ function PortalLogin() {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Password</Label>
+                    <div className="flex items-center justify-between">
+                      <Label>Password</Label>
+                      <button
+                        type="button"
+                        onClick={handleForgotPassword}
+                        className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-4"
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
                     <Input
                       type="password"
                       placeholder="••••••••"
@@ -289,7 +244,6 @@ function PortalLogin() {
                     Sign In
                   </Button>
                 </form>
-              )}
             </>
           )}
         </div>
