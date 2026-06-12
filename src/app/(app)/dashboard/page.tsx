@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertCircle, CheckCircle, Clock, ShoppingBag, Truck, CreditCard, Copy, Check, X, Mail, ChevronDown, ChevronUp, Package, Pencil, UserPlus, Building2, ArrowRight } from 'lucide-react'
+import { AlertCircle, CheckCircle, Clock, ShoppingBag, Truck, CreditCard, Copy, Check, X, Mail, ChevronDown, ChevronUp, Package, Pencil, UserPlus, Building2, ArrowRight, Droplets } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
@@ -27,6 +27,14 @@ interface ClientRow {
   company_name: string
   last_order_at: string
   open_count: number
+}
+
+interface RefillRow {
+  customer_id: string
+  company_name: string
+  next_refill: Date
+  daysUntil: number // negative = overdue
+  taskExists: boolean
 }
 
 function StatCard({
@@ -272,6 +280,69 @@ function OverdueBanner({
   )
 }
 
+// ── Refill banner ─────────────────────────────────────────────────────────
+function RefillBanner({ rows }: { rows: RefillRow[] }) {
+  const [expanded, setExpanded] = useState(false)
+  if (rows.length === 0) return null
+
+  return (
+    <div className="rounded-xl border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/20 overflow-hidden">
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-green-100/40 dark:hover:bg-green-900/20 transition-colors"
+      >
+        <Droplets className="h-5 w-5 text-green-600 shrink-0" />
+        <div className="flex-1 text-left">
+          <p className="font-semibold text-green-700 dark:text-green-400">
+            {rows.length} bottle refill{rows.length > 1 ? 's' : ''} coming up
+          </p>
+          <p className="text-xs text-green-600/80 dark:text-green-500">
+            {expanded ? 'Click to collapse' : 'Click to view · Added to agenda automatically'}
+          </p>
+        </div>
+        <Badge className="bg-green-600 text-white text-sm px-2 shrink-0">{rows.length}</Badge>
+        {expanded
+          ? <ChevronUp className="h-4 w-4 text-green-500 shrink-0" />
+          : <ChevronDown className="h-4 w-4 text-green-500 shrink-0" />
+        }
+      </button>
+
+      {expanded && (
+        <div className="divide-y divide-green-100 dark:divide-green-900 border-t border-green-200 dark:border-green-800">
+          {rows.map(row => {
+            const label = row.daysUntil < 0
+              ? `${Math.abs(row.daysUntil)}d overdue`
+              : row.daysUntil === 0
+              ? 'Today'
+              : row.daysUntil === 1
+              ? 'Tomorrow'
+              : `In ${row.daysUntil} days`
+            const isOverdue = row.daysUntil < 0
+
+            return (
+              <Link
+                key={row.customer_id}
+                href={`/customers/${row.customer_id}`}
+                className="flex items-center justify-between px-4 py-3 gap-3 hover:bg-green-100/40 dark:hover:bg-green-900/20 transition-colors"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">{row.company_name}</p>
+                  <p className={`text-xs mt-0.5 ${isOverdue ? 'text-red-600' : 'text-green-600/80 dark:text-green-500'}`}>
+                    {label} · {row.next_refill.toLocaleDateString('en', { day: 'numeric', month: 'short' })}
+                  </p>
+                </div>
+                <Badge variant="outline" className="text-xs shrink-0 border-green-300 text-green-700 dark:text-green-400">
+                  {row.taskExists ? 'In agenda' : 'Scheduled'}
+                </Badge>
+              </Link>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────
 function currentMonthStr() {
   const d = new Date()
@@ -293,6 +364,7 @@ export default function DashboardPage() {
   const [workerBottles, setWorkerBottles] = useState<WorkerBottles[]>([])
   const [pendingAccessRequests, setPendingAccessRequests] = useState(0)
   const [clientRows, setClientRows] = useState<ClientRow[]>([])
+  const [refillRows, setRefillRows] = useState<RefillRow[]>([])
 
   async function loadPendingOrders() {
     const { data } = await supabase
@@ -405,8 +477,88 @@ export default function DashboardPage() {
     setClientRows(rows)
   }
 
+  async function loadRefillData() {
+    // Fetch customers that have a refill interval set
+    const { data: customers } = await supabase
+      .from('customers')
+      .select('id, company_name, table_bottle_interval_weeks')
+      .eq('status', 'active')
+      .not('table_bottle_interval_weeks', 'is', null)
+
+    if (!customers || customers.length === 0) return
+
+    const ids = customers.map(c => c.id)
+
+    // Get last delivered/paid order per customer
+    const { data: orders } = await supabase
+      .from('orders')
+      .select('customer_id, created_at')
+      .in('customer_id', ids)
+      .in('status', ['delivered', 'invoice_ready', 'invoice_blocked', 'paid'])
+      .order('created_at', { ascending: false })
+
+    // Get existing open refill tasks
+    const { data: existingTasks } = await supabase
+      .from('tasks')
+      .select('customer_id, due_date')
+      .in('customer_id', ids)
+      .ilike('title', 'Bottle refill%')
+      .is('completed_at', null)
+
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const WARN_DAYS = 14
+
+    const upcoming: RefillRow[] = []
+
+    for (const c of customers) {
+      const lastOrder = (orders ?? []).find(o => o.customer_id === c.id)
+      if (!lastOrder) continue
+
+      const intervalDays = (c.table_bottle_interval_weeks as number) * 7
+      const next = new Date(lastOrder.created_at)
+      next.setDate(next.getDate() + intervalDays)
+      next.setHours(0, 0, 0, 0)
+
+      const daysUntil = Math.floor((next.getTime() - today.getTime()) / 86400000)
+
+      // Only surface if within warning window or overdue
+      if (daysUntil > WARN_DAYS) continue
+
+      // Check if a future refill task already exists for this customer
+      const taskExists = (existingTasks ?? []).some(t => {
+        if (t.customer_id !== c.id) return false
+        if (!t.due_date) return false
+        const taskDate = new Date(t.due_date)
+        return taskDate >= today
+      })
+
+      upcoming.push({
+        customer_id: c.id,
+        company_name: c.company_name,
+        next_refill: next,
+        daysUntil,
+        taskExists,
+      })
+
+      // Auto-create task if none exists
+      if (!taskExists) {
+        const dueDate = daysUntil < 0 ? today.toISOString().split('T')[0] : next.toISOString().split('T')[0]
+        supabase.from('tasks').insert({
+          customer_id: c.id,
+          title: `Bottle refill — ${c.company_name}`,
+          description: `Expected refill based on ${c.table_bottle_interval_weeks}-week interval.`,
+          frequency: 'once',
+          due_date: dueDate,
+        }).then(() => {})
+      }
+    }
+
+    setRefillRows(upcoming.sort((a, b) => a.daysUntil - b.daysUntil))
+  }
+
   async function loadStats() {
-    await Promise.all([loadPendingOrders(), loadOverdueOrders(), loadAccessRequests(), loadClientOverview()])
+    await Promise.all([loadPendingOrders(), loadOverdueOrders(), loadAccessRequests(), loadClientOverview(), loadRefillData()])
     const [kpisRes, bottlesCount] = await Promise.all([
       supabase
         .from('v_dashboard_kpis')
@@ -514,6 +666,9 @@ export default function DashboardPage() {
           onRemind={(order) => { setTemplateOrder(order); setSelectedTemplate('first'); setCopied(false) }}
         />
       )}
+
+      {/* Upcoming bottle refills */}
+      {isAdmin && <RefillBanner rows={refillRows} />}
 
       {/* Email template modal */}
       {templateOrder && (
