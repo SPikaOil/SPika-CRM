@@ -821,36 +821,6 @@ export default function DashboardPage() {
         </section>
       )}
 
-      {/* Deliveries */}
-      <section>
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Deliveries</p>
-        <div className="grid grid-cols-3 gap-2">
-          <StatCard
-            title="Out for Delivery"
-            value={stats?.orders_out_for_delivery ?? 0}
-            icon={Truck}
-            variant="warning"
-            isLoading={isLoading}
-            href="/orders?status=out_for_delivery"
-          />
-          <StatCard
-            title="Delivered Today"
-            value={stats?.deliveries_today ?? 0}
-            icon={CheckCircle}
-            variant="success"
-            isLoading={isLoading}
-            href="/orders?status=delivered"
-          />
-          <StatCard
-            title="Missing POD"
-            value={stats?.deliveries_missing_pod ?? 0}
-            icon={AlertCircle}
-            variant={stats?.deliveries_missing_pod ? 'danger' : 'default'}
-            isLoading={isLoading}
-            href="/orders?status=delivered"
-          />
-        </div>
-      </section>
     </div>
   )
 }
