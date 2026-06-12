@@ -27,7 +27,7 @@ import { PriceInput } from '@/components/ui/price-input'
 
 const customerSchema = z.object({
   company_name: z.string().min(1, 'Required'),
-  customer_category: z.enum(['wholesale', 'horeca', 'dtf', 'other', 'b2c', 'supermarket', 'shops', 'export']),
+  customer_category: z.string().min(1, 'Required'),
   contact_person: z.string(),
   phone: z.string(),
   whatsapp: z.string(),
@@ -396,14 +396,9 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
                 }}>
                   <SelectTrigger className="w-full"><SelectValue placeholder="Select category" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="wholesale">Wholesale (B2B)</SelectItem>
-                    <SelectItem value="horeca">HORECA (B2B)</SelectItem>
-                    <SelectItem value="supermarket">Supermarket (B2B)</SelectItem>
-                    <SelectItem value="shops">Shops (B2B)</SelectItem>
-                    <SelectItem value="dtf">DTF (B2B)</SelectItem>
-                    <SelectItem value="other">Other (B2B)</SelectItem>
-                    <SelectItem value="b2c">B2C (Individual)</SelectItem>
-                    <SelectItem value="export">Export (International)</SelectItem>
+                    {(pricePresets ?? []).map(p => (
+                      <SelectItem key={p.category} value={p.category}>{p.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">

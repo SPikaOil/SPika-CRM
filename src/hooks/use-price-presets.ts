@@ -42,3 +42,33 @@ export function useUpdatePricePreset() {
     },
   })
 }
+
+export function useCreatePricePreset() {
+  const supabase = createClient()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ category, label }: { category: string; label: string }) => {
+      const { error } = await supabase
+        .from('price_presets')
+        .insert({ category, label, prices: {}, discounts: {} })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['price_presets'] })
+    },
+  })
+}
+
+export function useDeletePricePreset() {
+  const supabase = createClient()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('price_presets').delete().eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['price_presets'] })
+    },
+  })
+}

@@ -1,12 +1,17 @@
 'use client'
 
-import { useState } from 'react'
-import { Pencil, Check, X, Package } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Pencil, Check, X, Package, Tag, Plus, Trash2, ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
 import { useProducts, useUpdateProduct, ProductRecord } from '@/hooks/use-products'
+import { usePricePresets, useUpdatePricePreset, useCreatePricePreset, useDeletePricePreset } from '@/hooks/use-price-presets'
+import { SPIKA_PRODUCTS } from '@/lib/products'
+import { PriceInput } from '@/components/ui/price-input'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
+
+// ── Products tab ───────────────────────────────────────────────────────────
 
 type EditingRow = {
   id: string
@@ -18,15 +23,12 @@ type EditingRow = {
   box_width_cm: string
 }
 
-function num(v: number | null) {
-  return v != null ? String(v) : ''
-}
-
+function num(v: number | null) { return v != null ? String(v) : '' }
 function dash(v: string | number | null) {
   return v != null && v !== '' ? v : <span className="text-muted-foreground/50">—</span>
 }
 
-export default function ProductsPage() {
+function ProductsTab() {
   const { data: products, isLoading } = useProducts()
   const updateProduct = useUpdateProduct()
   const [editing, setEditing] = useState<EditingRow | null>(null)
@@ -61,31 +63,22 @@ export default function ProductsPage() {
       toast.success('Product updated')
       setEditing(null)
     } catch (err) {
-      console.error(err)
       toast.error('Failed to save')
     }
   }
 
   const fields: { key: keyof EditingRow; label: string; type?: string }[] = [
-    { key: 'product_code', label: 'Product Code' },
-    { key: 'weight_g',          label: 'Weight (g)',      type: 'number' },
-    { key: 'bottles_per_carton',label: 'Btls / Carton',   type: 'number' },
-    { key: 'box_height_cm',     label: 'Height (cm)',     type: 'number' },
-    { key: 'box_length_cm',     label: 'Length (cm)',     type: 'number' },
-    { key: 'box_width_cm',      label: 'Width (cm)',      type: 'number' },
+    { key: 'product_code',      label: 'Product Code' },
+    { key: 'weight_g',          label: 'Weight (g)',    type: 'number' },
+    { key: 'bottles_per_carton',label: 'Btls / Carton', type: 'number' },
+    { key: 'box_height_cm',     label: 'Height (cm)',   type: 'number' },
+    { key: 'box_length_cm',     label: 'Length (cm)',   type: 'number' },
+    { key: 'box_width_cm',      label: 'Width (cm)',    type: 'number' },
   ]
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
-      <div className="flex items-center gap-3">
-        <Package className="h-6 w-6 text-red-600" />
-        <div>
-          <h1 className="text-2xl font-bold">Products</h1>
-          <p className="text-sm text-muted-foreground">Manage product codes, weights and dimensions for export calculations</p>
-        </div>
-      </div>
-
-      {/* ── Desktop table ── */}
+    <>
+      {/* Desktop table */}
       <div className="hidden md:block rounded-xl border overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 border-b">
@@ -101,11 +94,9 @@ export default function ProductsPage() {
           <tbody className="divide-y">
             {isLoading
               ? Array.from({ length: 6 }).map((_, i) => (
-                  <tr key={i}>
-                    {Array.from({ length: 9 }).map((_, j) => (
-                      <td key={j} className="px-4 py-3"><Skeleton className="h-5 w-full" /></td>
-                    ))}
-                  </tr>
+                  <tr key={i}>{Array.from({ length: 9 }).map((_, j) => (
+                    <td key={j} className="px-4 py-3"><Skeleton className="h-5 w-full" /></td>
+                  ))}</tr>
                 ))
               : products?.map(p => {
                   const isEditing = editing?.id === p.id
@@ -117,12 +108,9 @@ export default function ProductsPage() {
                         <>
                           {fields.map(f => (
                             <td key={f.key} className="px-2 py-2">
-                              <Input
-                                className="h-8 text-center w-24 mx-auto"
-                                type={f.type ?? 'text'}
+                              <Input className="h-8 text-center w-24 mx-auto" type={f.type ?? 'text'}
                                 value={editing[f.key]}
-                                onChange={e => setEditing(v => v && ({ ...v, [f.key]: e.target.value }))}
-                              />
+                                onChange={e => setEditing(v => v && ({ ...v, [f.key]: e.target.value }))} />
                             </td>
                           ))}
                           <td className="px-3 py-2">
@@ -158,12 +146,10 @@ export default function ProductsPage() {
         </table>
       </div>
 
-      {/* ── Mobile cards ── */}
+      {/* Mobile cards */}
       <div className="md:hidden space-y-3">
         {isLoading
-          ? Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-40 rounded-xl" />
-            ))
+          ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-xl" />)
           : products?.map(p => {
               const isEditing = editing?.id === p.id
               return (
@@ -188,7 +174,6 @@ export default function ProductsPage() {
                       </Button>
                     )}
                   </div>
-
                   <div className="grid grid-cols-2 gap-2">
                     {fields.map(f => {
                       const displayVal = p[f.key as keyof ProductRecord]
@@ -196,12 +181,9 @@ export default function ProductsPage() {
                         <div key={f.key} className="space-y-1">
                           <p className="text-xs text-muted-foreground">{f.label}</p>
                           {isEditing ? (
-                            <Input
-                              className="h-8 text-sm"
-                              type={f.type ?? 'text'}
+                            <Input className="h-8 text-sm" type={f.type ?? 'text'}
                               value={editing[f.key]}
-                              onChange={e => setEditing(v => v && ({ ...v, [f.key]: e.target.value }))}
-                            />
+                              onChange={e => setEditing(v => v && ({ ...v, [f.key]: e.target.value }))} />
                           ) : (
                             <p className="text-sm font-medium">{dash(displayVal as string | number | null)}</p>
                           )}
@@ -213,6 +195,243 @@ export default function ProductsPage() {
               )
             })}
       </div>
+    </>
+  )
+}
+
+// ── Categories tab ─────────────────────────────────────────────────────────
+
+function CategoriesTab() {
+  const { data: presets, isLoading } = usePricePresets()
+  const { mutateAsync: updatePreset } = useUpdatePricePreset()
+  const createPreset = useCreatePricePreset()
+  const deletePreset = useDeletePricePreset()
+
+  const [openCategory, setOpenCategory] = useState<string | null>(null)
+  const [localPrices, setLocalPrices] = useState<Record<string, Record<string, number>>>({})
+  const [localDiscounts, setLocalDiscounts] = useState<Record<string, Record<string, number>>>({})
+  const [saving, setSaving] = useState<string | null>(null)
+
+  // New category form
+  const [showAdd, setShowAdd] = useState(false)
+  const [newLabel, setNewLabel] = useState('')
+  const [newKey, setNewKey] = useState('')
+
+  useEffect(() => {
+    if (!presets) return
+    const initPrices: Record<string, Record<string, number>> = {}
+    const initDiscounts: Record<string, Record<string, number>> = {}
+    for (const p of presets) {
+      initPrices[p.category] = { ...p.prices }
+      initDiscounts[p.category] = { ...(p.discounts ?? {}) }
+    }
+    setLocalPrices(initPrices)
+    setLocalDiscounts(initDiscounts)
+  }, [presets])
+
+  function setPrice(category: string, sku: string, v: number) {
+    setLocalPrices(prev => ({ ...prev, [category]: { ...prev[category], [sku]: v } }))
+  }
+
+  function setDiscount(category: string, sku: string, v: number) {
+    setLocalDiscounts(prev => ({ ...prev, [category]: { ...prev[category], [sku]: v } }))
+  }
+
+  async function handleSave(category: string, id: string) {
+    setSaving(category)
+    try {
+      await updatePreset({ id, prices: localPrices[category] ?? {}, discounts: localDiscounts[category] ?? {} })
+      toast.success('Saved')
+    } catch (err: any) {
+      toast.error(err.message)
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  async function handleAdd() {
+    const label = newLabel.trim()
+    const category = newKey.trim().toLowerCase().replace(/\s+/g, '_')
+    if (!label || !category) return toast.error('Fill in both a name and a key')
+    if (presets?.some(p => p.category === category)) return toast.error('Category key already exists')
+    try {
+      await createPreset.mutateAsync({ category, label })
+      toast.success(`Category "${label}" added`)
+      setNewLabel('')
+      setNewKey('')
+      setShowAdd(false)
+    } catch (err: any) {
+      toast.error(err.message)
+    }
+  }
+
+  async function handleDelete(id: string, label: string) {
+    if (!confirm(`Delete category "${label}"? This won't affect existing customers.`)) return
+    try {
+      await deletePreset.mutateAsync(id)
+      toast.success('Category deleted')
+    } catch (err: any) {
+      toast.error(err.message)
+    }
+  }
+
+  if (isLoading) return <div className="space-y-2">{[0,1,2].map(i => <Skeleton key={i} className="h-14 rounded-lg" />)}</div>
+
+  return (
+    <div className="space-y-3 max-w-2xl">
+      <p className="text-sm text-muted-foreground">
+        Default prices &amp; discounts per customer category. Applied automatically when creating a customer.
+      </p>
+
+      <div className="space-y-2">
+        {(presets ?? []).map(preset => {
+          const isOpen = openCategory === preset.category
+          const prices = localPrices[preset.category] ?? {}
+          const discounts = localDiscounts[preset.category] ?? {}
+          const customCount = Object.keys(preset.prices).length + Object.keys(preset.discounts ?? {}).length
+
+          return (
+            <div key={preset.category} className="border rounded-lg overflow-hidden">
+              <div className="flex items-center">
+                <button
+                  type="button"
+                  className="flex-1 flex items-center justify-between px-4 py-3 hover:bg-accent transition-colors text-left"
+                  onClick={() => setOpenCategory(isOpen ? null : preset.category)}
+                >
+                  <div>
+                    <p className="text-sm font-medium">{preset.label}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {customCount > 0 ? `${customCount} custom values` : 'Using product defaults'} · key: {preset.category}
+                    </p>
+                  </div>
+                  {isOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                </button>
+                <button
+                  type="button"
+                  className="px-3 py-3 text-muted-foreground hover:text-red-600 transition-colors shrink-0"
+                  onClick={() => handleDelete(preset.id, preset.label)}
+                  title="Delete category"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+
+              {isOpen && (
+                <div className="border-t space-y-0">
+                  <div className="divide-y">
+                    {SPIKA_PRODUCTS.map(product => (
+                      <div key={product.sku} className="px-4 py-3">
+                        <div className="mb-2">
+                          <p className="text-sm font-medium">{product.name}</p>
+                          <p className="text-xs text-muted-foreground">default XCG {product.default_price.toFixed(2)}</p>
+                        </div>
+                        <div className="flex gap-3">
+                          <div className="flex-1 space-y-1">
+                            <p className="text-xs text-muted-foreground">Price (XCG)</p>
+                            <PriceInput
+                              value={prices[product.sku] ?? 0}
+                              onChange={v => setPrice(preset.category, product.sku, v)}
+                              placeholder={product.default_price.toFixed(2)}
+                              className="h-8"
+                            />
+                          </div>
+                          <div className="flex-1 space-y-1">
+                            <p className="text-xs text-muted-foreground">Discount</p>
+                            <PriceInput
+                              value={discounts[product.sku] ?? 0}
+                              onChange={v => setDiscount(preset.category, product.sku, v)}
+                              placeholder="0.00"
+                              className="h-8"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="px-4 py-3 border-t">
+                    <Button
+                      className="bg-red-600 hover:bg-red-700 gap-2"
+                      onClick={() => handleSave(preset.category, preset.id)}
+                      disabled={saving === preset.category}
+                    >
+                      {saving === preset.category && <Loader2 className="h-4 w-4 animate-spin" />}
+                      Save {preset.label}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Add new category */}
+      {showAdd ? (
+        <div className="border rounded-lg p-4 space-y-3">
+          <p className="text-sm font-medium">New Category</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Display name</p>
+              <Input value={newLabel} onChange={e => setNewLabel(e.target.value)} placeholder="e.g. Retail (B2B)" className="h-8" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Key (auto-slug)</p>
+              <Input value={newKey} onChange={e => setNewKey(e.target.value)} placeholder="e.g. retail" className="h-8 font-mono text-xs" />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={handleAdd} disabled={createPreset.isPending} className="bg-red-600 hover:bg-red-700">
+              {createPreset.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+              Add
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => { setShowAdd(false); setNewLabel(''); setNewKey('') }}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Button variant="outline" className="gap-2" onClick={() => setShowAdd(true)}>
+          <Plus className="h-4 w-4" />
+          Add Category
+        </Button>
+      )}
+    </div>
+  )
+}
+
+// ── Page ───────────────────────────────────────────────────────────────────
+
+export default function ProductsPage() {
+  const [tab, setTab] = useState<'products' | 'categories'>('products')
+
+  return (
+    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-4">
+      <div className="flex items-center gap-3">
+        <Package className="h-6 w-6 text-red-600" />
+        <div>
+          <h1 className="text-2xl font-bold">Products</h1>
+          <p className="text-sm text-muted-foreground">Manage products and customer category pricing</p>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex rounded-lg border p-0.5 gap-0.5 bg-muted w-fit">
+        <button
+          onClick={() => setTab('products')}
+          className={`px-4 py-1.5 text-sm rounded-md font-medium transition-colors flex items-center gap-1.5 ${tab === 'products' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+        >
+          <Package className="h-3.5 w-3.5" /> Products
+        </button>
+        <button
+          onClick={() => setTab('categories')}
+          className={`px-4 py-1.5 text-sm rounded-md font-medium transition-colors flex items-center gap-1.5 ${tab === 'categories' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+        >
+          <Tag className="h-3.5 w-3.5" /> Categories
+        </button>
+      </div>
+
+      {tab === 'products' && <ProductsTab />}
+      {tab === 'categories' && <CategoriesTab />}
     </div>
   )
 }

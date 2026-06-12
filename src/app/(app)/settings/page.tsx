@@ -136,9 +136,6 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Price Presets */}
-      <PricePresetsCard />
-
       {/* Product Codes */}
       <ProductCodesCard />
 
