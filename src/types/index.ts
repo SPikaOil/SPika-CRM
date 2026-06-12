@@ -1,6 +1,6 @@
 export type UserRole = 'admin' | 'sales' | 'customer'
 
-export type CustomerCategory = 'wholesale' | 'horeca' | 'dtf' | 'other' | 'b2c' | 'supermarket' | 'shops' | 'export'
+export type CustomerCategory = string
 
 export type LeadStage = 'new' | 'contacted' | 'quoted' | 'won' | 'lost'
 
