@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertCircle, CheckCircle, Clock, ShoppingBag, Truck, CreditCard, Copy, Check, X, Mail, ChevronDown, ChevronUp, Package, Pencil, UserPlus, Building2, ArrowRight, Droplets } from 'lucide-react'
+import { AlertCircle, CheckCircle, Clock, ShoppingBag, Truck, CreditCard, Copy, Check, X, Mail, ChevronDown, ChevronUp, Package, Pencil, UserPlus, Building2, ArrowRight, Droplets, ClipboardList } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/auth-context'
 import { useUsers } from '@/hooks/use-users'
-import { Order } from '@/types'
+import { Order, Task } from '@/types'
 
 interface Stats {
   orders_out_for_delivery: number
@@ -34,7 +34,6 @@ interface RefillRow {
   company_name: string
   next_refill: Date
   daysUntil: number // negative = overdue
-  taskExists: boolean
 }
 
 function StatCard({
@@ -332,7 +331,7 @@ function RefillBanner({ rows }: { rows: RefillRow[] }) {
                   </p>
                 </div>
                 <Badge variant="outline" className="text-xs shrink-0 border-green-300 text-green-700 dark:text-green-400">
-                  {row.taskExists ? 'In agenda' : 'Scheduled'}
+                  Refill
                 </Badge>
               </Link>
             )
@@ -365,6 +364,7 @@ export default function DashboardPage() {
   const [pendingAccessRequests, setPendingAccessRequests] = useState(0)
   const [clientRows, setClientRows] = useState<ClientRow[]>([])
   const [refillRows, setRefillRows] = useState<RefillRow[]>([])
+  const [weekTasks, setWeekTasks] = useState<Task[]>([])
 
   async function loadPendingOrders() {
     const { data } = await supabase
@@ -497,14 +497,6 @@ export default function DashboardPage() {
       .in('status', ['delivered', 'invoice_ready', 'invoice_blocked', 'paid'])
       .order('created_at', { ascending: false })
 
-    // Get existing open refill tasks
-    const { data: existingTasks } = await supabase
-      .from('tasks')
-      .select('customer_id, due_date')
-      .in('customer_id', ids)
-      .ilike('title', 'Bottle refill%')
-      .is('completed_at', null)
-
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const WARN_DAYS = 14
@@ -525,40 +517,35 @@ export default function DashboardPage() {
       // Only surface if within warning window or overdue
       if (daysUntil > WARN_DAYS) continue
 
-      // Check if a future refill task already exists for this customer
-      const taskExists = (existingTasks ?? []).some(t => {
-        if (t.customer_id !== c.id) return false
-        if (!t.due_date) return false
-        const taskDate = new Date(t.due_date)
-        return taskDate >= today
-      })
-
       upcoming.push({
         customer_id: c.id,
         company_name: c.company_name,
         next_refill: next,
         daysUntil,
-        taskExists,
       })
-
-      // Auto-create task if none exists
-      if (!taskExists) {
-        const dueDate = daysUntil < 0 ? today.toISOString().split('T')[0] : next.toISOString().split('T')[0]
-        supabase.from('tasks').insert({
-          customer_id: c.id,
-          title: `Bottle refill — ${c.company_name}`,
-          description: `Expected refill based on ${c.table_bottle_interval_weeks}-week interval.`,
-          frequency: 'once',
-          due_date: dueDate,
-        }).then(() => {})
-      }
     }
 
     setRefillRows(upcoming.sort((a, b) => a.daysUntil - b.daysUntil))
   }
 
+  async function loadWeekTasks() {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const endOfWeek = new Date(today)
+    endOfWeek.setDate(today.getDate() + 7)
+
+    const { data } = await supabase
+      .from('tasks')
+      .select('*, customer:customers(id, company_name)')
+      .is('completed_at', null)
+      .lte('due_date', endOfWeek.toISOString().split('T')[0])
+      .order('due_date', { ascending: true, nullsFirst: false })
+
+    setWeekTasks((data ?? []) as Task[])
+  }
+
   async function loadStats() {
-    await Promise.all([loadPendingOrders(), loadOverdueOrders(), loadAccessRequests(), loadClientOverview(), loadRefillData()])
+    await Promise.all([loadPendingOrders(), loadOverdueOrders(), loadAccessRequests(), loadClientOverview(), loadRefillData(), loadWeekTasks()])
     const [kpisRes, bottlesCount] = await Promise.all([
       supabase
         .from('v_dashboard_kpis')
@@ -738,6 +725,64 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </section>
+
+      {/* This week's tasks */}
+      {isAdmin && (
+        <section>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">This week's tasks</p>
+            <Link href="/tasks" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
+              All tasks <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
+          <Card>
+            <CardContent className="p-0 divide-y">
+              {isLoading && [0,1,2].map(i => (
+                <div key={i} className="flex items-center gap-3 px-4 py-2.5">
+                  <Skeleton className="h-4 w-36" />
+                  <Skeleton className="h-4 w-16 ml-auto" />
+                </div>
+              ))}
+              {!isLoading && weekTasks.length === 0 && (
+                <div className="flex items-center gap-2 px-4 py-5 text-muted-foreground">
+                  <ClipboardList className="h-4 w-4 opacity-40" />
+                  <p className="text-sm">No tasks due this week</p>
+                </div>
+              )}
+              {!isLoading && weekTasks.map(task => {
+                const today = new Date(); today.setHours(0,0,0,0)
+                const due = task.due_date ? new Date(task.due_date) : null
+                const daysUntil = due ? Math.floor((due.getTime() - today.getTime()) / 86400000) : null
+                const dueLabel = daysUntil === null ? 'No date'
+                  : daysUntil < 0 ? `${Math.abs(daysUntil)}d overdue`
+                  : daysUntil === 0 ? 'Today'
+                  : daysUntil === 1 ? 'Tomorrow'
+                  : due!.toLocaleDateString('en', { weekday: 'short', day: 'numeric', month: 'short' })
+                const isOverdue = daysUntil !== null && daysUntil < 0
+
+                return (
+                  <Link
+                    key={task.id}
+                    href="/tasks"
+                    className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 transition-colors"
+                  >
+                    <ClipboardList className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{task.title}</p>
+                      {(task.customer as any)?.company_name && (
+                        <p className="text-xs text-muted-foreground truncate">{(task.customer as any).company_name}</p>
+                      )}
+                    </div>
+                    <p className={`text-xs shrink-0 ${isOverdue ? 'text-red-600 font-medium' : 'text-muted-foreground'}`}>
+                      {dueLabel}
+                    </p>
+                  </Link>
+                )
+              })}
+            </CardContent>
+          </Card>
+        </section>
+      )}
 
       {/* Deliveries */}
       <section>
