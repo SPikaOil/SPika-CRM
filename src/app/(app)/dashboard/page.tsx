@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertCircle, CheckCircle, Clock, FileText, ShoppingBag, Truck, CreditCard, Copy, Check, X, Mail, ChevronDown, ChevronUp, Package, Pencil, UserPlus } from 'lucide-react'
+import { AlertCircle, CheckCircle, Clock, ShoppingBag, Truck, CreditCard, Copy, Check, X, Mail, ChevronDown, ChevronUp, Package, Pencil, UserPlus, Building2, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
@@ -14,13 +14,19 @@ import { useUsers } from '@/hooks/use-users'
 import { Order } from '@/types'
 
 interface Stats {
-  notes_draft: number
-  notes_sent: number
-  notes_accepted: number
   orders_out_for_delivery: number
   deliveries_today: number
   deliveries_missing_pod: number
   bottles_this_month: number
+}
+
+const OPEN_STATUSES = ['pending_approval', 'approved', 'out_for_delivery', 'invoice_ready', 'invoice_blocked']
+
+interface ClientRow {
+  customer_id: string
+  company_name: string
+  last_order_at: string
+  open_count: number
 }
 
 function StatCard({
@@ -286,6 +292,7 @@ export default function DashboardPage() {
   const [selectedMonth, setSelectedMonth] = useState(currentMonthStr)
   const [workerBottles, setWorkerBottles] = useState<WorkerBottles[]>([])
   const [pendingAccessRequests, setPendingAccessRequests] = useState(0)
+  const [clientRows, setClientRows] = useState<ClientRow[]>([])
 
   async function loadPendingOrders() {
     const { data } = await supabase
@@ -369,10 +376,38 @@ export default function DashboardPage() {
     setPendingAccessRequests(count ?? 0)
   }
 
+  async function loadClientOverview() {
+    const { data } = await supabase
+      .from('orders')
+      .select('customer_id, created_at, status, customer:customers(company_name)')
+      .order('created_at', { ascending: false })
+      .limit(500)
+
+    if (!data) return
+
+    const map = new Map<string, ClientRow>()
+    for (const o of data) {
+      const cid = o.customer_id
+      if (!cid) continue
+      const name = (o.customer as any)?.company_name ?? 'Unknown'
+      if (!map.has(cid)) {
+        map.set(cid, { customer_id: cid, company_name: name, last_order_at: o.created_at, open_count: 0 })
+      }
+      if (OPEN_STATUSES.includes(o.status)) {
+        map.get(cid)!.open_count++
+      }
+    }
+
+    const rows = Array.from(map.values())
+      .sort((a, b) => new Date(b.last_order_at).getTime() - new Date(a.last_order_at).getTime())
+      .slice(0, 8)
+
+    setClientRows(rows)
+  }
+
   async function loadStats() {
-    await Promise.all([loadPendingOrders(), loadOverdueOrders(), loadAccessRequests()])
-    const [quotesRes, kpisRes, bottlesCount] = await Promise.all([
-      supabase.from('quotes').select('status'),
+    await Promise.all([loadPendingOrders(), loadOverdueOrders(), loadAccessRequests(), loadClientOverview()])
+    const [kpisRes, bottlesCount] = await Promise.all([
       supabase
         .from('v_dashboard_kpis')
         .select('orders_out_for_delivery, deliveries_today, deliveries_missing_pod')
@@ -380,13 +415,9 @@ export default function DashboardPage() {
       loadBottlesForMonth(selectedMonth),
     ])
 
-    const quotes = quotesRes.data ?? []
     const kpis = kpisRes.data
 
     setStats({
-      notes_draft:    quotes.filter((q) => q.status === 'draft').length,
-      notes_sent:     quotes.filter((q) => q.status === 'sent').length,
-      notes_accepted: quotes.filter((q) => q.status === 'accepted').length,
       orders_out_for_delivery: kpis?.orders_out_for_delivery ?? 0,
       deliveries_today:        kpis?.deliveries_today ?? 0,
       deliveries_missing_pod:  kpis?.deliveries_missing_pod ?? 0,
@@ -507,34 +538,50 @@ export default function DashboardPage() {
         />
       )}
 
-      {/* Delivery Notes */}
+      {/* Client Overview */}
       <section>
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Delivery Notes</p>
-        <div className="grid grid-cols-3 gap-2">
-          <StatCard
-            title="Draft"
-            value={stats?.notes_draft ?? 0}
-            icon={FileText}
-            isLoading={isLoading}
-            href="/quotations?status=draft"
-          />
-          <StatCard
-            title="Sent"
-            value={stats?.notes_sent ?? 0}
-            icon={Clock}
-            variant="warning"
-            isLoading={isLoading}
-            href="/quotations?status=sent"
-          />
-          <StatCard
-            title="Accepted"
-            value={stats?.notes_accepted ?? 0}
-            icon={CheckCircle}
-            variant="success"
-            isLoading={isLoading}
-            href="/quotations?status=accepted"
-          />
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Client Overview</p>
+          <Link href="/customers" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
+            All clients <ArrowRight className="h-3 w-3" />
+          </Link>
         </div>
+        <Card>
+          <CardContent className="p-0 divide-y">
+            {isLoading && [0,1,2,3].map(i => (
+              <div key={i} className="flex items-center gap-3 px-4 py-2.5">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-4 w-20 ml-auto" />
+              </div>
+            ))}
+            {!isLoading && clientRows.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-6">No orders yet</p>
+            )}
+            {!isLoading && clientRows.map(row => {
+              const lastOrder = new Date(row.last_order_at)
+              const today = new Date()
+              const daysDiff = Math.floor((today.getTime() - lastOrder.getTime()) / 86400000)
+              const lastLabel = daysDiff === 0 ? 'Today' : daysDiff === 1 ? 'Yesterday' : `${daysDiff}d ago`
+
+              return (
+                <Link
+                  key={row.customer_id}
+                  href={`/customers/${row.customer_id}`}
+                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 transition-colors group"
+                >
+                  <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <p className="text-sm font-medium flex-1 truncate">{row.company_name}</p>
+                  {row.open_count > 0 && (
+                    <Badge className="bg-orange-500 text-white text-xs px-1.5 py-0 shrink-0">
+                      {row.open_count} open
+                    </Badge>
+                  )}
+                  <p className="text-xs text-muted-foreground shrink-0">{lastLabel}</p>
+                </Link>
+              )
+            })}
+          </CardContent>
+        </Card>
       </section>
 
       {/* Deliveries */}
