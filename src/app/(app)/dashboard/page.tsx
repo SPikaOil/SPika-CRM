@@ -489,6 +489,10 @@ export default function DashboardPage() {
 
     const ids = customers.map(c => c.id)
 
+    // Get current user for task created_by
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
     // Get last delivered/paid order per customer
     const { data: orders } = await supabase
       .from('orders')
@@ -496,6 +500,15 @@ export default function DashboardPage() {
       .in('customer_id', ids)
       .in('status', ['delivered', 'invoice_ready', 'invoice_blocked', 'paid'])
       .order('created_at', { ascending: false })
+
+    // Get existing future refill tasks to avoid duplicates
+    const { data: existingTasks } = await supabase
+      .from('tasks')
+      .select('customer_id, due_date')
+      .in('customer_id', ids)
+      .ilike('title', 'Bottle refill%')
+      .is('completed_at', null)
+      .gte('due_date', new Date().toISOString().split('T')[0])
 
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -523,6 +536,20 @@ export default function DashboardPage() {
         next_refill: next,
         daysUntil,
       })
+
+      // Auto-create agenda task if no future one exists for this customer
+      const hasTask = (existingTasks ?? []).some(t => t.customer_id === c.id)
+      if (!hasTask) {
+        const dueDate = daysUntil < 0 ? today.toISOString().split('T')[0] : next.toISOString().split('T')[0]
+        supabase.from('tasks').insert({
+          customer_id: c.id,
+          title: `Bottle refill — ${c.company_name}`,
+          description: `Expected refill based on ${c.table_bottle_interval_weeks}-week interval.`,
+          frequency: 'once',
+          due_date: dueDate,
+          created_by: user.id,
+        }).then(() => {})
+      }
     }
 
     setRefillRows(upcoming.sort((a, b) => a.daysUntil - b.daysUntil))
@@ -538,10 +565,20 @@ export default function DashboardPage() {
       .from('tasks')
       .select('*, customer:customers(id, company_name)')
       .is('completed_at', null)
+      .gte('due_date', today.toISOString().split('T')[0])
       .lte('due_date', endOfWeek.toISOString().split('T')[0])
       .order('due_date', { ascending: true, nullsFirst: false })
 
-    setWeekTasks((data ?? []) as Task[])
+    // Deduplicate: one task per customer+title combination
+    const seen = new Set<string>()
+    const deduped = ((data ?? []) as Task[]).filter(t => {
+      const key = `${t.customer_id ?? 'none'}-${t.title}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+
+    setWeekTasks(deduped)
   }
 
   async function loadStats() {
