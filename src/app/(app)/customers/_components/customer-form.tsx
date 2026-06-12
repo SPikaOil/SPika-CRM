@@ -753,26 +753,24 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
                 return (
                   <div key={product.sku} className={`transition-opacity ${isActive ? '' : 'opacity-40'}`}>
                     {/* Mobile layout */}
-                    <div className="sm:hidden px-4 py-3 border-b last:border-0">
-                      <div className="flex items-center gap-3 mb-2">
+                    <div className="sm:hidden px-4 py-3 border-b last:border-0 space-y-2">
+                      {/* Row 1: checkbox + product name */}
+                      <div className="flex items-center gap-2">
                         <input type="checkbox" checked={isActive} onChange={() => toggleActiveProduct(product.sku)} className="rounded cursor-pointer shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-medium truncate ${isActive ? '' : 'line-through text-muted-foreground'}`}>{product.name}</p>
+                        <div className="min-w-0">
+                          <p className={`text-sm font-medium leading-tight ${isActive ? '' : 'line-through text-muted-foreground'}`}>{product.name}</p>
                           <p className="text-xs text-muted-foreground">{product.sku}</p>
                         </div>
-                        <label className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
-                          <input type="checkbox" checked={isFree} onChange={() => toggleFreeProduct(product.sku)} disabled={!isActive} className="rounded cursor-pointer accent-green-600" />
-                          Free
-                        </label>
                       </div>
-                      <div className="flex gap-3 pl-7">
+                      {/* Row 2: price · discount · free */}
+                      <div className="flex items-end gap-2 pl-6">
                         <div className="flex-1 space-y-1">
                           <p className="text-xs text-muted-foreground">Price (XCG)</p>
                           <PriceInput
                             value={productPrices[product.sku] ?? product.default_price}
                             onChange={v => setProductPrices(prev => ({ ...prev, [product.sku]: v }))}
                             placeholder={product.default_price.toFixed(2)}
-                            className="h-8"
+                            className="h-8 text-sm"
                             disabled={!isActive || isFree} />
                         </div>
                         <div className="flex-1 space-y-1">
@@ -781,9 +779,13 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
                             value={productDiscounts[product.sku] ?? 0}
                             onChange={v => setProductDiscounts(prev => ({ ...prev, [product.sku]: v }))}
                             placeholder="0.00"
-                            className="h-8"
+                            className="h-8 text-sm"
                             disabled={!isActive || isFree} />
                         </div>
+                        <label className="flex flex-col items-center gap-1 pb-1 shrink-0">
+                          <p className="text-xs text-muted-foreground">Free</p>
+                          <input type="checkbox" checked={isFree} onChange={() => toggleFreeProduct(product.sku)} disabled={!isActive} className="rounded cursor-pointer accent-green-600 h-4 w-4" />
+                        </label>
                       </div>
                     </div>
 
