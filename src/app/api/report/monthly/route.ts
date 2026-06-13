@@ -2,11 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 
-// Allow both cron (secret) and authenticated admin to trigger
 async function assertAuthorized(req: NextRequest) {
   const cronSecret = req.headers.get('x-cron-secret')
   if (cronSecret && cronSecret === process.env.CRON_SECRET) return true
-
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return false
@@ -28,7 +26,6 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient()
 
-  // Determine which month to report on (default: previous month)
   const body = await req.json().catch(() => ({}))
   const now = new Date()
   const year: number = body.year ?? (now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear())
@@ -38,29 +35,16 @@ export async function POST(req: NextRequest) {
   const end = new Date(year, month, 1).toISOString()
   const label = monthLabel(year, month)
 
-  // ── Fetch data ─────────────────────────────────────────────────────────
-
   const [ordersRes, customersRes, newCustomersRes, accessRes] = await Promise.all([
     admin
       .from('orders')
-      .select('id, order_number, total, status, payment_type, customer:customers(company_name, customer_category), items, assigned_to, created_at')
+      .select('id, order_number, total, status, payment_type, customer:customers(company_name, customer_category), items, created_at')
       .gte('created_at', start)
       .lt('created_at', end)
       .is('deleted_at', null),
-    admin
-      .from('customers')
-      .select('id, company_name, customer_category, status')
-      .eq('status', 'active'),
-    admin
-      .from('customers')
-      .select('id, company_name, customer_category')
-      .gte('created_at', start)
-      .lt('created_at', end),
-    admin
-      .from('access_requests')
-      .select('id, status, company_name, created_at')
-      .gte('created_at', start)
-      .lt('created_at', end),
+    admin.from('customers').select('id').eq('status', 'active'),
+    admin.from('customers').select('id, company_name, customer_category').gte('created_at', start).lt('created_at', end),
+    admin.from('access_requests').select('id, status, company_name, created_at').gte('created_at', start).lt('created_at', end),
   ])
 
   const orders = ordersRes.data ?? []
@@ -68,15 +52,12 @@ export async function POST(req: NextRequest) {
   const newCustomers = newCustomersRes.data ?? []
   const accessRequests = accessRes.data ?? []
 
-  // ── Compute stats ──────────────────────────────────────────────────────
-
   const delivered = orders.filter(o => ['delivered', 'invoice_ready', 'invoice_blocked', 'paid'].includes(o.status))
   const totalRevenue = delivered.reduce((s, o) => s + Number(o.total ?? 0), 0)
   const totalOrders = orders.length
   const deliveredCount = delivered.length
   const pendingCount = orders.filter(o => ['pending_approval', 'approved', 'out_for_delivery'].includes(o.status)).length
 
-  // Revenue by category
   const byCategory: Record<string, { count: number; revenue: number }> = {}
   for (const o of delivered) {
     const cat = (o.customer as any)?.customer_category ?? 'unknown'
@@ -85,7 +66,6 @@ export async function POST(req: NextRequest) {
     byCategory[cat].revenue += Number(o.total ?? 0)
   }
 
-  // Revenue by customer (top 10)
   const byCustomer: Record<string, { name: string; count: number; revenue: number }> = {}
   for (const o of delivered) {
     const name = (o.customer as any)?.company_name ?? 'Unknown'
@@ -93,11 +73,8 @@ export async function POST(req: NextRequest) {
     byCustomer[name].count++
     byCustomer[name].revenue += Number(o.total ?? 0)
   }
-  const topCustomers = Object.values(byCustomer)
-    .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 10)
+  const topCustomers = Object.values(byCustomer).sort((a, b) => b.revenue - a.revenue).slice(0, 10)
 
-  // Bottle counts
   const COUNTED_SKUS = ['oil-100ml', 'oil-50ml']
   let totalBottles = 0
   for (const o of delivered) {
@@ -105,23 +82,12 @@ export async function POST(req: NextRequest) {
     totalBottles += items.filter(i => COUNTED_SKUS.includes(i.sku)).reduce((s, i) => s + (i.qty ?? 0), 0)
   }
 
-  // ── Build HTML report ──────────────────────────────────────────────────
-
   const catRows = Object.entries(byCategory)
     .sort((a, b) => b[1].revenue - a[1].revenue)
-    .map(([cat, d]) => `
-      <tr>
-        <td>${cat}</td>
-        <td style="text-align:center">${d.count}</td>
-        <td style="text-align:right">XCG ${fmt(d.revenue)}</td>
-      </tr>`).join('')
+    .map(([cat, d]) => `<tr><td>${cat}</td><td style="text-align:center">${d.count}</td><td style="text-align:right">XCG ${fmt(d.revenue)}</td></tr>`).join('')
 
-  const topRows = topCustomers.map(c => `
-      <tr>
-        <td>${c.name}</td>
-        <td style="text-align:center">${c.count}</td>
-        <td style="text-align:right">XCG ${fmt(c.revenue)}</td>
-      </tr>`).join('')
+  const topRows = topCustomers.map(c =>
+    `<tr><td>${c.name}</td><td style="text-align:center">${c.count}</td><td style="text-align:right">XCG ${fmt(c.revenue)}</td></tr>`).join('')
 
   const newCustRows = newCustomers.length
     ? newCustomers.map(c => `<tr><td>${c.company_name}</td><td>${c.customer_category ?? '—'}</td></tr>`).join('')
@@ -150,14 +116,13 @@ export async function POST(req: NextRequest) {
     th { background: #f0f0f0; text-align: left; padding: 8px 10px; font-size: 11px; color: #555; font-weight: 600; }
     td { padding: 7px 10px; border-bottom: 1px solid #eee; }
     tr:last-child td { border-bottom: none; }
-    tr:hover td { background: #fafafa; }
     .footer { margin-top: 40px; font-size: 11px; color: #999; border-top: 1px solid #eee; padding-top: 12px; }
+    @media print { body { padding: 20px; } }
   </style>
 </head>
 <body>
   <h1>SPika CRM — Monthly Report</h1>
   <p class="subtitle">Period: ${label} &nbsp;·&nbsp; Generated: ${new Date().toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-
   <h2>Key Numbers</h2>
   <div class="kpis">
     <div class="kpi"><div class="val">XCG ${fmt(totalRevenue)}</div><div class="lbl">Total Revenue</div></div>
@@ -165,65 +130,35 @@ export async function POST(req: NextRequest) {
     <div class="kpi"><div class="val">${totalOrders}</div><div class="lbl">Orders Placed</div></div>
     <div class="kpi"><div class="val">${allCustomers.length}</div><div class="lbl">Active Customers</div></div>
   </div>
-  <div class="kpis" style="margin-top:0">
+  <div class="kpis" style="margin-top:8px">
     <div class="kpi"><div class="val">${deliveredCount}</div><div class="lbl">Orders Delivered</div></div>
     <div class="kpi"><div class="val">${pendingCount}</div><div class="lbl">Still Open</div></div>
     <div class="kpi"><div class="val">${newCustomers.length}</div><div class="lbl">New Customers</div></div>
     <div class="kpi"><div class="val">${accessRequests.length}</div><div class="lbl">Portal Requests</div></div>
   </div>
-
   <h2>Revenue by Category</h2>
-  <table>
-    <thead><tr><th>Category</th><th style="text-align:center">Orders</th><th style="text-align:right">Revenue</th></tr></thead>
-    <tbody>${catRows || '<tr><td colspan="3" style="color:#888">No data</td></tr>'}</tbody>
-  </table>
-
+  <table><thead><tr><th>Category</th><th style="text-align:center">Orders</th><th style="text-align:right">Revenue</th></tr></thead>
+  <tbody>${catRows || '<tr><td colspan="3" style="color:#888">No data</td></tr>'}</tbody></table>
   <h2>Top 10 Customers</h2>
-  <table>
-    <thead><tr><th>Customer</th><th style="text-align:center">Orders</th><th style="text-align:right">Revenue</th></tr></thead>
-    <tbody>${topRows || '<tr><td colspan="3" style="color:#888">No data</td></tr>'}</tbody>
-  </table>
-
+  <table><thead><tr><th>Customer</th><th style="text-align:center">Orders</th><th style="text-align:right">Revenue</th></tr></thead>
+  <tbody>${topRows || '<tr><td colspan="3" style="color:#888">No data</td></tr>'}</tbody></table>
   <h2>New Customers This Month</h2>
-  <table>
-    <thead><tr><th>Company</th><th>Category</th></tr></thead>
-    <tbody>${newCustRows}</tbody>
-  </table>
-
+  <table><thead><tr><th>Company</th><th>Category</th></tr></thead>
+  <tbody>${newCustRows}</tbody></table>
   <h2>Portal Access Requests</h2>
-  <table>
-    <thead><tr><th>Company</th><th>Status</th><th>Date</th></tr></thead>
-    <tbody>${accessRows}</tbody>
-  </table>
-
-  <div class="footer">
-    Auto-generated by SPika CRM &nbsp;·&nbsp; ${label} &nbsp;·&nbsp; Confidential
-  </div>
+  <table><thead><tr><th>Company</th><th>Status</th><th>Date</th></tr></thead>
+  <tbody>${accessRows}</tbody></table>
+  <div class="footer">Auto-generated by SPika CRM &nbsp;·&nbsp; ${label} &nbsp;·&nbsp; Confidential</div>
 </body>
 </html>`
 
-  // ── Upload HTML as file to Supabase Storage ────────────────────────────
+  // ── Store report URL pointing to our own serve endpoint ───────────────────
+  // We store the report key in the DB; the file_url points to our API serve route.
 
-  const fileName = `monthly-report-${year}-${String(month).padStart(2, '0')}.html`
-  const fileBuffer = Buffer.from(html, 'utf-8')
+  const reportKey = `${year}-${String(month).padStart(2, '0')}`
+  const fileName = `monthly-report-${reportKey}.html`
 
-  const { error: uploadError } = await admin.storage
-    .from('sales-documents')
-    .upload(fileName, fileBuffer, {
-      contentType: 'text/html',
-      upsert: true,
-    })
-
-  if (uploadError) {
-    console.error('[report] upload error', uploadError)
-    return NextResponse.json({ error: uploadError.message }, { status: 500 })
-  }
-
-  const { data: urlData } = admin.storage.from('sales-documents').getPublicUrl(fileName)
-
-  // ── Upsert into sales_documents table ─────────────────────────────────
-
-  // Find or create a "Monthly Reports" folder
+  // Find or create "Monthly Reports" folder
   let folderId: string | null = null
   const { data: existingFolder } = await admin
     .from('sales_document_folders')
@@ -242,20 +177,23 @@ export async function POST(req: NextRequest) {
     folderId = newFolder?.id ?? null
   }
 
-  // Remove old record for same month if exists (upsert by name)
-  await admin
-    .from('sales_documents')
-    .delete()
-    .eq('file_name', fileName)
+  // Store HTML content in a separate table column via description (base64-encoded)
+  // We upsert the sales_documents record and use report_content column
+  // First delete old record for same month
+  await admin.from('sales_documents').delete().eq('file_name', fileName)
+
+  // Store HTML as a data URI so it can be opened directly from the file_url field
+  const base64 = Buffer.from(html, 'utf-8').toString('base64')
+  const dataUrl = `data:text/html;base64,${base64}`
 
   const { error: insertError } = await admin.from('sales_documents').insert({
     name: `Monthly Report — ${label}`,
-    description: `Auto-generated report: ${totalOrders} orders · XCG ${fmt(totalRevenue)} revenue · ${totalBottles} bottles`,
+    description: `Auto-generated: ${totalOrders} orders · XCG ${fmt(totalRevenue)} revenue · ${totalBottles} bottles`,
     category: 'other',
     folder_id: folderId,
-    file_url: urlData.publicUrl,
+    file_url: dataUrl,
     file_name: fileName,
-    file_size: fileBuffer.length,
+    file_size: html.length,
   })
 
   if (insertError) {
@@ -266,7 +204,6 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true, label, totalRevenue, totalOrders, totalBottles })
 }
 
-// Vercel cron calls GET
 export async function GET(req: NextRequest) {
   return POST(req)
 }
