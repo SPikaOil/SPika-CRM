@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Settings, Users, FileText, Download, Building2, Loader2, Tag, ChevronDown, ChevronUp } from 'lucide-react'
+import { Settings, Users, FileText, Download, Building2, Loader2, Tag, ChevronDown, ChevronUp, BarChart2 } from 'lucide-react'
 import { PriceInput } from '@/components/ui/price-input'
 import { SPIKA_PRODUCTS } from '@/lib/products'
 import { useAuth } from '@/contexts/auth-context'
@@ -30,6 +30,26 @@ export default function SettingsPage() {
       router.replace('/dashboard')
     }
   }, [isAdmin, authLoading, router])
+
+  const [reportGenerating, setReportGenerating] = useState(false)
+
+  async function generateMonthlyReport(year?: number, month?: number) {
+    setReportGenerating(true)
+    try {
+      const res = await fetch('/api/report/monthly', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(year && month ? { year, month } : {}),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      toast.success(`Report generated — ${data.label} · XCG ${Number(data.totalRevenue).toFixed(2)} revenue · ${data.totalOrders} orders`)
+    } catch (err: any) {
+      toast.error(err.message)
+    } finally {
+      setReportGenerating(false)
+    }
+  }
 
   async function exportQuickBooksCSV() {
     if (!invoiceReadyOrders?.length) {
@@ -101,6 +121,35 @@ export default function SettingsPage() {
             <Download className="h-4 w-4" />
             Export CSV
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* Monthly Report */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <BarChart2 className="h-5 w-5" />
+            Monthly Report
+          </CardTitle>
+          <CardDescription>
+            Generate a sales report and save it automatically to Sales Documents → Monthly Reports.
+            Runs automatically on the last day of each month.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Includes: revenue, bottles sold, top customers, new customers, and portal requests.
+          </p>
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              className="gap-2 bg-red-600 hover:bg-red-700"
+              onClick={() => generateMonthlyReport()}
+              disabled={reportGenerating}
+            >
+              {reportGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <BarChart2 className="h-4 w-4" />}
+              Generate Last Month's Report
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
