@@ -50,6 +50,15 @@ function NewOrderPageInner() {
         setQuantities(qtys)
       })
     }
+
+    // Pre-fill from catalogue cart if ?cart=<json>
+    const cartParam = searchParams.get('cart')
+    if (cartParam) {
+      try {
+        const qtys = JSON.parse(decodeURIComponent(cartParam))
+        setQuantities(qtys)
+      } catch { /* ignore malformed */ }
+    }
   }, [profile?.customer_id])
 
   function getPrice(sku: string) {

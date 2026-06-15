@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Flame, ShoppingBag, ClipboardList, LogOut, Loader2, Mail, KeyRound, LayoutDashboard, FileText } from 'lucide-react'
+import { Flame, ShoppingBag, ClipboardList, LogOut, Loader2, Mail, KeyRound, LayoutDashboard, FileText, BookOpen, HeadphonesIcon } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
@@ -71,10 +71,11 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   if (!isCustomer) return null
 
   const navItems = [
-    { href: '/portal/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/portal/dashboard', label: 'Home', icon: LayoutDashboard },
     { href: '/portal/orders', label: 'Orders', icon: ClipboardList },
+    { href: '/portal/catalogue', label: 'Catalogue', icon: BookOpen },
     { href: '/portal/invoices', label: 'Invoices', icon: FileText },
-    { href: '/portal/new-order', label: 'New Order', icon: ShoppingBag },
+    { href: '/portal/support', label: 'Support', icon: HeadphonesIcon },
   ]
 
   return (
