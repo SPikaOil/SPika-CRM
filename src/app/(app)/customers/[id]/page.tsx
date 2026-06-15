@@ -4,7 +4,7 @@ import { use, useMemo, useState } from 'react'
 import { formatTaxId } from '@/lib/tax-id'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Edit, Building2, Package, CheckCircle2, Clock, Truck, FileSignature, AlertTriangle, Download, Upload, Info, RefreshCw, CalendarClock } from 'lucide-react'
+import { ArrowLeft, Edit, Building2, Package, CheckCircle2, Clock, Truck, FileSignature, AlertTriangle, Download, Upload, Info, RefreshCw, CalendarClock, Trash2 } from 'lucide-react'
 import { useRef } from 'react'
 import { useCustomer, useUpdateCustomer } from '@/hooks/use-customers'
 import { createClient } from '@/lib/supabase/client'
@@ -18,6 +18,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { CustomerForm } from '../_components/customer-form'
 import { Customer, SPIKA_STAND_TYPES } from '@/types'
 
@@ -97,9 +100,37 @@ export default function CustomerDetailPage({
     }
   }
 
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deletePassword, setDeletePassword] = useState('')
+  const [deleting, setDeleting] = useState(false)
+
   async function onUpdate(values: Partial<Customer>) {
     await updateCustomer.mutateAsync({ id, values })
     setEditing(false)
+  }
+
+  async function handleDelete() {
+    if (!deletePassword) return
+    setDeleting(true)
+    try {
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: profile?.email ?? '',
+        password: deletePassword,
+      })
+      if (authError) {
+        toast.error('Incorrect password')
+        setDeleting(false)
+        return
+      }
+      const { error } = await supabase.from('customers').delete().eq('id', id)
+      if (error) throw error
+      toast.success(`${customer?.company_name} deleted`)
+      router.replace('/customers')
+    } catch (err: any) {
+      toast.error(err.message ?? 'Failed to delete customer')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   // All useMemo hooks must be before any early returns (Rules of Hooks)
@@ -198,15 +229,25 @@ export default function CustomerDetailPage({
           <p className="text-muted-foreground text-sm mt-0.5">{customer.contact_person}</p>
         </div>
         {isAdmin && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            onClick={() => setEditing(true)}
-          >
-            <Edit className="h-4 w-4" />
-            Edit
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setEditing(true)}
+            >
+              <Edit className="h-4 w-4" />
+              Edit
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-red-200 text-red-500 hover:bg-red-50"
+              onClick={() => { setDeletePassword(''); setShowDeleteModal(true) }}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
         )}
       </div>
 
@@ -587,6 +628,60 @@ export default function CustomerDetailPage({
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Delete confirmation modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2 text-red-600">
+                <Trash2 className="h-5 w-5" />
+                Delete {customer.company_name}?
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                This will permanently delete the customer profile. This action <span className="font-semibold text-red-600">cannot be undone</span>.
+              </p>
+              {orders && orders.length > 0 && (
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                  <p className="text-sm text-amber-700">
+                    This customer has <span className="font-semibold">{orders.length} order{orders.length > 1 ? 's' : ''}</span>. Deleting will also remove all associated data.
+                  </p>
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <Label>Confirm your password <span className="text-red-500">*</span></Label>
+                <Input
+                  type="password"
+                  placeholder="Your account password"
+                  value={deletePassword}
+                  onChange={e => setDeletePassword(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && deletePassword && handleDelete()}
+                />
+              </div>
+              <Separator />
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => { setShowDeleteModal(false); setDeletePassword('') }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-red-600 hover:bg-red-700"
+                  disabled={!deletePassword || deleting}
+                  onClick={handleDelete}
+                >
+                  {deleting ? 'Deleting...' : 'Delete Customer'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }
