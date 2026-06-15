@@ -39,7 +39,7 @@ const statusLabels: Record<OrderStatus, string> = {
   processing: 'Processing',
   out_for_delivery: 'Out for Delivery',
   delivered: 'Delivered',
-  invoice_ready: 'Invoice Ready',
+  invoice_ready: 'Send Invoice',
   invoice_blocked: 'Invoice Blocked',
   paid: 'Paid',
   deleted: 'Deleted',
@@ -657,7 +657,7 @@ export default function OrderDetailPage({
         )
       })()}
 
-      {/* Mark Invoice Ready — admin action for delivered orders */}
+      {/* Send Invoice — admin action for delivered orders */}
       {isAdmin && order.status === 'delivered' && (
         <Button
           className="w-full h-12 bg-green-600 hover:bg-green-700 gap-2"
@@ -687,7 +687,7 @@ export default function OrderDetailPage({
           })}
         >
           <CheckCircle className="h-5 w-5" />
-          Mark Invoice Ready
+          Send Invoice
         </Button>
       )}
 

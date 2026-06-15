@@ -42,7 +42,7 @@ const statusLabels: Record<OrderStatus, string> = {
   processing: 'Processing',
   out_for_delivery: 'Out for Delivery',
   delivered: 'Delivered',
-  invoice_ready: 'Invoice Ready',
+  invoice_ready: 'Send Invoice',
   invoice_blocked: 'Invoice Blocked',
   paid: 'Paid',
   deleted: 'Deleted',

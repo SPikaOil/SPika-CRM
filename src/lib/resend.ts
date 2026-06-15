@@ -148,7 +148,7 @@ export function emailInvoiceReady(p: { orderNumber: string; customerName: string
   return layout(`
     <h2 style="margin:0 0 4px;font-size:20px;color:#111;">Your invoice is ready</h2>
     <p style="margin:0 0 20px;color:#6b7280;font-size:14px;">Hi ${p.customerName}, your invoice for order #${p.orderNumber} is ready.</p>
-    ${badge('Invoice Ready', '#22c55e')}
+    ${badge('Send Invoice', '#22c55e')}
     <table style="margin-top:16px;width:100%;border-collapse:collapse;">
       ${row('Order #', p.orderNumber)}
       ${row('Amount', p.total)}

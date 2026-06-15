@@ -41,7 +41,7 @@ const statusLabels: Record<OrderStatus, string> = {
   processing: 'Processing',
   out_for_delivery: 'Out for Delivery',
   delivered: 'Delivered',
-  invoice_ready: 'Invoice Ready',
+  invoice_ready: 'Send Invoice',
   invoice_blocked: 'Invoice Blocked',
   paid: 'Paid',
   deleted: 'Deleted',
@@ -144,7 +144,7 @@ function OrdersPageInner() {
     e.preventDefault()
     e.stopPropagation()
     await updateOrder.mutateAsync({ id: order.id, values: { status: 'invoice_ready', invoice_date: null } as any })
-    toast.success(`${order.order_number} reverted to Invoice Ready`)
+    toast.success(`${order.order_number} reverted to Send Invoice status`)
   }
 
   async function handleDelete() {
