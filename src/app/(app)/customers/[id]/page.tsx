@@ -55,7 +55,8 @@ export default function CustomerDetailPage({
     if (!file || !customer) return
     setIsUploading(true)
     try {
-      const path = `ob-forms/${customer.id}/${Date.now()}_${file.name}`
+      const safeCust = (customer.company_name ?? customer.id).replace(/[/\\:*?"<>|]/g, '').trim()
+      const path = `ob-forms/${safeCust} - OB Form.pdf`
       const { error } = await supabase.storage.from('pod-files').upload(path, file, { upsert: true })
       if (error) throw error
       await updateCustomer.mutateAsync({ id, values: {

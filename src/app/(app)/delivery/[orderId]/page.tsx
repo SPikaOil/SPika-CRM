@@ -291,7 +291,10 @@ export default function DeliveryPage({
                 documentType: 'INVOICE',
               })
             ).toBlob()
-            signedPdfUrl = await uploadToSupabase(pdfBlob, `signed-notes/${orderId}-${Date.now()}.pdf`)
+            const safeOrder = (order.order_number ?? orderId.slice(0, 8)).replace(/[/\\:*?"<>|]/g, '').trim()
+            const safeCust = (order.customer?.company_name ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
+            const signedPdfName = `signed-notes/${safeCust ? `${safeOrder} - ${safeCust}` : safeOrder}.pdf`
+            signedPdfUrl = await uploadToSupabase(pdfBlob, signedPdfName)
           } catch (pdfErr) {
             console.error('PDF generation failed:', pdfErr)
             // Non-fatal — delivery still completes

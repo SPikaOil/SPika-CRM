@@ -99,7 +99,8 @@ export default function OBSignPage({
       })
       const blob = await (pdf as any)(element).toBlob()
 
-      const path = `ob-forms/${id}/${Date.now()}-ob-form.pdf`
+      const safeCust = (company.trim() || id).replace(/[/\\:*?"<>|]/g, '').trim()
+      const path = `ob-forms/${safeCust} - OB Form.pdf`
       const { error: uploadError } = await supabase.storage
         .from('pod-files')
         .upload(path, blob, { upsert: true, contentType: 'application/pdf' })

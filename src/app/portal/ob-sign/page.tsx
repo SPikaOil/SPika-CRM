@@ -105,7 +105,8 @@ export default function PortalOBSignPage() {
       })
       const blob = await (pdf as any)(element).toBlob()
 
-      const path = `ob-forms/${profile.customer_id}/${Date.now()}-ob-form.pdf`
+      const safeCust = (company.trim() || profile.customer_id).replace(/[/\\:*?"<>|]/g, '').trim()
+      const path = `ob-forms/${safeCust} - OB Form.pdf`
       const { error: uploadError } = await supabase.storage
         .from('pod-files')
         .upload(path, blob, { upsert: true, contentType: 'application/pdf' })

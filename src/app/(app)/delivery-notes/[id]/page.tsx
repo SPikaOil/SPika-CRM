@@ -200,7 +200,9 @@ export default function DeliveryNoteDetailPage({
     if (!file || !order) return
     setIsUploading(true)
     try {
-      const path = `signed-notes/${order.id}/${Date.now()}_${file.name}`
+      const safeOrder = (order.order_number ?? order.id.slice(0, 8)).replace(/[/\\:*?"<>|]/g, '').trim()
+      const safeCust = (order.customer?.company_name ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
+      const path = `signed-notes/${safeCust ? `${safeOrder} - ${safeCust}` : safeOrder}.pdf`
       const { error: uploadError } = await supabase.storage
         .from('pod-files')
         .upload(path, file, { upsert: true })
