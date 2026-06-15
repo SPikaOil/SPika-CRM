@@ -169,7 +169,14 @@ export function CommercialInvoicePDF({ exportRecord, company = DEFAULT_COMPANY }
 
         {activeItems.map((item, i) => (
           <View key={i} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]}>
-            <Text style={[styles.tdText, styles.colDesc]}>{item.name}</Text>
+            <View style={styles.colDesc}>
+              <Text style={styles.tdText}>{item.name}</Text>
+              {(item as any).tht_date && (
+                <Text style={{ fontSize: 7, color: GRAY, marginTop: 1 }}>
+                  THT: {new Date((item as any).tht_date + 'T12:00:00').toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </Text>
+              )}
+            </View>
             <Text style={[styles.tdText, styles.colHs]}>—</Text>
             <Text style={[styles.tdText, styles.colQty]}>{item.qty}</Text>
             <Text style={[styles.tdText, styles.colUnit]}>{currency} {item.unit_price.toFixed(2)}</Text>
