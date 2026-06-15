@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { ArrowLeft, Clock, Truck, CheckCircle2, XCircle, Package, Loader2, AlertTriangle, MapPin, CreditCard, Calendar, FileText, Phone, Mail, RotateCcw } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/auth-context'
