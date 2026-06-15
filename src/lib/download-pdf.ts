@@ -5,9 +5,18 @@ function sanitize(str: string) {
 }
 
 export function triggerDownload(blob: Blob, filename: string) {
-  // Wrap in a File with explicit MIME type — fixes iOS opening blob as HTML
   const file = new File([blob], filename, { type: 'application/pdf' })
   const url = URL.createObjectURL(file)
+
+  // iOS Safari ignores the `download` attribute for blob URLs and opens inline.
+  // Open in a new tab instead — user gets the native share sheet to save/AirDrop.
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+  if (isIOS) {
+    window.open(url, '_blank')
+    setTimeout(() => URL.revokeObjectURL(url), 30000)
+    return
+  }
+
   const a = document.createElement('a')
   a.href = url
   a.download = filename
