@@ -79,62 +79,93 @@ export default function OrderDetailPage({
   const [editingItems, setEditingItems] = useState(false)
   const [draftItems, setDraftItems] = useState<QuoteItem[]>([])
   const [editReason, setEditReason] = useState('')
-  const [isDownloading, setIsDownloading] = useState(false)
+  const [isDownloading, setIsDownloading] = useState<'invoice' | 'note' | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null)
-  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false)
+  const [isGeneratingPreview, setIsGeneratingPreview] = useState<'invoice' | 'note' | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  async function handleViewPDF() {
+  async function buildDeliveryPdfBlob(docType: 'INVOICE' | 'DELIVERY NOTE'): Promise<Blob> {
+    const delivery = (order as any).delivery
+    const React = await import('react')
+    const { pdf } = await import('@react-pdf/renderer')
+    const { DeliveryNotePDF } = await import('@/components/pdf/delivery-note-pdf')
+    const { data: companyData } = await supabase.from('company_settings').select('*').eq('id', '00000000-0000-0000-0000-000000000001').single()
+    const signatureDataUrl: string | undefined = (order as any).signature_data_url ?? undefined
+    const tableBottlesReturned = delivery?.table_bottles_returned ?? 0
+    const tableBottlesNotes = delivery?.table_bottles_notes ?? ''
+    const signerName: string | undefined = delivery?.signer_name ?? undefined
+    let deliveryPhotoDataUrl: string | undefined
+    if (delivery?.pod_file_url) {
+      try {
+        const res = await fetch(`/api/image-proxy?url=${encodeURIComponent(delivery.pod_file_url)}`)
+        const json = await res.json()
+        deliveryPhotoDataUrl = json.dataUrl
+      } catch { /* non-fatal */ }
+    }
+    return (pdf as any)(
+      React.createElement(DeliveryNotePDF as any, {
+        order,
+        signatureDataUrl,
+        tableBottlesReturned,
+        tableBottlesNotes,
+        signerName,
+        deliveryPhotoDataUrl,
+        showPrices: docType === 'INVOICE' ? isAdmin : false,
+        company: companyData ?? undefined,
+        documentType: docType,
+      })
+    ).toBlob()
+  }
+
+  async function handleViewPDF(type: 'invoice' | 'note') {
     if (!order) return
-    setIsGeneratingPreview(true)
+    setIsGeneratingPreview(type)
     try {
-      const delivery = (order as any).delivery
-      const React = await import('react')
-      const { pdf } = await import('@react-pdf/renderer')
-      const { DeliveryNotePDF } = await import('@/components/pdf/delivery-note-pdf')
-
-      // Fetch company settings
-      const { data: companyData } = await supabase.from('company_settings').select('*').eq('id', '00000000-0000-0000-0000-000000000001').single()
-      const company = companyData ?? undefined
-
-      // Auto-embed signature stored directly on the order
-      const signatureDataUrl: string | undefined = (order as any).signature_data_url ?? undefined
-
-      const tableBottlesReturned = delivery?.table_bottles_returned ?? 0
-      const tableBottlesNotes = delivery?.table_bottles_notes ?? ''
-      const signerName: string | undefined = delivery?.signer_name ?? undefined
-
-      // Fetch delivery photo via proxy to embed in PDF
-      let deliveryPhotoDataUrl: string | undefined
-      if (delivery?.pod_file_url) {
-        try {
-          const res = await fetch(`/api/image-proxy?url=${encodeURIComponent(delivery.pod_file_url)}`)
-          const json = await res.json()
-          deliveryPhotoDataUrl = json.dataUrl
-        } catch { /* non-fatal */ }
-      }
-
-      const blob = await (pdf as any)(
-        React.createElement(DeliveryNotePDF as any, {
-          order,
-          signatureDataUrl,
-          tableBottlesReturned,
-          tableBottlesNotes,
-          signerName,
-          deliveryPhotoDataUrl,
-          showPrices: isAdmin,
-          company,
-          documentType: 'INVOICE',
-        })
-      ).toBlob()
+      const docType = type === 'invoice' ? 'INVOICE' : 'DELIVERY NOTE'
+      const blob = await buildDeliveryPdfBlob(docType)
       const url = URL.createObjectURL(blob)
       setPdfBlobUrl(url)
     } catch (err) {
       toast.error('Failed to generate preview')
       console.error(err)
     } finally {
-      setIsGeneratingPreview(false)
+      setIsGeneratingPreview(null)
+    }
+  }
+
+  async function handleViewSignedPDF() {
+    if (!order) return
+    const signedUrl = (order as any).signed_pdf_url
+    if (!signedUrl) return
+    try {
+      const match = signedUrl.match(/\/object\/(?:public\/)?pod-files\/(.+)$/)
+      const storagePath = match ? match[1] : signedUrl
+      const { data: signedData, error } = await supabase.storage.from('pod-files').createSignedUrl(storagePath, 120)
+      if (error || !signedData) throw error ?? new Error('Could not create signed URL')
+      window.open(signedData.signedUrl, '_blank')
+    } catch (err: any) {
+      toast.error(err.message ?? 'Could not open signed PDF')
+    }
+  }
+
+  async function handleDownloadPDF(type: 'invoice' | 'note') {
+    if (!order) return
+    setIsDownloading(type)
+    try {
+      const docType = type === 'invoice' ? 'INVOICE' : 'DELIVERY NOTE'
+      const label = type === 'invoice' ? 'Invoice' : 'Delivery Note'
+      const blob = await buildDeliveryPdfBlob(docType)
+      const { triggerDownload } = await import('@/lib/download-pdf')
+      const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[/\\:*?"<>|]/g, '').trim()
+      const customerName = (order.customer?.company_name ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
+      const filename = customerName ? `${orderNum} - ${customerName} - ${label}.pdf` : `${orderNum} - ${label}.pdf`
+      triggerDownload(blob, filename)
+    } catch (err) {
+      toast.error('Failed to download PDF')
+      console.error(err)
+    } finally {
+      setIsDownloading(null)
     }
   }
 
@@ -143,48 +174,7 @@ export default function OrderDetailPage({
     setPdfBlobUrl(null)
   }
 
-  async function handleDownloadPDF() {
-    if (!order) return
-    setIsDownloading(true)
-    try {
-      // If a signed PDF was saved at delivery, download that directly
-      const signedUrl = (order as any).signed_pdf_url
-      if (signedUrl) {
-        // Extract the storage path from the public URL
-        // URL format: .../storage/v1/object/public/pod-files/<path>
-        const match = signedUrl.match(/\/object\/(?:public\/)?pod-files\/(.+)$/)
-        if (!match) throw new Error('Could not parse storage path')
-        const storagePath = match[1]
-
-        // Use a temporary signed URL via the Supabase client (works regardless of bucket public setting)
-        const { data: signedData, error: signedError } = await supabase
-          .storage
-          .from('pod-files')
-          .createSignedUrl(storagePath, 60)
-        if (signedError || !signedData) throw signedError ?? new Error('Could not create signed URL')
-
-        const res = await fetch(signedData.signedUrl)
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        const blob = await res.blob()
-        const { triggerDownload } = await import('@/lib/download-pdf')
-        const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[#/\\:*?"<>|]/g, '').trim()
-        const customerName = (order.customer?.company_name ?? '').replace(/[#/\\:*?"<>|]/g, '').trim()
-        const filename = customerName ? `${orderNum} - ${customerName}.pdf` : `${orderNum}.pdf`
-        triggerDownload(blob, filename)
-        return
-      }
-      // Otherwise regenerate unsigned PDF
-      const { downloadDeliveryNotePDF } = await import('@/lib/download-pdf')
-      await downloadDeliveryNotePDF(order, isAdmin, 'INVOICE')
-    } catch (err) {
-      toast.error('Failed to download PDF')
-      console.error(err)
-    } finally {
-      setIsDownloading(false)
-    }
-  }
-
-  async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
+async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file || !order) return
     setIsUploading(true)
@@ -559,26 +549,86 @@ export default function OrderDetailPage({
       {/* PDF Actions */}
       <Card>
         <CardContent className="pt-4 pb-4 space-y-3">
-          <p className="text-sm font-medium">Delivery Note PDF</p>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              onClick={handleDownloadPDF}
-              disabled={isDownloading}
-              className="flex-1 sm:flex-none"
-            >
-              {isDownloading
-                ? <Clock className="h-4 w-4 mr-2 animate-spin" />
-                : <Download className="h-4 w-4 mr-2" />
-              }
-              {isDownloading ? 'Generating…' : 'Download PDF'}
-            </Button>
+          <p className="text-sm font-medium">Documents</p>
 
+          {/* Invoice */}
+          <div className="space-y-1.5">
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Invoice</p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={() => handleDownloadPDF('invoice')}
+                disabled={isDownloading !== null}
+                className="flex-1 sm:flex-none"
+              >
+                {isDownloading === 'invoice'
+                  ? <Clock className="h-4 w-4 mr-2 animate-spin" />
+                  : <Download className="h-4 w-4 mr-2" />
+                }
+                {isDownloading === 'invoice' ? 'Generating…' : 'Download Invoice'}
+              </Button>
+              <button
+                onClick={() => handleViewPDF('invoice')}
+                disabled={isGeneratingPreview !== null}
+                className="inline-flex items-center gap-2 text-sm text-green-600 hover:underline disabled:opacity-50 px-1"
+              >
+                {isGeneratingPreview === 'invoice'
+                  ? <><Clock className="h-4 w-4 animate-spin" /> Generating…</>
+                  : <><FileCheck className="h-4 w-4" /> View Invoice</>
+                }
+              </button>
+            </div>
+          </div>
+
+          {/* Delivery Note */}
+          <div className="space-y-1.5">
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Delivery Note</p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={() => handleDownloadPDF('note')}
+                disabled={isDownloading !== null}
+                className="flex-1 sm:flex-none"
+              >
+                {isDownloading === 'note'
+                  ? <Clock className="h-4 w-4 mr-2 animate-spin" />
+                  : <Download className="h-4 w-4 mr-2" />
+                }
+                {isDownloading === 'note' ? 'Generating…' : 'Download Delivery Note'}
+              </Button>
+              <button
+                onClick={() => handleViewPDF('note')}
+                disabled={isGeneratingPreview !== null}
+                className="inline-flex items-center gap-2 text-sm text-green-600 hover:underline disabled:opacity-50 px-1"
+              >
+                {isGeneratingPreview === 'note'
+                  ? <><Clock className="h-4 w-4 animate-spin" /> Generating…</>
+                  : <><FileCheck className="h-4 w-4" /> View Delivery Note</>
+                }
+              </button>
+            </div>
+          </div>
+
+          {/* Signed PDF */}
+          {(order as any).signed_pdf_url && (
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Signed PDF</p>
+              <button
+                onClick={handleViewSignedPDF}
+                className="inline-flex items-center gap-2 text-sm text-blue-600 hover:underline px-1"
+              >
+                <FileCheck className="h-4 w-4" /> View Signed PDF
+              </button>
+            </div>
+          )}
+
+          {/* Upload signed */}
+          <div className="pt-1">
             <Button
               variant="outline"
+              size="sm"
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
-              className="flex-1 sm:flex-none"
             >
               {isUploading
                 ? <Clock className="h-4 w-4 mr-2 animate-spin" />
@@ -594,17 +644,6 @@ export default function OrderDetailPage({
               onChange={handleUploadSigned}
             />
           </div>
-
-          <button
-            onClick={handleViewPDF}
-            disabled={isGeneratingPreview}
-            className="inline-flex items-center gap-2 text-sm text-green-600 hover:underline disabled:opacity-50"
-          >
-            {isGeneratingPreview
-              ? <><Clock className="h-4 w-4 animate-spin" /> Generating…</>
-              : <><FileCheck className="h-4 w-4" /> View Delivery Note</>
-            }
-          </button>
         </CardContent>
       </Card>
 
