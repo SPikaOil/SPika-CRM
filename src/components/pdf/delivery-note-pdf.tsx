@@ -265,7 +265,14 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
           const isFree = item.unit_price === 0 && item.qty > 0
           return (
             <View key={i} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]}>
-              <Text style={[styles.tdText, styles.colProduct]}>{item.name}</Text>
+              <View style={styles.colProduct}>
+                <Text style={styles.tdText}>{item.name}</Text>
+                {item.tht_date && (
+                  <Text style={{ fontSize: 7, color: GRAY, marginTop: 1 }}>
+                    THT: {new Date(item.tht_date + 'T12:00:00').toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </Text>
+                )}
+              </View>
               <Text style={[styles.tdText, styles.colQty]}>{item.qty}</Text>
               {showPrices && (
                 <Text style={[styles.tdText, styles.colRate, isFree ? { color: '#16a34a' } : {}]}>
