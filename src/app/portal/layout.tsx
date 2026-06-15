@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Flame, ShoppingBag, ClipboardList, LogOut, Loader2, Mail, KeyRound, LayoutDashboard, FileText, BookOpen, HeadphonesIcon } from 'lucide-react'
+import { Flame, ShoppingBag, ClipboardList, LogOut, Loader2, Mail, KeyRound, LayoutDashboard, FileText, BookOpen, HeadphonesIcon, UserCircle } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
@@ -76,6 +76,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     { href: '/portal/catalogue', label: 'Catalogue', icon: BookOpen },
     { href: '/portal/invoices', label: 'Invoices', icon: FileText },
     { href: '/portal/support', label: 'Support', icon: HeadphonesIcon },
+    { href: '/portal/account', label: 'Account', icon: UserCircle },
   ]
 
   return (
