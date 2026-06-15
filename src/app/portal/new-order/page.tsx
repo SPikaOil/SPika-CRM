@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Loader2, ShoppingBag, CheckCircle2, FileSignature, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -18,8 +18,13 @@ import { toast } from 'sonner'
 import { Customer } from '@/types'
 
 export default function NewOrderPage() {
+  return <Suspense><NewOrderPageInner /></Suspense>
+}
+
+function NewOrderPageInner() {
   const { profile } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
 
   const [customer, setCustomer] = useState<Customer | null>(null)
@@ -32,6 +37,19 @@ export default function NewOrderPage() {
     if (!profile?.customer_id) return
     supabase.from('customers').select('*').eq('id', profile.customer_id).single()
       .then(({ data }) => setCustomer(data as Customer))
+
+    // Pre-fill from a previous order if ?reorder=<id>
+    const reorderId = searchParams.get('reorder')
+    if (reorderId) {
+      supabase.from('orders').select('items').eq('id', reorderId).single().then(({ data }) => {
+        if (!data?.items) return
+        const qtys: Record<string, number> = {}
+        for (const item of data.items as any[]) {
+          if (item.sku && item.qty > 0) qtys[item.sku] = item.qty
+        }
+        setQuantities(qtys)
+      })
+    }
   }, [profile?.customer_id])
 
   function getPrice(sku: string) {

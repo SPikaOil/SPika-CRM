@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Flame, ShoppingBag, ClipboardList, LogOut, Loader2, Mail, KeyRound } from 'lucide-react'
+import { Flame, ShoppingBag, ClipboardList, LogOut, Loader2, Mail, KeyRound, LayoutDashboard, FileText } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
@@ -71,7 +71,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   if (!isCustomer) return null
 
   const navItems = [
-    { href: '/portal', label: 'My Orders', icon: ClipboardList },
+    { href: '/portal/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/portal/orders', label: 'Orders', icon: ClipboardList },
+    { href: '/portal/invoices', label: 'Invoices', icon: FileText },
     { href: '/portal/new-order', label: 'New Order', icon: ShoppingBag },
   ]
 
@@ -107,7 +109,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         <div className="max-w-2xl mx-auto flex">
           {navItems.map((item) => {
             const Icon = item.icon
-            const active = pathname === item.href
+            const active = pathname === item.href || (item.href !== '/portal/dashboard' && pathname.startsWith(item.href))
             return (
               <Link
                 key={item.href}

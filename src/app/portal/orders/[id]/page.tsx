@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Clock, Truck, CheckCircle2, XCircle, Package, Loader2, AlertTriangle, MapPin, CreditCard, Calendar, FileText, Phone, Mail } from 'lucide-react'
+import { ArrowLeft, Clock, Truck, CheckCircle2, XCircle, Package, Loader2, AlertTriangle, MapPin, CreditCard, Calendar, FileText, Phone, Mail, RotateCcw } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
@@ -262,6 +262,19 @@ export default function PortalOrderDetailPage({ params }: { params: Promise<{ id
           </div>
         </CardContent>
       </Card>
+
+      {/* Reorder */}
+      {isDelivered && (
+        <Link
+          href={`/portal/new-order?reorder=${order.id}`}
+          className="block"
+        >
+          <Button variant="outline" className="w-full gap-2">
+            <RotateCcw className="h-4 w-4" />
+            Reorder — same products
+          </Button>
+        </Link>
+      )}
 
       {/* Cancel */}
       {canCancel && !showConfirm && (
