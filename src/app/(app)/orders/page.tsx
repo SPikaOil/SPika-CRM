@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ShoppingCart, Truck, CheckCircle2, Trash2, ChevronDown, ChevronUp, Plus, Search } from 'lucide-react'
+import { ShoppingCart, Truck, CheckCircle2, Trash2, ChevronDown, ChevronUp, Plus, Search, RotateCcw } from 'lucide-react'
 import { useOrders, useUpdateOrder } from '@/hooks/use-orders'
 import { useAuth } from '@/contexts/auth-context'
 import { createClient } from '@/lib/supabase/client'
@@ -78,6 +78,11 @@ function OrdersPageInner() {
   const [deleteReason, setDeleteReason] = useState('')
   const [deleting, setDeleting] = useState(false)
 
+  // Mark as paid modal state
+  const [paidTarget, setPaidTarget] = useState<Order | null>(null)
+  const [paidDate, setPaidDate] = useState('')
+  const [markingPaid, setMarkingPaid] = useState(false)
+
   const baseOrders = assignedFilter
     ? (allOrders?.filter(o => o.assigned_to === assignedFilter) ?? [])
     : (allOrders ?? [])
@@ -113,11 +118,33 @@ function OrdersPageInner() {
     ).filter(matchesSearch)
   )
 
-  async function handleMarkPaid(order: Order, e: React.MouseEvent) {
+  function openMarkPaid(order: Order, e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
-    await updateOrder.mutateAsync({ id: order.id, values: { status: 'paid' } as any })
-    toast.success(`${order.order_number} marked as paid`)
+    setPaidDate(new Date().toISOString().split('T')[0])
+    setPaidTarget(order)
+  }
+
+  async function handleMarkPaid() {
+    if (!paidTarget || !paidDate) return
+    setMarkingPaid(true)
+    try {
+      await updateOrder.mutateAsync({ id: paidTarget.id, values: { status: 'paid', invoice_date: paidDate } as any })
+      toast.success(`${paidTarget.order_number} marked as paid`)
+      setPaidTarget(null)
+      setPaidDate('')
+    } catch (err: any) {
+      toast.error(err.message ?? 'Failed to mark as paid')
+    } finally {
+      setMarkingPaid(false)
+    }
+  }
+
+  async function handleRevertPaid(order: Order, e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    await updateOrder.mutateAsync({ id: order.id, values: { status: 'invoice_ready', invoice_date: null } as any })
+    toast.success(`${order.order_number} reverted to Invoice Ready`)
   }
 
   async function handleDelete() {
@@ -226,7 +253,7 @@ function OrdersPageInner() {
               isAdmin={isAdmin}
               statusColors={statusColors}
               statusLabels={statusLabels}
-              onMarkPaid={(e) => handleMarkPaid(order, e)}
+              onMarkPaid={(e) => openMarkPaid(order, e)}
               onDelete={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteTarget(order) }}
             />
           ))}
@@ -253,6 +280,7 @@ function OrdersPageInner() {
                   statusColors={statusColors}
                   statusLabels={statusLabels}
                   dimmed
+                  onRevert={(e) => handleRevertPaid(order, e)}
                 />
               ))}
             </div>
@@ -302,6 +330,46 @@ function OrdersPageInner() {
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <span>Filtered by worker</span>
           <Link href="/orders" className="text-red-600 hover:underline text-xs">Clear filter</Link>
+        </div>
+      )}
+
+      {/* Mark as Paid modal */}
+      {paidTarget && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2 text-emerald-600">
+                <CheckCircle2 className="h-5 w-5" />
+                Mark {paidTarget.order_number} as Paid
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Enter the date the payment was received. This will move the order to the paid archive.
+              </p>
+              <div className="space-y-1.5">
+                <Label>Payment date <span className="text-red-500">*</span></Label>
+                <Input
+                  type="date"
+                  value={paidDate}
+                  onChange={e => setPaidDate(e.target.value)}
+                />
+              </div>
+              <Separator />
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => { setPaidTarget(null); setPaidDate('') }}>
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                  disabled={!paidDate || markingPaid}
+                  onClick={handleMarkPaid}
+                >
+                  {markingPaid ? 'Saving...' : 'Confirm Paid'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -364,7 +432,7 @@ export default function OrdersPage() {
 }
 
 function OrderRow({
-  order, isAdmin, statusColors, statusLabels, onMarkPaid, onDelete, dimmed
+  order, isAdmin, statusColors, statusLabels, onMarkPaid, onDelete, onRevert, dimmed
 }: {
   order: Order
   isAdmin: boolean
@@ -372,6 +440,7 @@ function OrderRow({
   statusLabels: Record<OrderStatus, string>
   onMarkPaid?: (e: React.MouseEvent) => void
   onDelete?: (e: React.MouseEvent) => void
+  onRevert?: (e: React.MouseEvent) => void
   dimmed?: boolean
 }) {
   return (
@@ -417,6 +486,12 @@ function OrderRow({
               <Button size="sm" className="h-7 bg-emerald-600 hover:bg-emerald-700 text-xs gap-1" onClick={onMarkPaid}>
                 <CheckCircle2 className="h-3 w-3" />
                 Paid
+              </Button>
+            )}
+            {isAdmin && order.status === 'paid' && onRevert && (
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={onRevert}>
+                <RotateCcw className="h-3 w-3" />
+                Revert
               </Button>
             )}
             {isAdmin && order.status !== 'paid' && onDelete && (
