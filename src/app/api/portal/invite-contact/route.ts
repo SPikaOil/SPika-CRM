@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
 
   // Invite new user via Supabase Auth
   const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: 'https://s-pika-crm.vercel.app/portal',
+    redirectTo: '${process.env.NEXT_PUBLIC_APP_URL ?? 'https://s-pika-crm.vercel.app'}/portal',
     data: { name },
   })
   if (inviteError) return NextResponse.json({ error: inviteError.message }, { status: 500 })

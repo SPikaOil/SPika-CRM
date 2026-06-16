@@ -43,13 +43,13 @@ export async function POST(req: NextRequest) {
     // Portal profile exists — send a password reset email (works as "set password" for new users too)
     const serverClient = await createServerClient()
     await serverClient.auth.resetPasswordForEmail(existing.email, {
-      redirectTo: 'https://s-pika-crm.vercel.app/portal',
+      redirectTo: '${process.env.NEXT_PUBLIC_APP_URL ?? 'https://s-pika-crm.vercel.app'}/portal',
     })
     authUserId = existing.id
   } else {
     // No portal profile yet — try to invite; if email already exists in auth, link them and send reset
     const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(customer.email, {
-      redirectTo: 'https://s-pika-crm.vercel.app/portal',
+      redirectTo: '${process.env.NEXT_PUBLIC_APP_URL ?? 'https://s-pika-crm.vercel.app'}/portal',
     })
 
     if (inviteError) {
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
 
       const serverClient = await createServerClient()
       await serverClient.auth.resetPasswordForEmail(customer.email, {
-        redirectTo: 'https://s-pika-crm.vercel.app/portal',
+        redirectTo: '${process.env.NEXT_PUBLIC_APP_URL ?? 'https://s-pika-crm.vercel.app'}/portal',
       })
     } else {
       authUserId = inviteData.user.id

@@ -34,7 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // Send a password reset email — acts as "set your password" for new users
     const serverClient = await createServerClient()
     const { error: resetError } = await serverClient.auth.resetPasswordForEmail(request.email, {
-      redirectTo: 'https://s-pika-crm.vercel.app/portal',
+      redirectTo: '${process.env.NEXT_PUBLIC_APP_URL ?? 'https://s-pika-crm.vercel.app'}/portal',
     })
     if (resetError) return NextResponse.json({ error: resetError.message }, { status: 500 })
     return NextResponse.json({ ok: true })
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   <h2>Your account has been approved!</h2>
   <p>Hi ${request.name},</p>
   <p>Great news — your SPika B2B account for <strong>${request.company_name}</strong> has been approved. You can now log in and start placing orders.</p>
-  <a href="https://s-pika-crm.vercel.app/portal" style="display:inline-block;background:#dc2626;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;margin-top:16px;">Log in to Portal →</a>
+  <a href="${process.env.NEXT_PUBLIC_APP_URL ?? 'https://s-pika-crm.vercel.app'}/portal" style="display:inline-block;background:#dc2626;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;margin-top:16px;">Log in to Portal →</a>
   <p style="margin-top:24px;color:#666;font-size:14px;">Questions? Contact us at hello@spikaoil.nl or WhatsApp +5999 689-6969.</p>
 </div>`,
       })
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // Old flow — no user_id: invite user by email
     const { data: authData, error: authError } = await admin.auth.admin.inviteUserByEmail(
       request.email,
-      { redirectTo: 'https://s-pika-crm.vercel.app/portal' }
+      { redirectTo: '${process.env.NEXT_PUBLIC_APP_URL ?? 'https://s-pika-crm.vercel.app'}/portal' }
     )
 
     if (authError || !authData.user) {

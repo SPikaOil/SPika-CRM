@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
   <h1 style="color:#dc2626;">🔥 SPika Oil</h1>
   <h2>New access request</h2>
   <p>New access request from <strong>${company_name}</strong> (${name}, ${email}) — ${business_type}, ${monthly_volume}/month.</p>
-  <a href="https://s-pika-crm.vercel.app/portal-management" style="display:inline-block;background:#dc2626;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;margin-top:16px;">Log in to review →</a>
+  <a href="${process.env.NEXT_PUBLIC_APP_URL ?? 'https://s-pika-crm.vercel.app'}/portal-management" style="display:inline-block;background:#dc2626;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;margin-top:16px;">Log in to review →</a>
 </div>`,
   })
 
