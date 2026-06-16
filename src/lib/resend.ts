@@ -212,3 +212,36 @@ export function emailTaskAssigned(p: { workerName: string; taskTitle: string; cu
     ${button('View Tasks', 'https://spika-crm.vercel.app/agenda')}
   `)
 }
+
+export function emailOrderModified(p: { orderNumber: string; customerName: string; items: string; total: string }) {
+  return layout(`
+    <tr><td style="padding:28px 28px 0;">
+      <p style="margin:0 0 4px;font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;">Order Modified</p>
+      <h2 style="margin:0 0 16px;font-size:22px;font-weight:700;color:#111827;">Order #${p.orderNumber} was modified</h2>
+      <p style="margin:0 0 16px;font-size:15px;color:#374151;">
+        <strong>${p.customerName}</strong> has updated their order. Please review and re-confirm.
+      </p>
+      <div style="background:#f9fafb;border-radius:8px;padding:16px;margin-bottom:16px;">
+        <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:#374151;">Updated items:</p>
+        <p style="margin:0;font-size:14px;color:#6b7280;">${p.items}</p>
+        <p style="margin:8px 0 0;font-size:14px;font-weight:700;color:#111827;">Total: ${p.total}</p>
+      </div>
+    </td></tr>
+  `)
+}
+
+export function emailOrderModifiedConfirmation(p: { orderNumber: string; customerName: string }) {
+  return layout(`
+    <tr><td style="padding:28px 28px 0;">
+      <p style="margin:0 0 4px;font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;">Order Update</p>
+      <h2 style="margin:0 0 16px;font-size:22px;font-weight:700;color:#111827;">Changes received!</h2>
+      <p style="margin:0 0 16px;font-size:15px;color:#374151;">Hi ${p.customerName},</p>
+      <p style="margin:0 0 16px;font-size:15px;color:#374151;">
+        We've received your updated order <strong>#${p.orderNumber}</strong>. Our team will review and confirm it shortly.
+      </p>
+      <p style="margin:0;font-size:15px;color:#374151;">
+        Questions? Contact us at <a href="mailto:hello@spikaoil.nl" style="color:#dc2626;">hello@spikaoil.nl</a>.
+      </p>
+    </td></tr>
+  `)
+}

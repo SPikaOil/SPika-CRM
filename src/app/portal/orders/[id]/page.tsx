@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Clock, Truck, CheckCircle2, XCircle, Package, Loader2, AlertTriangle, MapPin, CreditCard, Calendar, FileText, Phone, Mail, RotateCcw } from 'lucide-react'
+import { ArrowLeft, Clock, Truck, CheckCircle2, XCircle, Package, Loader2, AlertTriangle, MapPin, CreditCard, Calendar, FileText, Phone, Mail, RotateCcw, Pencil } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
@@ -273,6 +273,16 @@ export default function PortalOrderDetailPage({ params }: { params: Promise<{ id
           <Button variant="outline" className="w-full gap-2">
             <RotateCcw className="h-4 w-4" />
             Reorder — same products
+          </Button>
+        </Link>
+      )}
+
+      {/* Edit Order */}
+      {(order.status === 'pending_approval' || order.status === 'processing') && (
+        <Link href={`/portal/orders/${order.id}/edit`}>
+          <Button variant="outline" className="w-full gap-2">
+            <Pencil className="h-4 w-4" />
+            Edit Order
           </Button>
         </Link>
       )}
