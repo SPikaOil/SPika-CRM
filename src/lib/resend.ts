@@ -21,7 +21,7 @@ export async function sendEmail({
     const transporter = nodemailer.default.createTransport({
       host: process.env.SMTP_HOST ?? 'smtp.strato.nl',
       port: Number(process.env.SMTP_PORT ?? 465),
-      secure: true,
+      secure: Number(process.env.SMTP_PORT ?? 465) === 465,
       auth: { user: smtpUser, pass: smtpPass },
     })
     await transporter.sendMail({
