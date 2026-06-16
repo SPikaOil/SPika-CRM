@@ -94,7 +94,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   <p>Hi ${request.name},</p>
   <p>Great news — your SPika B2B account for <strong>${request.company_name}</strong> has been approved. You can now log in and start placing orders.</p>
   <a href="https://s-pika-crm.vercel.app/portal" style="display:inline-block;background:#dc2626;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;margin-top:16px;">Log in to Portal →</a>
-  <p style="margin-top:24px;color:#666;font-size:14px;">Questions? Contact us at info@spika.com or WhatsApp +5999 689-6969.</p>
+  <p style="margin-top:24px;color:#666;font-size:14px;">Questions? Contact us at hello@spikaoil.nl or WhatsApp +5999 689-6969.</p>
 </div>`,
       })
 

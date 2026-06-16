@@ -141,13 +141,13 @@ export default function PortalSupportPage() {
             </div>
           </a>
           <a
-            href="mailto:info@spika.com"
+            href="mailto:hello@spikaoil.nl"
             className="flex items-center gap-3 p-3 rounded-lg border hover:bg-accent transition-colors"
           >
             <Mail className="h-5 w-5 text-red-600 shrink-0" />
             <div>
               <p className="font-medium text-sm">Email</p>
-              <p className="text-xs text-muted-foreground">info@spika.com</p>
+              <p className="text-xs text-muted-foreground">hello@spikaoil.nl</p>
             </div>
           </a>
           <a

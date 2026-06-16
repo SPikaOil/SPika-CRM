@@ -86,11 +86,11 @@ export default function PendingPage() {
                   WhatsApp +5999 689-6969
                 </a>
                 <a
-                  href="mailto:info@spika.com"
+                  href="mailto:hello@spikaoil.nl"
                   className="flex items-center justify-center gap-2 text-sm text-foreground border rounded-lg px-4 py-2.5 hover:bg-muted/50 transition-colors"
                 >
                   <Mail className="h-4 w-4 text-red-600" />
-                  info@spika.com
+                  hello@spikaoil.nl
                 </a>
               </div>
             </div>

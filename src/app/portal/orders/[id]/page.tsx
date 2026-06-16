@@ -254,8 +254,8 @@ export default function PortalOrderDetailPage({ params }: { params: Promise<{ id
         <CardContent className="space-y-2 pb-4">
           <p className="text-sm text-muted-foreground">Questions about your order? Contact us directly.</p>
           <div className="flex flex-col gap-2">
-            <a href="mailto:info@spika.com" className="flex items-center gap-2 text-sm text-red-600 hover:underline">
-              <Mail className="h-3.5 w-3.5" /> info@spika.com
+            <a href="mailto:hello@spikaoil.nl" className="flex items-center gap-2 text-sm text-red-600 hover:underline">
+              <Mail className="h-3.5 w-3.5" /> hello@spikaoil.nl
             </a>
             <a href="tel:+59996896969" className="flex items-center gap-2 text-sm text-red-600 hover:underline">
               <Phone className="h-3.5 w-3.5" /> +5999 689-6969
