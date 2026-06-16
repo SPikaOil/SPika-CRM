@@ -33,12 +33,23 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     })
   }, [router])
 
-  // Redirect staff/admin away from the portal
+  // Redirect staff/admin away from the portal; route prospects to pending/onboarding
   useEffect(() => {
-    if (!isLoading && session && !isCustomer) {
+    if (isLoading) return
+    if (!session) return
+    const role = profile?.role
+    if (role === 'admin' || role === 'staff') {
       router.replace('/dashboard')
+      return
     }
-  }, [isCustomer, isLoading, session, router])
+    if (!isCustomer) {
+      if (role === 'prospect') {
+        if (pathname !== '/portal/pending') router.replace('/portal/pending')
+      } else if (!profile) {
+        if (pathname !== '/portal/onboarding') router.replace('/portal/onboarding')
+      }
+    }
+  }, [isLoading, session, isCustomer, profile, pathname, router])
 
   useEffect(() => {
     if (!profile?.id) return
@@ -67,8 +78,11 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     return <PortalLogin />
   }
 
-  // Authenticated as staff — briefly blank while redirect happens
-  if (!isCustomer) return null
+  // Staff/admin — blank while redirecting to /dashboard
+  if (profile?.role === 'admin' || profile?.role === 'staff') return null
+
+  // Prospect or new user — pass through to onboarding/pending (those pages handle their own layout)
+  if (!isCustomer) return <>{children}</>
 
   const navItems = [
     { href: '/portal/dashboard', label: 'Home', icon: LayoutDashboard },

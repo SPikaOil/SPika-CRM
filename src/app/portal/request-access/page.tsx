@@ -1,13 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { Flame, CheckCircle, ArrowLeft } from 'lucide-react'
+import { Flame, CheckCircle, ArrowLeft, Mail, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
 
 export default function RequestAccessPage() {
   const [submitted, setSubmitted] = useState(false)
@@ -16,8 +16,9 @@ export default function RequestAccessPage() {
     name: '',
     email: '',
     company_name: '',
-    phone: '',
-    message: '',
+    country: '',
+    password: '',
+    confirm_password: '',
   })
 
   function set(field: string, value: string) {
@@ -26,15 +27,33 @@ export default function RequestAccessPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+
+    if (form.password !== form.confirm_password) {
+      toast.error('Passwords do not match')
+      return
+    }
+
+    if (form.password.length < 8) {
+      toast.error('Password must be at least 8 characters')
+      return
+    }
+
     setLoading(true)
     try {
-      const res = await fetch('/api/portal/request-access', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+      const supabase = createClient()
+      const { error } = await supabase.auth.signUp({
+        email: form.email,
+        password: form.password,
+        options: {
+          data: {
+            name: form.name,
+            company_name: form.company_name,
+            country: form.country,
+          },
+          emailRedirectTo: window.location.origin + '/portal/onboarding',
+        },
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
+      if (error) throw error
       setSubmitted(true)
     } catch (err: any) {
       toast.error(err.message || 'Something went wrong')
@@ -58,12 +77,13 @@ export default function RequestAccessPage() {
 
           {submitted ? (
             <div className="text-center py-8 space-y-4">
-              <CheckCircle className="h-14 w-14 text-green-500 mx-auto" />
+              <Mail className="h-14 w-14 text-red-600 mx-auto" />
               <div>
-                <p className="font-bold text-xl">Request submitted!</p>
+                <p className="font-bold text-xl">Check your email!</p>
                 <p className="text-sm text-muted-foreground mt-2">
-                  We'll review your request and get back to you at{' '}
+                  We sent a verification link to{' '}
                   <span className="font-medium text-foreground">{form.email}</span>.
+                  Click the link to verify your address and complete your application.
                 </p>
               </div>
               <Link href="/portal">
@@ -76,9 +96,9 @@ export default function RequestAccessPage() {
           ) : (
             <>
               <div>
-                <h1 className="text-2xl font-bold">Request Access</h1>
+                <h1 className="text-2xl font-bold">Create Account</h1>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Fill in your details and we'll get back to you shortly.
+                  Register to apply for B2B access.
                 </p>
               </div>
 
@@ -100,6 +120,7 @@ export default function RequestAccessPage() {
                     value={form.email}
                     onChange={e => set('email', e.target.value)}
                     required
+                    autoComplete="email"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -112,29 +133,49 @@ export default function RequestAccessPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Phone</Label>
+                  <Label>Country *</Label>
                   <Input
-                    type="tel"
-                    placeholder="+1 234 567 890"
-                    value={form.phone}
-                    onChange={e => set('phone', e.target.value)}
+                    placeholder="Curaçao"
+                    value={form.country}
+                    onChange={e => set('country', e.target.value)}
+                    required
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Message</Label>
-                  <Textarea
-                    placeholder="Tell us a bit about your business and what you're looking for..."
-                    value={form.message}
-                    onChange={e => set('message', e.target.value)}
-                    rows={3}
+                  <Label>Password *</Label>
+                  <Input
+                    type="password"
+                    placeholder="••••••••"
+                    value={form.password}
+                    onChange={e => set('password', e.target.value)}
+                    required
+                    autoComplete="new-password"
+                    minLength={8}
                   />
+                  <p className="text-xs text-muted-foreground">Minimum 8 characters</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Confirm password *</Label>
+                  <Input
+                    type="password"
+                    placeholder="••••••••"
+                    value={form.confirm_password}
+                    onChange={e => set('confirm_password', e.target.value)}
+                    required
+                    autoComplete="new-password"
+                    minLength={8}
+                  />
+                  {form.confirm_password && form.password !== form.confirm_password && (
+                    <p className="text-xs text-red-600">Passwords do not match</p>
+                  )}
                 </div>
                 <Button
                   type="submit"
                   className="w-full bg-red-600 hover:bg-red-700 h-11"
                   disabled={loading}
                 >
-                  {loading ? 'Submitting...' : 'Submit Request'}
+                  {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Create Account
                 </Button>
                 <Link href="/portal" className="block text-center text-sm text-muted-foreground hover:text-foreground underline underline-offset-4">
                   Already have an account? Sign in

@@ -155,8 +155,18 @@ export default function PortalManagementPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      toast.success(action === 'approve' ? 'Invite sent — awaiting customer sign-up' : 'Request denied')
-      setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: action === 'approve' ? 'link_sent' : 'denied' } : r))
+      if (action === 'approve') {
+        const req = requests.find(r => r.id === requestId)
+        toast.success(req?.user_id
+          ? 'Account approved — customer can now log in'
+          : 'Invite sent — awaiting customer sign-up'
+        )
+        const newStatus = req?.user_id ? 'approved' : 'link_sent'
+        setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: newStatus } : r))
+      } else {
+        toast.success('Request denied')
+        setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'denied' } : r))
+      }
     } catch (err: any) {
       toast.error(err.message)
     } finally {
@@ -239,11 +249,28 @@ export default function PortalManagementPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-medium">{req.company_name}</p>
                       {req.status === 'pending' && <Badge className="bg-orange-500 text-white text-xs">Pending</Badge>}
-                      {(req.status === 'link_sent' || req.status === 'approved') && <Badge className="bg-blue-600 text-white text-xs">Invite Sent</Badge>}
+                      {req.status === 'link_sent' && <Badge className="bg-blue-600 text-white text-xs">Invite Sent</Badge>}
+                      {req.status === 'approved' && <Badge className="bg-green-600 text-white text-xs">Approved</Badge>}
                       {req.status === 'denied' && <Badge variant="outline" className="text-xs">Denied</Badge>}
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">{req.name} · {req.email}{req.phone ? ` · ${req.phone}` : ''}</p>
                     {req.message && <p className="text-xs text-muted-foreground mt-1 italic">"{req.message}"</p>}
+                    {(req as any).onboarding_data && (
+                      <div className="mt-1.5 space-y-0.5">
+                        {(req as any).onboarding_data.business_type && (
+                          <p className="text-xs text-muted-foreground">Type: {(req as any).onboarding_data.business_type}</p>
+                        )}
+                        {(req as any).onboarding_data.monthly_volume && (
+                          <p className="text-xs text-muted-foreground">Volume: {(req as any).onboarding_data.monthly_volume}</p>
+                        )}
+                        {(req as any).onboarding_data.products?.length > 0 && (
+                          <p className="text-xs text-muted-foreground">Products: {(req as any).onboarding_data.products.join(', ')}</p>
+                        )}
+                        {(req as any).country && (
+                          <p className="text-xs text-muted-foreground">Country: {(req as any).country}</p>
+                        )}
+                      </div>
+                    )}
                     <p className="text-xs text-muted-foreground mt-1">{new Date(req.created_at).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                   </div>
                   {req.status === 'pending' && (
@@ -269,7 +296,7 @@ export default function PortalManagementPage() {
                       </Button>
                     </div>
                   )}
-                  {(req.status === 'link_sent' || req.status === 'approved') && (
+                  {req.status === 'link_sent' && (
                     <Button
                       size="sm"
                       variant="outline"

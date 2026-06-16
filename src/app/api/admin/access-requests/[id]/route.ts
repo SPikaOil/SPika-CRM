@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient as createServerClient } from '@/lib/supabase/server'
+import { sendEmail } from '@/lib/resend'
 
 async function assertAdmin() {
   const supabase = await createServerClient()
@@ -70,10 +71,40 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: custError?.message || 'Failed to create customer' }, { status: 500 })
     }
 
-    // Invite user — creates auth user AND sends invite email with set-password link
+    if (request.user_id) {
+      // Self-registered user — update existing users row and notify them
+      await admin.from('users').update({
+        role: 'customer',
+        customer_id: customer.id,
+      }).eq('id', request.user_id)
+
+      await admin.from('access_requests').update({
+        status: 'approved',
+        reviewed_by: caller.id,
+        reviewed_at: new Date().toISOString(),
+        review_notes: notes || null,
+      }).eq('id', id)
+
+      await sendEmail({
+        to: request.email,
+        subject: 'Your SPika account has been approved!',
+        html: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 16px;">
+  <h1 style="color:#dc2626;">🔥 SPika Oil</h1>
+  <h2>Your account has been approved!</h2>
+  <p>Hi ${request.name},</p>
+  <p>Great news — your SPika B2B account for <strong>${request.company_name}</strong> has been approved. You can now log in and start placing orders.</p>
+  <a href="https://s-pika-crm.vercel.app/portal" style="display:inline-block;background:#dc2626;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;margin-top:16px;">Log in to Portal →</a>
+  <p style="margin-top:24px;color:#666;font-size:14px;">Questions? Contact us at info@spika.com or WhatsApp +5999 689-6969.</p>
+</div>`,
+      })
+
+      return NextResponse.json({ ok: true, customer_id: customer.id })
+    }
+
+    // Old flow — no user_id: invite user by email
     const { data: authData, error: authError } = await admin.auth.admin.inviteUserByEmail(
       request.email,
-      { redirectTo: `${process.env.NEXT_PUBLIC_SUPABASE_URL?.replace('.supabase.co', '') ? 'https://s-pika-crm.vercel.app' : 'https://s-pika-crm.vercel.app'}/portal` }
+      { redirectTo: 'https://s-pika-crm.vercel.app/portal' }
     )
 
     if (authError || !authData.user) {

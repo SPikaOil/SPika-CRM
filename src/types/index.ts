@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'sales' | 'customer'
+export type UserRole = 'admin' | 'sales' | 'staff' | 'customer' | 'prospect'
 
 export type CustomerCategory = string
 
@@ -281,6 +281,10 @@ export interface AccessRequest {
   reviewed_by?: string
   reviewed_at?: string
   review_notes?: string
+  user_id?: string
+  country?: string
+  onboarding_data?: Record<string, any>
+  onboarding_completed_at?: string
 }
 
 export interface QuoteTemplate {
