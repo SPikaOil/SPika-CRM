@@ -51,6 +51,9 @@ const customerSchema = z.object({
   crib_number: z.string(),
   is_international: z.boolean(),
   status: z.enum(['active', 'inactive']),
+  display_as: z.string(),
+  shops_sold_at: z.string(),
+  storelocator: z.boolean(),
   // Address fields (flattened for the form, composed to JSONB on submit)
   billing_street: z.string(),
   billing_city: z.string(),
@@ -224,6 +227,9 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
     crib_number: '',
     is_international: false,
     status: 'active',
+    display_as: '',
+    shops_sold_at: '',
+    storelocator: false,
     billing_street: '',
     billing_city: '',
     billing_zip: '',
@@ -404,6 +410,10 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
                 <p className="text-xs text-muted-foreground">
                   {category === 'b2c' ? '6% tax applies (B2C)' : '0% tax — tax-exempt B2B customer'}
                 </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Display As <span className="text-muted-foreground text-xs font-normal">(used on website/store locator)</span></Label>
+                <Input {...register('display_as')} placeholder="e.g. Steak House Willemstad" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
@@ -707,6 +717,30 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
               <div className="space-y-1.5">
                 <Label>Internal Notes</Label>
                 <Textarea {...register('internal_notes')} placeholder="Any internal notes..." rows={3} />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="text-base">Store Locator</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>Shops sold at</Label>
+                <Textarea {...register('shops_sold_at')} placeholder="e.g. Jumbo Willemstad, MCD Punda, ..." rows={3} />
+                <p className="text-xs text-muted-foreground">List the shop locations where SPika products are sold by this customer.</p>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div>
+                  <p className="text-sm font-medium">🗺️ Storelocator?</p>
+                  <p className="text-xs text-muted-foreground">Include this customer on the website store locator</p>
+                </div>
+                <label className="flex items-center cursor-pointer">
+                  <div className="relative">
+                    <input type="checkbox" className="sr-only peer" {...register('storelocator')} />
+                    <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-red-600 transition-colors" />
+                    <div className="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5" />
+                  </div>
+                </label>
               </div>
             </CardContent>
           </Card>
