@@ -57,8 +57,13 @@ export default function OnboardingPage() {
     business_type: '',
     address: '',
     city: '',
+    zip: '',
     country: (meta.country as string) ?? '',
+    phone: '',
+    whatsapp: '',
     vat_number: '',
+    crib_number: '',
+    coc_number: '',
     website: '',
     // Step 2
     products: [] as string[],
@@ -82,7 +87,7 @@ export default function OnboardingPage() {
 
   function handleNext(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.business_type || !form.address || !form.city || !form.country) {
+    if (!form.business_type || !form.address || !form.city || !form.country || !form.phone) {
       toast.error('Please fill in all required fields')
       return
     }
@@ -111,6 +116,8 @@ export default function OnboardingPage() {
       setLoading(false)
     }
   }
+
+  const isCuracao = form.country.toLowerCase().includes('cura')
 
   return (
     <div className="min-h-screen bg-muted/30 flex flex-col items-center justify-center p-4">
@@ -176,6 +183,15 @@ export default function OnboardingPage() {
                 </div>
 
                 <div className="space-y-1.5">
+                  <Label>Zip / Postal code <span className="text-muted-foreground">(optional)</span></Label>
+                  <Input
+                    placeholder="0000"
+                    value={form.zip}
+                    onChange={e => set('zip', e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
                   <Label>Country *</Label>
                   <Input
                     placeholder="Curaçao"
@@ -186,11 +202,51 @@ export default function OnboardingPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label>VAT / Tax number <span className="text-muted-foreground">(optional)</span></Label>
+                  <Label>Phone *</Label>
                   <Input
-                    placeholder="NL123456789B01"
-                    value={form.vat_number}
-                    onChange={e => set('vat_number', e.target.value)}
+                    placeholder="+5999 000 0000"
+                    value={form.phone}
+                    onChange={e => set('phone', e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>WhatsApp <span className="text-muted-foreground">(optional)</span></Label>
+                  <Input
+                    placeholder="+5999 000 0000 (leave blank if same as phone)"
+                    value={form.whatsapp}
+                    onChange={e => set('whatsapp', e.target.value)}
+                  />
+                </div>
+
+                {isCuracao ? (
+                  <div className="space-y-1.5">
+                    <Label>CRIB Number <span className="text-muted-foreground">(optional)</span></Label>
+                    <Input
+                      placeholder="102471812"
+                      value={form.crib_number}
+                      onChange={e => set('crib_number', e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">Required for Curaçao businesses</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <Label>VAT / Tax number <span className="text-muted-foreground">(optional)</span></Label>
+                    <Input
+                      placeholder="NL123456789B01"
+                      value={form.vat_number}
+                      onChange={e => set('vat_number', e.target.value)}
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <Label>CoC / KVK Number <span className="text-muted-foreground">(optional)</span></Label>
+                  <Input
+                    placeholder="e.g. 12345678"
+                    value={form.coc_number}
+                    onChange={e => set('coc_number', e.target.value)}
                   />
                 </div>
 

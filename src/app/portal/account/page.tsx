@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Users, UserPlus, Trash2, Loader2, Crown, User, Mail, Building2, MapPin, Phone } from 'lucide-react'
+import Link from 'next/link'
+import { Users, UserPlus, Trash2, Loader2, Crown, User, Mail, Building2, MapPin, Phone, FileSignature, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/auth-context'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -165,6 +166,48 @@ export default function PortalAccountPage() {
               <span className="text-muted-foreground">Payment terms</span>
               <span className="font-medium">{(customer as any).payment_term_days ?? 7} days</span>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* OB Form */}
+      {customer?.ob_form_required && (
+        <Card className={customer.ob_form_signed ? 'border-green-200' : 'border-orange-200'}>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileSignature className="h-4 w-4" />
+              OB Form (Tax Declaration)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pb-4">
+            {customer.ob_form_signed ? (
+              <div className="flex items-center gap-2 text-green-700">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium">Signed</p>
+                  {customer.ob_form_signed_at && (
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(customer.ob_form_signed_at).toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
+                  <p className="text-sm text-muted-foreground">
+                    As a Curaçao-based business, an OB tax declaration form is required. Please sign it to complete your account setup.
+                  </p>
+                </div>
+                <Link href="/portal/ob-sign">
+                  <Button className="w-full bg-red-600 hover:bg-red-700 gap-2">
+                    <FileSignature className="h-4 w-4" />
+                    Sign OB Form
+                  </Button>
+                </Link>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

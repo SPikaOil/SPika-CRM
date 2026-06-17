@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Search, Mail, MailCheck, ShieldOff, RefreshCw, Globe, Clock, UserPlus, CheckCircle, XCircle, Inbox, Send } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
 import { useCustomers } from '@/hooks/use-customers'
@@ -145,6 +146,25 @@ export default function PortalManagementPage() {
     }
   }
 
+  async function handleSendAccess(requestId: string) {
+    setLoading(requestId)
+    try {
+      const res = await fetch(`/api/admin/access-requests/${requestId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'send_access' }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      toast.success('Portal access sent — customer can now log in')
+      setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'approved' } : r))
+    } catch (err: any) {
+      toast.error(err.message)
+    } finally {
+      setLoading(null)
+    }
+  }
+
   async function handleReview(requestId: string, action: 'approve' | 'deny') {
     setLoading(requestId)
     try {
@@ -157,12 +177,13 @@ export default function PortalManagementPage() {
       if (!res.ok) throw new Error(data.error)
       if (action === 'approve') {
         const req = requests.find(r => r.id === requestId)
-        toast.success(req?.user_id
-          ? 'Account approved — customer can now log in'
-          : 'Invite sent — awaiting customer sign-up'
-        )
-        const newStatus = req?.user_id ? 'approved' : 'link_sent'
-        setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: newStatus } : r))
+        if (req?.user_id) {
+          toast.success('Customer created — set prices in CRM, then click Send Access')
+          setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'approved_pending_setup' } : r))
+        } else {
+          toast.success('Invite sent — awaiting customer sign-up')
+          setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'link_sent' } : r))
+        }
       } else {
         toast.success('Request denied')
         setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'denied' } : r))
@@ -174,7 +195,7 @@ export default function PortalManagementPage() {
     }
   }
 
-  const pendingCount = requests.filter(r => r.status === 'pending' || r.status === 'link_sent' || r.status === 'approved').length
+  const pendingCount = requests.filter(r => ['pending', 'link_sent', 'approved_pending_setup'].includes(r.status)).length
 
   const filtered = (customers ?? [])
     .filter(c => c.status === 'active')
@@ -251,6 +272,9 @@ export default function PortalManagementPage() {
                       {req.status === 'pending' && <Badge className="bg-orange-500 text-white text-xs">Pending</Badge>}
                       {req.status === 'link_sent' && <Badge className="bg-blue-600 text-white text-xs">Invite Sent</Badge>}
                       {req.status === 'approved' && <Badge className="bg-green-600 text-white text-xs">Approved</Badge>}
+                      {req.status === 'approved_pending_setup' && (
+                        <Badge className="bg-purple-600 text-white text-xs">Awaiting Setup</Badge>
+                      )}
                       {req.status === 'denied' && <Badge variant="outline" className="text-xs">Denied</Badge>}
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">{req.name} · {req.email}{req.phone ? ` · ${req.phone}` : ''}</p>
@@ -307,6 +331,20 @@ export default function PortalManagementPage() {
                       <Send className={`h-3 w-3 ${loading === req.id ? 'animate-spin' : ''}`} />
                       Resend
                     </Button>
+                  )}
+                  {req.status === 'approved_pending_setup' && (
+                    <div className="flex flex-col gap-2 shrink-0 items-end">
+                      <p className="text-xs text-muted-foreground text-right max-w-[120px]">Set prices in CRM first</p>
+                      <Button
+                        size="sm"
+                        className="gap-1.5 text-xs h-8 bg-green-600 hover:bg-green-700"
+                        disabled={loading === req.id}
+                        onClick={() => handleSendAccess(req.id)}
+                      >
+                        <Send className={`h-3 w-3 ${loading === req.id ? 'animate-spin' : ''}`} />
+                        Send Access
+                      </Button>
+                    </div>
                   )}
                 </div>
               </CardContent>
