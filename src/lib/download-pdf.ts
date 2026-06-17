@@ -4,15 +4,18 @@ function sanitize(str: string) {
   return str.replace(/[#/\\:*?"<>|]/g, '').trim()
 }
 
-export function triggerDownload(blob: Blob, filename: string) {
+// iosTab must be opened synchronously before any await, then passed here.
+// This avoids iOS popup blocking caused by async gaps after the user gesture.
+export function triggerDownload(blob: Blob, filename: string, iosTab?: Window | null) {
   const file = new File([blob], filename, { type: 'application/pdf' })
   const url = URL.createObjectURL(file)
 
-  // iOS Safari ignores the `download` attribute for blob URLs and opens inline.
-  // Open in a new tab instead — user gets the native share sheet to save/AirDrop.
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
   if (isIOS) {
-    window.open(url, '_blank')
+    const tab = iosTab ?? window.open('', '_blank')
+    if (tab) {
+      tab.location.href = url
+    }
     setTimeout(() => URL.revokeObjectURL(url), 30000)
     return
   }

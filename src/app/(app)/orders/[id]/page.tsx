@@ -152,16 +152,36 @@ export default function OrderDetailPage({
   async function handleDownloadPDF(type: 'invoice' | 'note') {
     if (!order) return
     setIsDownloading(type)
+
+    // On iOS, window.open() is blocked if called after an async gap.
+    // Open the tab immediately on the user gesture, then redirect it to the blob URL.
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    const iosTab = isIOS ? window.open('', '_blank') : null
+
     try {
       const docType = type === 'invoice' ? 'INVOICE' : 'DELIVERY NOTE'
       const label = type === 'invoice' ? 'Invoice' : 'Delivery Note'
       const blob = await buildDeliveryPdfBlob(docType)
-      const { triggerDownload } = await import('@/lib/download-pdf')
       const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[/\\:*?"<>|]/g, '').trim()
       const customerName = (order.customer?.company_name ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
       const filename = customerName ? `${orderNum} - ${customerName} - ${label}.pdf` : `${orderNum} - ${label}.pdf`
-      triggerDownload(blob, filename)
+      const file = new File([blob], filename, { type: 'application/pdf' })
+      const url = URL.createObjectURL(file)
+
+      if (iosTab) {
+        iosTab.location.href = url
+        setTimeout(() => URL.revokeObjectURL(url), 30000)
+      } else {
+        const a = document.createElement('a')
+        a.href = url
+        a.download = filename
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        setTimeout(() => URL.revokeObjectURL(url), 10000)
+      }
     } catch (err) {
+      if (iosTab) iosTab.close()
       toast.error('Failed to download PDF')
       console.error(err)
     } finally {
@@ -1164,6 +1184,8 @@ function ExportOrderSection({ order }: { order: Order & { customer?: any } }) {
   async function downloadPdf(type: 'commercial_invoice' | 'packing_list' | 'bill_of_lading' | 'shipping_label') {
     if (!exp) return
     setIsDownloading(true)
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    const iosTab = isIOS ? window.open('', '_blank') : null
     try {
       const React = await import('react')
       const { pdf } = await import('@react-pdf/renderer')
@@ -1191,8 +1213,11 @@ function ExportOrderSection({ order }: { order: Order & { customer?: any } }) {
       const blob = await pdf(element).toBlob()
       const expNum = exp.export_number.replace(/[#/\\:*?"<>|]/g, '').trim()
       const cName = (order.customer?.company_name ?? '').replace(/[#/\\:*?"<>|]/g, '').trim()
-      triggerDownload(blob, `${cName ? `${expNum} - ${cName}` : expNum} - ${labels[type]}.pdf`)
-    } catch { toast.error('Failed to generate PDF') }
+      triggerDownload(blob, `${cName ? `${expNum} - ${cName}` : expNum} - ${labels[type]}.pdf`, iosTab)
+    } catch {
+      if (iosTab) iosTab.close()
+      toast.error('Failed to generate PDF')
+    }
     finally { setIsDownloading(false) }
   }
 
