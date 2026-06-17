@@ -77,6 +77,9 @@ function toFormValues(customer?: Partial<Customer>): Partial<CustomerFormValues>
   if (!customer) return {}
   return {
     ...customer,
+    storelocator: customer.storelocator ?? false,
+    display_as: customer.display_as ?? '',
+    shops_sold_at: customer.shops_sold_at ?? '',
     table_count: (customer as any).table_count != null ? String((customer as any).table_count) : '',
     billing_street: (customer.billing_address as any)?.street ?? '',
     billing_city: (customer.billing_address as any)?.city ?? '',

@@ -111,6 +111,9 @@ export interface Customer {
   payment_term_days: number
   spika_stands: SpikaStand[]
   status: CustomerStatus
+  display_as: string | null
+  shops_sold_at: string | null
+  storelocator: boolean
   created_at: string
   updated_at: string
 }
