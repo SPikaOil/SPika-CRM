@@ -625,6 +625,15 @@ export default function DashboardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMonth])
 
+  // Re-run bottle calculation once useUsers() resolves — the initial load fires before users data arrives
+  useEffect(() => {
+    if (!isAdmin || !users) return
+    loadBottlesForMonth(selectedMonth).then(count => {
+      setStats(prev => prev ? { ...prev, bottles_this_month: count } : prev)
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [users])
+
   return (
     <div className="p-3 lg:p-6 space-y-3">
       <div>

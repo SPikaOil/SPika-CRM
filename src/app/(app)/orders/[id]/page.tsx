@@ -71,6 +71,7 @@ export default function OrderDetailPage({
   const router = useRouter()
   const supabase = createClient()
   const [plannedDate, setPlannedDate] = useState<string>('')
+  const [estimatedBottles, setEstimatedBottles] = useState<string>('')
   const [invoiceDate, setInvoiceDate] = useState<string>('')
   const [selectedWorker, setSelectedWorker] = useState<string>('')
   const [editingOrderNumber, setEditingOrderNumber] = useState(false)
@@ -451,6 +452,60 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
           </CardContent>
         </Card>
       )}
+
+      {/* Estimated Bottle Return */}
+      {isAdmin && order.customer?.track_table_bottles && !['delivered', 'invoice_ready', 'paid', 'invoice_blocked', 'deleted'].includes(order.status) && (() => {
+        const returnPrice = order.customer?.table_bottle_return_price ?? 2.50
+        const savedEstimate = (order as any).estimated_bottle_return ?? null
+        const displayQty = estimatedBottles !== '' ? Number(estimatedBottles) : (savedEstimate ?? '')
+        const estimatedCredit = displayQty !== '' && !isNaN(Number(displayQty)) ? Number(displayQty) * returnPrice : null
+        const isDirty = estimatedBottles !== '' && Number(estimatedBottles) !== savedEstimate
+        return (
+          <Card>
+            <CardContent className="pt-4 pb-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <PackageCheck className="h-5 w-5 text-muted-foreground shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium mb-1">Estimated bottle return</p>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      defaultValue={savedEstimate ?? ''}
+                      onChange={e => setEstimatedBottles(e.target.value)}
+                      className="h-8 w-24"
+                    />
+                    <span className="text-sm text-muted-foreground">bottles</span>
+                    {isDirty && (
+                      <Button
+                        size="sm"
+                        onClick={() => updateOrder.mutate({ id: order.id, values: { estimated_bottle_return: Number(estimatedBottles) } as any })}
+                        disabled={updateOrder.isPending}
+                        className="bg-red-600 hover:bg-red-700"
+                      >
+                        Save
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+              {estimatedCredit !== null && (
+                <div className="flex justify-between text-sm bg-muted/50 rounded-lg px-3 py-2">
+                  <span className="text-muted-foreground">Estimated credit ({Number(displayQty)} × XCG {returnPrice.toFixed(2)})</span>
+                  <span className="font-medium text-green-600">- XCG {estimatedCredit.toFixed(2)}</span>
+                </div>
+              )}
+              {estimatedCredit !== null && (
+                <div className="flex justify-between text-sm px-3">
+                  <span className="text-muted-foreground">Estimated net total</span>
+                  <span className="font-semibold">XCG {(Number(order.total) - estimatedCredit).toFixed(2)}</span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )
+      })()}
 
       {/* Planned Delivery Date */}
       {(order.status === 'processing' || order.status === 'out_for_delivery') && (
