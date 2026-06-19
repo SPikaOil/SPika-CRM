@@ -93,7 +93,7 @@ export default function OrderDetailPage({
     const { DeliveryNotePDF } = await import('@/components/pdf/delivery-note-pdf')
     const { data: companyData } = await supabase.from('company_settings').select('*').eq('id', '00000000-0000-0000-0000-000000000001').single()
     const signatureDataUrl: string | undefined = (order as any).signature_data_url ?? undefined
-    const tableBottlesReturned = delivery?.table_bottles_returned ?? (order as any).estimated_bottle_return ?? 0
+    const tableBottlesReturned = delivery?.table_bottles_returned ?? 0
     const tableBottlesNotes = delivery?.table_bottles_notes ?? ''
     const signerName: string | undefined = delivery?.signer_name ?? undefined
     let deliveryPhotoDataUrl: string | undefined
@@ -456,10 +456,24 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
       {/* Estimated Bottle Return */}
       {isAdmin && order.customer?.track_table_bottles && !['delivered', 'invoice_ready', 'paid', 'invoice_blocked', 'deleted'].includes(order.status) && (() => {
         const returnPrice = order.customer?.table_bottle_return_price ?? 2.50
-        const savedEstimate = (order as any).estimated_bottle_return ?? null
-        const displayQty = estimatedBottles !== '' ? Number(estimatedBottles) : (savedEstimate ?? '')
-        const estimatedCredit = displayQty !== '' && !isNaN(Number(displayQty)) ? Number(displayQty) * returnPrice : null
-        const isDirty = estimatedBottles !== '' && Number(estimatedBottles) !== savedEstimate
+        const returnItem = (order.items ?? []).find((i: any) => i.sku === 'oil-30ml-table-return')
+        const savedQty = returnItem && returnItem.qty < 0 ? Math.abs(returnItem.qty) : 0
+        const displayQty = estimatedBottles !== '' ? Number(estimatedBottles) : savedQty
+        const estimatedCredit = displayQty > 0 ? displayQty * returnPrice : null
+        const isDirty = estimatedBottles !== '' && Number(estimatedBottles) !== savedQty
+
+        function saveReturnToItems() {
+          const qty = Number(estimatedBottles)
+          const newItems = (order.items ?? []).map((i: any) => {
+            if (i.sku !== 'oil-30ml-table-return') return i
+            if (qty === 0) return { ...i, qty: 0, unit_price: 0, line_total: 0 }
+            return { ...i, qty: -qty, unit_price: returnPrice, discount: 0, line_total: -(qty * returnPrice) }
+          })
+          const newTotal = newItems.reduce((sum: number, i: any) => sum + (i.line_total ?? 0), 0)
+          updateOrder.mutate({ id: order.id, values: { items: newItems, total: newTotal } as any })
+          setEstimatedBottles('')
+        }
+
         return (
           <Card>
             <CardContent className="pt-4 pb-4 space-y-3">
@@ -472,7 +486,7 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                       type="number"
                       min="0"
                       placeholder="0"
-                      defaultValue={savedEstimate ?? ''}
+                      value={estimatedBottles !== '' ? estimatedBottles : (savedQty > 0 ? String(savedQty) : '')}
                       onChange={e => setEstimatedBottles(e.target.value)}
                       className="h-8 w-24"
                     />
@@ -480,7 +494,7 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                     {isDirty && (
                       <Button
                         size="sm"
-                        onClick={() => updateOrder.mutate({ id: order.id, values: { estimated_bottle_return: Number(estimatedBottles) } as any })}
+                        onClick={saveReturnToItems}
                         disabled={updateOrder.isPending}
                         className="bg-red-600 hover:bg-red-700"
                       >
@@ -492,7 +506,7 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
               </div>
               {estimatedCredit !== null && (
                 <div className="flex justify-between text-sm bg-muted/50 rounded-lg px-3 py-2">
-                  <span className="text-muted-foreground">Estimated credit ({Number(displayQty)} × XCG {returnPrice.toFixed(2)})</span>
+                  <span className="text-muted-foreground">Estimated credit ({displayQty} × XCG {returnPrice.toFixed(2)})</span>
                   <span className="font-medium text-green-600">- XCG {estimatedCredit.toFixed(2)}</span>
                 </div>
               )}

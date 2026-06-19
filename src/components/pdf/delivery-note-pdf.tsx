@@ -137,7 +137,10 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
   const isB2C = customer?.customer_category === 'b2c'
   const taxRate = isB2C ? 0.06 : 0
   const returnPrice = customer?.table_bottle_return_price ?? 2.50
-  const bottleCredit = tableBottlesReturned && tableBottlesReturned > 0 ? tableBottlesReturned * returnPrice : 0
+  // If the return is already embedded in order items (pre-delivery estimate), skip the special row
+  const returnInItems = items.some(i => (i as any).sku === 'oil-30ml-table-return' && i.qty < 0)
+  const effectiveBottlesReturned = returnInItems ? 0 : (tableBottlesReturned ?? 0)
+  const bottleCredit = effectiveBottlesReturned > 0 ? effectiveBottlesReturned * returnPrice : 0
   const subtotal = items.reduce((sum, i) => sum + i.line_total, 0)
   const tax = subtotal * taxRate
   const total = subtotal + tax - bottleCredit
@@ -285,13 +288,13 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
           )
         })}
 
-        {/* ── Table Bottles Returned (as line item) ── */}
-        {tableBottlesReturned !== undefined && tableBottlesReturned > 0 && (
+        {/* ── Table Bottles Returned (post-delivery special row, only when not already in items) ── */}
+        {effectiveBottlesReturned > 0 && (
           <View style={[styles.tableRow, (items.length % 2 === 1) ? styles.tableRowAlt : {}]}>
             <Text style={[styles.tdText, styles.colProduct]}>
               SPika Oil - 30ml (Table Version) - Returned{tableBottlesNotes ? `\n${tableBottlesNotes}` : ''}
             </Text>
-            <Text style={[styles.tdText, styles.colQty]}>-{tableBottlesReturned}</Text>
+            <Text style={[styles.tdText, styles.colQty]}>-{effectiveBottlesReturned}</Text>
             {showPrices && <Text style={[styles.tdText, styles.colRate]}>XCG {returnPrice.toFixed(2)}</Text>}
             {showPrices && <Text style={[styles.tdText, styles.colDisc]}>—</Text>}
             {showPrices && <Text style={[styles.tdText, styles.colAmount]}>XCG {bottleCredit.toFixed(2)}</Text>}
