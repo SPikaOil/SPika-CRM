@@ -93,7 +93,7 @@ export default function OrderDetailPage({
     const { DeliveryNotePDF } = await import('@/components/pdf/delivery-note-pdf')
     const { data: companyData } = await supabase.from('company_settings').select('*').eq('id', '00000000-0000-0000-0000-000000000001').single()
     const signatureDataUrl: string | undefined = (order as any).signature_data_url ?? undefined
-    const tableBottlesReturned = delivery?.table_bottles_returned ?? 0
+    const tableBottlesReturned = delivery?.table_bottles_returned ?? (order as any).estimated_bottle_return ?? 0
     const tableBottlesNotes = delivery?.table_bottles_notes ?? ''
     const signerName: string | undefined = delivery?.signer_name ?? undefined
     let deliveryPhotoDataUrl: string | undefined
