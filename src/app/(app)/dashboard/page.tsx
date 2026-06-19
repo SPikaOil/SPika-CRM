@@ -361,6 +361,7 @@ export default function DashboardPage() {
   const [copied, setCopied] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState(currentMonthStr)
   const [workerBottles, setWorkerBottles] = useState<WorkerBottles[]>([])
+  const [byWorker, setByWorker] = useState<Record<string, number>>({})
   const [pendingAccessRequests, setPendingAccessRequests] = useState(0)
   const [clientRows, setClientRows] = useState<ClientRow[]>([])
   const [refillRows, setRefillRows] = useState<RefillRow[]>([])
@@ -428,15 +429,7 @@ export default function DashboardPage() {
       }
     }
 
-    // Map worker IDs to names using current users list
-    const workerList: WorkerBottles[] = Object.entries(byWorker)
-      .map(([uid, count]) => ({
-        name: users?.find(u => u.id === uid)?.name ?? 'Unknown',
-        count,
-      }))
-      .sort((a, b) => b.count - a.count)
-
-    setWorkerBottles(workerList)
+    setByWorker(byWorker)
     return total
   }
 
@@ -625,14 +618,17 @@ export default function DashboardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMonth])
 
-  // Re-run bottle calculation once useUsers() resolves — the initial load fires before users data arrives
+  // Map worker IDs → names whenever byWorker or users changes (decoupled to avoid race condition)
   useEffect(() => {
-    if (!isAdmin || !users) return
-    loadBottlesForMonth(selectedMonth).then(count => {
-      setStats(prev => prev ? { ...prev, bottles_this_month: count } : prev)
-    })
+    const workerList: WorkerBottles[] = Object.entries(byWorker)
+      .map(([uid, count]) => ({
+        name: users?.find(u => u.id === uid)?.name ?? 'Unknown',
+        count,
+      }))
+      .sort((a, b) => b.count - a.count)
+    setWorkerBottles(workerList)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [users])
+  }, [byWorker, users])
 
   return (
     <div className="p-3 lg:p-6 space-y-3">
