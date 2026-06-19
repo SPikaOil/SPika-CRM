@@ -163,7 +163,7 @@ function PortalLogin() {
     if (error) {
       toast.error(error.message)
     } else {
-      router.refresh()
+      router.push('/portal/dashboard')
     }
   }
 
