@@ -259,7 +259,7 @@ export default function DeliveryPage({
 
         // Generate signed PDF with signature + photo embedded
         let signedPdfUrl: string | undefined
-        if (signatureDataUrl && order) {
+        if (order) {
           try {
             const React = await import('react')
             const { pdf } = await import('@react-pdf/renderer')
