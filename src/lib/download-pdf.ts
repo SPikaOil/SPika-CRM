@@ -12,6 +12,17 @@ export function triggerDownload(blob: Blob, filename: string, iosTab?: Window | 
 
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
   if (isIOS) {
+    // Use Web Share API when available — preserves filename on iOS
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: filename }).catch(() => {
+        // User cancelled or share failed — fall back to tab open
+        const tab = iosTab ?? window.open('', '_blank')
+        if (tab) tab.location.href = url
+        setTimeout(() => URL.revokeObjectURL(url), 30000)
+      })
+      return
+    }
+    // Fallback for older iOS
     const tab = iosTab ?? window.open('', '_blank')
     if (tab) {
       tab.location.href = url
