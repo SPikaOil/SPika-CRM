@@ -864,7 +864,7 @@ Should you have any questions regarding your invoice, please do not hesitate to 
 Thank you for your continued business.
 
 Best regards,
-SPika Drinks`,
+SPika Team`,
     }
   }
 
@@ -880,7 +880,7 @@ The outstanding balance of ${amount} was due on ${dueStr} and is now ${days} day
 If you are experiencing any difficulties, please contact us so we can discuss a suitable payment arrangement.
 
 Best regards,
-SPika Drinks`,
+SPika Team`,
     }
   }
 
@@ -894,7 +894,7 @@ This is our final notice. If payment is not received within 7 days of this messa
 
 Please contact us immediately to resolve this matter.
 
-SPika Drinks`,
+SPika Team`,
   }
 }
 
