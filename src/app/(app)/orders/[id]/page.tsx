@@ -463,6 +463,7 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
         const isDirty = estimatedBottles !== '' && Number(estimatedBottles) !== savedQty
 
         function saveReturnToItems() {
+          if (!order) return
           const qty = Number(estimatedBottles)
           const newItems = (order.items ?? []).map((i: any) => {
             if (i.sku !== 'oil-30ml-table-return') return i
