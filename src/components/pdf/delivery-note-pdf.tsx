@@ -132,6 +132,8 @@ interface Props {
 }
 
 export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned, tableBottlesNotes, signerName, deliveryPhotoDataUrl, showPrices = true, company = DEFAULT_COMPANY, documentType = 'DELIVERY NOTE' }: Props) {
+  const currency = (order as any).currency ?? 'XCG'
+  const fmt = (amount: number) => `${currency} ${amount.toFixed(2)}`
   const items = (order.items ?? []) as QuoteItem[]
   const customer = order.customer
   const isB2C = customer?.customer_category === 'b2c'
@@ -279,11 +281,11 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
               <Text style={[styles.tdText, styles.colQty]}>{item.qty}</Text>
               {showPrices && (
                 <Text style={[styles.tdText, styles.colRate, isFree ? { color: '#16a34a' } : {}]}>
-                  {isFree ? 'Free of Charge' : `XCG ${item.unit_price.toFixed(2)}`}
+                  {isFree ? 'Free of Charge' : fmt(item.unit_price)}
                 </Text>
               )}
-              {showPrices && <Text style={[styles.tdText, styles.colDisc]}>{isFree ? '—' : ((item.discount ?? 0) > 0 ? `XCG ${(item.discount ?? 0).toFixed(2)}` : '—')}</Text>}
-              {showPrices && <Text style={[styles.tdText, styles.colAmount, isFree ? { color: '#16a34a' } : {}]}>{isFree ? 'XCG 0.00' : `XCG ${item.line_total.toFixed(2)}`}</Text>}
+              {showPrices && <Text style={[styles.tdText, styles.colDisc]}>{isFree ? '—' : ((item.discount ?? 0) > 0 ? fmt(item.discount ?? 0) : '—')}</Text>}
+              {showPrices && <Text style={[styles.tdText, styles.colAmount, isFree ? { color: '#16a34a' } : {}]}>{isFree ? fmt(0) : fmt(item.line_total)}</Text>}
             </View>
           )
         })}
@@ -295,9 +297,9 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
               SPika Oil - 30ml (Table Version) - Returned{tableBottlesNotes ? `\n${tableBottlesNotes}` : ''}
             </Text>
             <Text style={[styles.tdText, styles.colQty]}>-{effectiveBottlesReturned}</Text>
-            {showPrices && <Text style={[styles.tdText, styles.colRate]}>XCG {returnPrice.toFixed(2)}</Text>}
+            {showPrices && <Text style={[styles.tdText, styles.colRate]}>{fmt(returnPrice)}</Text>}
             {showPrices && <Text style={[styles.tdText, styles.colDisc]}>—</Text>}
-            {showPrices && <Text style={[styles.tdText, styles.colAmount]}>XCG {bottleCredit.toFixed(2)}</Text>}
+            {showPrices && <Text style={[styles.tdText, styles.colAmount]}>{fmt(bottleCredit)}</Text>}
           </View>
         )}
 
@@ -306,21 +308,21 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
           <View style={styles.totalsSection}>
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Subtotal</Text>
-              <Text style={styles.totalValue}>XCG {subtotal.toFixed(2)}</Text>
+              <Text style={styles.totalValue}>{fmt(subtotal)}</Text>
             </View>
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>{isB2C ? 'OB (6%)' : 'OB (0% — OB exempt)'}</Text>
-              <Text style={styles.totalValue}>XCG {tax.toFixed(2)}</Text>
+              <Text style={styles.totalValue}>{fmt(tax)}</Text>
             </View>
             {bottleCredit > 0 && (
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Table Bottle Credit</Text>
-                <Text style={[styles.totalValue, { color: RED }]}>- XCG {bottleCredit.toFixed(2)}</Text>
+                <Text style={[styles.totalValue, { color: RED }]}>- {fmt(bottleCredit)}</Text>
               </View>
             )}
             <View style={[styles.totalRow, { marginTop: 4, paddingTop: 4, borderTopWidth: 0.5, borderTopColor: BORDER }]}>
               <Text style={styles.balanceDueLabel}>BALANCE DUE</Text>
-              <Text style={styles.balanceDueValue}>XCG {total.toFixed(2)}</Text>
+              <Text style={styles.balanceDueValue}>{fmt(total)}</Text>
             </View>
             <Text style={styles.outOfScope}>Out of Scope of OB</Text>
           </View>

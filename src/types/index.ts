@@ -163,6 +163,7 @@ export interface OrderEditLogEntry {
 
 export type PaymentType = 'invoice' | 'cash'
 export type OrderType = 'normal' | 'free_bottle_service'
+export type OrderCurrency = 'XCG' | 'USD' | 'EUR'
 
 export interface Order {
   id: string
@@ -171,6 +172,7 @@ export interface Order {
   order_number: string
   payment_type: PaymentType
   order_type: OrderType
+  currency: OrderCurrency
   items: QuoteItem[]
   total: number
   assigned_to: string

@@ -19,9 +19,10 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Order, OrderEditLogEntry, OrderStatus, QuoteItem } from '@/types'
+import { Order, OrderCurrency, OrderEditLogEntry, OrderStatus, QuoteItem } from '@/types'
 import { SPIKA_PRODUCTS } from '@/lib/products'
 import { getNextCashOrderNumber } from '@/lib/order-number'
+import { formatCurrency } from '@/lib/utils'
 
 const statusColors: Record<OrderStatus, string> = {
   pending_approval: 'bg-orange-100 text-orange-700',
@@ -67,6 +68,8 @@ export default function OrderDetailPage({
     ? (order.delivery?.table_bottles_returned ?? 0) * (order.customer?.table_bottle_return_price ?? 2.50)
     : 0
   const adjustedTotal = order ? Number(order.total) - bottleCredit : 0
+  const cur: OrderCurrency = (order as any)?.currency ?? 'XCG'
+  const fmt = (amount: number) => formatCurrency(amount, cur)
   const { data: users } = useUsers()
   const router = useRouter()
   const supabase = createClient()
@@ -507,14 +510,14 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
               </div>
               {estimatedCredit !== null && (
                 <div className="flex justify-between text-sm bg-muted/50 rounded-lg px-3 py-2">
-                  <span className="text-muted-foreground">Estimated credit ({displayQty} × XCG {returnPrice.toFixed(2)})</span>
-                  <span className="font-medium text-green-600">- XCG {estimatedCredit.toFixed(2)}</span>
+                  <span className="text-muted-foreground">Estimated credit ({displayQty} × {fmt(returnPrice)})</span>
+                  <span className="font-medium text-green-600">- {fmt(estimatedCredit)}</span>
                 </div>
               )}
               {estimatedCredit !== null && (
                 <div className="flex justify-between text-sm px-3">
                   <span className="text-muted-foreground">Estimated net total</span>
-                  <span className="font-semibold">XCG {(Number(order.total) - estimatedCredit).toFixed(2)}</span>
+                  <span className="font-semibold">{fmt(Number(order.total) - estimatedCredit)}</span>
                 </div>
               )}
             </CardContent>
@@ -599,37 +602,56 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                   Cash orders use a separate number series (C-YYYY-XXXX)
                 </p>
               </div>
-              <div className="flex rounded-lg border overflow-hidden shrink-0">
-                <button
-                  onClick={async () => {
-                    if ((order as any).payment_type === 'invoice') return
-                    await updateOrder.mutateAsync({ id: order.id, values: { payment_type: 'invoice' } as any })
-                  }}
-                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                    (order as any).payment_type !== 'cash'
-                      ? 'bg-blue-600 text-white'
-                      : 'text-muted-foreground hover:bg-accent'
-                  }`}
-                >
-                  Invoice
-                </button>
-                <button
-                  onClick={async () => {
-                    if ((order as any).payment_type === 'cash') return
-                    const cashNum = await getNextCashOrderNumber()
-                    await updateOrder.mutateAsync({
-                      id: order.id,
-                      values: { payment_type: 'cash', order_number: cashNum } as any,
-                    })
-                  }}
-                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                    (order as any).payment_type === 'cash'
-                      ? 'bg-green-600 text-white'
-                      : 'text-muted-foreground hover:bg-accent'
-                  }`}
-                >
-                  Cash
-                </button>
+              <div className="flex items-center gap-2">
+                <div className="flex rounded-lg border overflow-hidden shrink-0">
+                  <button
+                    onClick={async () => {
+                      if ((order as any).payment_type === 'invoice') return
+                      await updateOrder.mutateAsync({ id: order.id, values: { payment_type: 'invoice' } as any })
+                    }}
+                    className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                      (order as any).payment_type !== 'cash'
+                        ? 'bg-blue-600 text-white'
+                        : 'text-muted-foreground hover:bg-accent'
+                    }`}
+                  >
+                    Invoice
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if ((order as any).payment_type === 'cash') return
+                      const cashNum = await getNextCashOrderNumber()
+                      await updateOrder.mutateAsync({
+                        id: order.id,
+                        values: { payment_type: 'cash', order_number: cashNum } as any,
+                      })
+                    }}
+                    className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                      (order as any).payment_type === 'cash'
+                        ? 'bg-green-600 text-white'
+                        : 'text-muted-foreground hover:bg-accent'
+                    }`}
+                  >
+                    Cash
+                  </button>
+                </div>
+                {/* Currency selector */}
+                <div className="flex rounded-lg border overflow-hidden shrink-0">
+                  {(['XCG', 'USD', 'EUR'] as OrderCurrency[]).map((c) => (
+                    <button
+                      key={c}
+                      onClick={async () => {
+                        if (cur === c) return
+                        await updateOrder.mutateAsync({ id: order.id, values: { currency: c } as any })
+                      }}
+                      className={`px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                        cur === c ? 'bg-red-600 text-white' : 'text-muted-foreground hover:bg-accent'
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </CardContent>
@@ -807,7 +829,7 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                       customerEmail: order.customer.email,
                       customerName: order.customer.company_name,
                       billingEmails: order.customer.billing_emails ?? [],
-                      total: `XCG ${Number(order.total).toFixed(2)}`,
+                      total: fmt(Number(order.total)),
                     },
                   }),
                 }).catch(() => {})
@@ -865,7 +887,7 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
               <div className="grid grid-cols-[1fr_60px_90px_90px_32px] gap-2 text-xs text-muted-foreground pb-1 border-b min-w-[340px]">
                 <span>Product</span>
                 <span className="text-center">Qty</span>
-                <span className="text-right">Price (XCG)</span>
+                <span className="text-right">Price ({cur})</span>
                 <span className="text-right">Total</span>
                 <span />
               </div>
@@ -960,7 +982,7 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
               <Separator />
               <div className="flex justify-between font-bold text-sm">
                 <span>New Total</span>
-                <span>XCG {draftItems.reduce((s, i) => s + i.line_total, 0).toFixed(2)}</span>
+                <span>{fmt(draftItems.reduce((s, i) => s + i.line_total, 0))}</span>
               </div>
               <div className="flex gap-2 pt-2">
                 <Button
@@ -1010,10 +1032,10 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                   <div className="flex justify-between items-start gap-2">
                     <div>
                       <p className="font-medium text-sm">{item.name}</p>
-                      {isAdmin && <p className="text-xs text-muted-foreground">{item.sku} · XCG {item.unit_price.toFixed(2)} × {item.qty}</p>}
+                      {isAdmin && <p className="text-xs text-muted-foreground">{item.sku} · {fmt(item.unit_price)} × {item.qty}</p>}
                       {!isAdmin && <p className="text-xs text-muted-foreground">{item.sku} · qty: {item.qty}</p>}
                     </div>
-                    {isAdmin && <p className="font-semibold text-sm shrink-0">XCG {item.line_total.toFixed(2)}</p>}
+                    {isAdmin && <p className="font-semibold text-sm shrink-0">{fmt(item.line_total)}</p>}
                   </div>
                 </div>
               ))}
@@ -1024,17 +1046,17 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                     <>
                       <div className="flex justify-between text-sm text-muted-foreground">
                         <span>Order subtotal</span>
-                        <span>XCG {Number(order.total).toFixed(2)}</span>
+                        <span>{fmt(Number(order.total))}</span>
                       </div>
                       <div className="flex justify-between text-sm text-red-600">
-                        <span>Table bottle credit ({order.delivery?.table_bottles_returned} × XCG {(order.customer?.table_bottle_return_price ?? 2.50).toFixed(2)})</span>
-                        <span>- XCG {bottleCredit.toFixed(2)}</span>
+                        <span>Table bottle credit ({order.delivery?.table_bottles_returned} × {fmt(order.customer?.table_bottle_return_price ?? 2.50)})</span>
+                        <span>- {fmt(bottleCredit)}</span>
                       </div>
                     </>
                   )}
                   <div className="flex justify-between font-bold">
                     <span>Total</span>
-                    <span>XCG {adjustedTotal.toFixed(2)}</span>
+                    <span>{fmt(adjustedTotal)}</span>
                   </div>
                 </>
               )}
@@ -1066,16 +1088,16 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                   <div>
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Before</p>
                     {entry.old_items.map((item, j) => (
-                      <p key={j} className="text-xs">{item.qty}× {item.name} — XCG {item.line_total.toFixed(2)}</p>
+                      <p key={j} className="text-xs">{item.qty}× {item.name} — {fmt(item.line_total)}</p>
                     ))}
-                    <p className="text-xs font-bold mt-1">Total: XCG {entry.old_total.toFixed(2)}</p>
+                    <p className="text-xs font-bold mt-1">Total: {fmt(entry.old_total)}</p>
                   </div>
                   <div>
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">After</p>
                     {entry.new_items.map((item, j) => (
-                      <p key={j} className="text-xs">{item.qty}× {item.name} — XCG {item.line_total.toFixed(2)}</p>
+                      <p key={j} className="text-xs">{item.qty}× {item.name} — {fmt(item.line_total)}</p>
                     ))}
-                    <p className="text-xs font-bold mt-1">Total: XCG {entry.new_total.toFixed(2)}</p>
+                    <p className="text-xs font-bold mt-1">Total: {fmt(entry.new_total)}</p>
                   </div>
                 </div>
               </div>
