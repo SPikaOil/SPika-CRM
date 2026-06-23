@@ -11,7 +11,7 @@ export function useTasks(customerId?: string, userId?: string, isAdmin?: boolean
     queryFn: async () => {
       let query = supabase
         .from('tasks')
-        .select('*, customer:customers(id, company_name), assigned_user:users(id, name)')
+        .select('*, customer:customers(id, company_name), assigned_user:users!tasks_assigned_to_fkey(id, name)')
         .order('due_date', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: false })
 
