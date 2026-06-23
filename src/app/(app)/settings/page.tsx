@@ -347,7 +347,8 @@ function PricePresetsCard() {
   async function handleSave(category: string, id: string) {
     setSaving(category)
     try {
-      await updatePreset({ id, prices: localPrices[category] ?? {}, discounts: localDiscounts[category] ?? {} })
+      const preset = presets?.find(p => p.category === category)
+      await updatePreset({ id, prices: localPrices[category] ?? {}, discounts: localDiscounts[category] ?? {}, products: preset?.products ?? [] })
       toast.success('Price preset saved!')
     } catch (err: any) {
       toast.error(err.message)
