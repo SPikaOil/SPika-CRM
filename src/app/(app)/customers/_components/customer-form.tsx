@@ -383,7 +383,10 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
                   // Apply price + discount preset for this category (only for SKUs active in the preset)
                   const preset = pricePresets?.find(p => p.category === v)
                   if (preset) {
-                    const activeSkus = preset.products ?? []
+                    // If no products ticked in the preset, apply to all products
+                    const activeSkus = (preset.products ?? []).length > 0
+                      ? preset.products
+                      : SPIKA_PRODUCTS.map(p => p.sku)
                     setProductPrices(prev => {
                       const next = { ...prev }
                       for (const p of SPIKA_PRODUCTS) {
