@@ -76,8 +76,17 @@ function NewDeliveryNoteInner() {
     if (type === 'free_bottle_service') {
       const num = await getNextFreeBottleOrderNumber()
       setOrderNumber(num)
-      // Set all prices to 0 for free bottle service
-      setItems(prev => prev.map(item => ({ ...item, unit_price: 0, discount: 0, line_total: 0 })))
+      // Free bottle service: only 30ml table version, all prices 0
+      const customer = customers?.find(c => c.id === customerId)
+      const tableProduct = SPIKA_PRODUCTS.find(p => p.sku === 'oil-30ml-table')!
+      setItems([{
+        sku: tableProduct.sku,
+        name: tableProduct.name,
+        qty: 0,
+        unit_price: 0,
+        discount: 0,
+        line_total: 0,
+      }])
     } else {
       const num = await getNextOrderNumber()
       setOrderNumber(num)
@@ -93,6 +102,7 @@ function NewDeliveryNoteInner() {
 
   function handleCustomerChange(id: string) {
     setCustomerId(id)
+    if (orderType === 'free_bottle_service') return // keep the single table-product item
     const customer = customers?.find((c) => c.id === id)
     setItems(buildItemsForCustomer(customer?.product_prices ?? {}, customer?.product_discounts ?? {}, customer?.free_products ?? [], customer?.active_products ?? []))
   }
