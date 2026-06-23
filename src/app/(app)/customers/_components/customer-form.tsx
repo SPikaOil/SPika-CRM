@@ -112,13 +112,15 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
     const activeSkus = (preset.products ?? []).length > 0
       ? preset.products
       : SPIKA_PRODUCTS.map(p => p.sku)
-    let applied = 0
+    // Only sync active products if the preset has an explicit products list
+    if ((preset.products ?? []).length > 0) {
+      setActiveProducts(new Set(activeSkus))
+    }
     setProductPrices(prev => {
       const next = { ...prev }
       for (const p of SPIKA_PRODUCTS) {
         if (activeSkus.includes(p.sku)) {
           next[p.sku] = preset.prices[p.sku] ?? p.default_price
-          applied++
         }
       }
       return next
