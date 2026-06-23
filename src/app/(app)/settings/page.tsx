@@ -191,6 +191,9 @@ export default function SettingsPage() {
       {/* Company Info */}
       <CompanySettingsCard />
 
+      {/* Exchange Rates */}
+      <ExchangeRatesCard />
+
       {/* User Management */}
       <Card>
         <CardHeader>
@@ -298,6 +301,90 @@ function CompanySettingsCard() {
         <Button className="bg-red-600 hover:bg-red-700 gap-2" onClick={handleSave} disabled={saving}>
           {saving && <Loader2 className="h-4 w-4 animate-spin" />}
           Save
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+function ExchangeRatesCard() {
+  const supabase = createClient()
+  const [saving, setSaving] = useState(false)
+  const [rateUsd, setRateUsd] = useState('')
+  const [rateEur, setRateEur] = useState('')
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    supabase.from('company_settings').select('rate_usd,rate_eur').eq('id', COMPANY_ID).single()
+      .then(({ data }) => {
+        if (data) {
+          setRateUsd(String(data.rate_usd ?? 1.79))
+          setRateEur(String(data.rate_eur ?? 2.00))
+        }
+        setLoaded(true)
+      })
+  }, [])
+
+  async function handleSave() {
+    const usd = parseFloat(rateUsd)
+    const eur = parseFloat(rateEur)
+    if (isNaN(usd) || isNaN(eur) || usd <= 0 || eur <= 0) {
+      toast.error('Enter valid positive rates')
+      return
+    }
+    setSaving(true)
+    const { error } = await supabase.from('company_settings')
+      .update({ rate_usd: usd, rate_eur: eur })
+      .eq('id', COMPANY_ID)
+    if (error) toast.error(error.message)
+    else toast.success('Exchange rates saved!')
+    setSaving(false)
+  }
+
+  if (!loaded) return <Skeleton className="h-40 rounded-xl" />
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Tag className="h-5 w-5" />
+          Exchange Rates
+        </CardTitle>
+        <CardDescription>
+          Set how many XCG equals 1 unit of each currency. Used for automatic price conversion on orders.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label>1 USD = ? XCG</Label>
+            <Input
+              type="number"
+              step="0.0001"
+              min="0.0001"
+              value={rateUsd}
+              onChange={e => setRateUsd(e.target.value)}
+              placeholder="1.79"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>1 EUR = ? XCG</Label>
+            <Input
+              type="number"
+              step="0.0001"
+              min="0.0001"
+              value={rateEur}
+              onChange={e => setRateEur(e.target.value)}
+              placeholder="2.00"
+            />
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Example: if 1 EUR = 2 XCG, then an order worth XCG 10 will show as EUR 5 when you switch the currency.
+        </p>
+        <Button className="bg-red-600 hover:bg-red-700 gap-2" onClick={handleSave} disabled={saving}>
+          {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+          Save Rates
         </Button>
       </CardContent>
     </Card>
