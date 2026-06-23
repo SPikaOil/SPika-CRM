@@ -213,6 +213,20 @@ export function emailTaskAssigned(p: { workerName: string; taskTitle: string; cu
   `)
 }
 
+export function emailTaskCompleted(p: { taskTitle: string; completedBy: string; customerName?: string }) {
+  return layout(`
+    <h2 style="margin:0 0 4px;font-size:20px;color:#111;">Task completed ✓</h2>
+    <p style="margin:0 0 20px;color:#6b7280;font-size:14px;">A task has been marked as done.</p>
+    ${badge('Completed', '#16a34a')}
+    <table style="margin-top:16px;width:100%;border-collapse:collapse;">
+      ${row('Task', p.taskTitle)}
+      ${p.customerName ? row('Customer', p.customerName) : ''}
+      ${row('Completed by', p.completedBy)}
+    </table>
+    ${button('View Tasks', `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://s-pika-crm.vercel.app'}/tasks`)}
+  `)
+}
+
 export function emailOrderModified(p: { orderNumber: string; customerName: string; items: string; total: string }) {
   return layout(`
     <tr><td style="padding:28px 28px 0;">

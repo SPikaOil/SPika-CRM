@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { Task } from '@/types'
 import { toast } from 'sonner'
+import { useAuth } from '@/contexts/auth-context'
 
 export function useTasks(customerId?: string, userId?: string, isAdmin?: boolean) {
   const supabase = createClient()
@@ -68,17 +69,33 @@ export function useCreateTask() {
 export function useCompleteTask() {
   const supabase = createClient()
   const queryClient = useQueryClient()
+  const { profile } = useAuth()
 
   return useMutation({
-    mutationFn: async ({ id, completed }: { id: string; completed: boolean }) => {
+    mutationFn: async ({ id, completed, task }: { id: string; completed: boolean; task?: Task }) => {
       const { error } = await supabase
         .from('tasks')
         .update({ completed_at: completed ? new Date().toISOString() : null })
         .eq('id', id)
       if (error) throw error
+      return { completed, task }
     },
-    onSuccess: () => {
+    onSuccess: ({ completed, task }) => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
+      if (completed && task) {
+        fetch('/api/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'task_completed',
+            payload: {
+              taskTitle: task.title,
+              completedBy: profile?.name ?? 'Someone',
+              customerName: (task.customer as any)?.company_name,
+            },
+          }),
+        }).catch(() => {})
+      }
     },
     onError: (err: Error) => toast.error(err.message),
   })

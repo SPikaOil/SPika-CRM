@@ -242,7 +242,7 @@ export default function TasksPage() {
               className="flex items-start gap-3 p-4 rounded-xl border bg-card"
             >
               <button
-                onClick={() => completeTask.mutate({ id: task.id, completed: true })}
+                onClick={() => completeTask.mutate({ id: task.id, completed: true, task })}
                 className="mt-0.5 shrink-0 text-muted-foreground hover:text-green-600 transition-colors"
               >
                 <Circle className="h-5 w-5" />

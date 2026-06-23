@@ -5,7 +5,7 @@ import {
   sendEmail, ADMIN_EMAIL,
   emailOrderPlaced, emailOrderConfirmed, emailOutForDelivery,
   emailOrderDelivered, emailInvoiceReady, emailOBFormSigned,
-  emailNewCustomer, emailTaskAssigned, emailQuoteSent,
+  emailNewCustomer, emailTaskAssigned, emailQuoteSent, emailTaskCompleted,
 } from '@/lib/resend'
 
 export async function POST(req: NextRequest) {
@@ -142,6 +142,17 @@ export async function POST(req: NextRequest) {
             html: emailQuoteSent({ quoteNumber, customerName, validUntil, total, items }),
           })
         }
+        break
+      }
+
+      // ── Admin: task completed ──────────────────────────────────
+      case 'task_completed': {
+        const { taskTitle, completedBy, customerName } = payload
+        await sendEmail({
+          to: ADMIN_EMAIL,
+          subject: `Task completed: ${taskTitle}`,
+          html: emailTaskCompleted({ taskTitle, completedBy, customerName }),
+        })
         break
       }
 
