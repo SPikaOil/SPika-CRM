@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -96,8 +96,50 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
   const { data: allCustomers } = useCustomers()
   const { data: pricePresets } = usePricePresets()
 
+  // Track the category the user just selected so we can apply its preset
+  // even if pricePresets hasn't loaded yet at the time of selection.
+  const pendingPresetCategory = useRef<string | null>(null)
+  const isInitialRender = useRef(true)
+
+  function applyPreset(categoryKey: string, presets: typeof pricePresets) {
+    const preset = presets?.find(p => p.category === categoryKey)
+    if (!preset) return
+    const activeSkus = (preset.products ?? []).length > 0
+      ? preset.products
+      : SPIKA_PRODUCTS.map(p => p.sku)
+    setProductPrices(prev => {
+      const next = { ...prev }
+      for (const p of SPIKA_PRODUCTS) {
+        if (activeSkus.includes(p.sku) && preset.prices[p.sku] !== undefined) {
+          next[p.sku] = preset.prices[p.sku]
+        }
+      }
+      return next
+    })
+    setProductDiscounts(prev => {
+      const next = { ...prev }
+      for (const p of SPIKA_PRODUCTS) {
+        if (activeSkus.includes(p.sku)) {
+          next[p.sku] = (preset.discounts ?? {})[p.sku] ?? 0
+        }
+      }
+      return next
+    })
+  }
+
+  // When pricePresets finally loads, apply any preset that was selected before data arrived
+  useEffect(() => {
+    if (isInitialRender.current) {
+      isInitialRender.current = false
+      return
+    }
+    const cat = pendingPresetCategory.current
+    if (!cat || !pricePresets) return
+    pendingPresetCategory.current = null
+    applyPreset(cat, pricePresets)
+  }, [pricePresets])
+
   // Product prices — keyed by SKU, pre-filled from existing customer or product defaults
-  // Note: preset is applied reactively when category changes (see Select onValueChange)
   const [productPrices, setProductPrices] = useState<Record<string, number>>(() => {
     const existing = defaultValues?.product_prices ?? {}
     const result: Record<string, number> = {}
@@ -380,31 +422,11 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
                 <Label>Category *</Label>
                 <Select value={category} onValueChange={(v) => {
                   setValue('customer_category', v as any)
-                  // Apply price + discount preset for this category (only for SKUs active in the preset)
-                  const preset = pricePresets?.find(p => p.category === v)
-                  if (preset) {
-                    // If no products ticked in the preset, apply to all products
-                    const activeSkus = (preset.products ?? []).length > 0
-                      ? preset.products
-                      : SPIKA_PRODUCTS.map(p => p.sku)
-                    setProductPrices(prev => {
-                      const next = { ...prev }
-                      for (const p of SPIKA_PRODUCTS) {
-                        if (activeSkus.includes(p.sku)) {
-                          next[p.sku] = preset.prices[p.sku] ?? p.default_price
-                        }
-                      }
-                      return next
-                    })
-                    setProductDiscounts(prev => {
-                      const next = { ...prev }
-                      for (const p of SPIKA_PRODUCTS) {
-                        if (activeSkus.includes(p.sku)) {
-                          next[p.sku] = (preset.discounts ?? {})[p.sku] ?? 0
-                        }
-                      }
-                      return next
-                    })
+                  if (pricePresets) {
+                    applyPreset(v, pricePresets)
+                  } else {
+                    // pricePresets not loaded yet — apply once they arrive
+                    pendingPresetCategory.current = v
                   }
                 }}>
                   <SelectTrigger className="w-full"><SelectValue placeholder="Select category" /></SelectTrigger>
