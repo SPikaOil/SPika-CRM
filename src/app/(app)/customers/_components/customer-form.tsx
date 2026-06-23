@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Loader2, Plus, X } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -104,15 +105,20 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
   function applyPreset(categoryKey: string | null, presets: typeof pricePresets) {
     if (!categoryKey) return
     const preset = presets?.find(p => p.category === categoryKey)
-    if (!preset) return
+    if (!preset) {
+      toast.info(`No price preset found for this category`)
+      return
+    }
     const activeSkus = (preset.products ?? []).length > 0
       ? preset.products
       : SPIKA_PRODUCTS.map(p => p.sku)
+    let applied = 0
     setProductPrices(prev => {
       const next = { ...prev }
       for (const p of SPIKA_PRODUCTS) {
-        if (activeSkus.includes(p.sku) && preset.prices[p.sku] !== undefined) {
-          next[p.sku] = preset.prices[p.sku]
+        if (activeSkus.includes(p.sku)) {
+          next[p.sku] = preset.prices[p.sku] ?? p.default_price
+          applied++
         }
       }
       return next
@@ -126,6 +132,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
       }
       return next
     })
+    toast.success(`Applied ${preset.label} preset to ${activeSkus.length} product${activeSkus.length !== 1 ? 's' : ''}`)
   }
 
   // When pricePresets finally loads, apply any preset that was selected before data arrived
