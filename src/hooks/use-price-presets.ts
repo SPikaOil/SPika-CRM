@@ -7,6 +7,7 @@ export interface PricePreset {
   label: string
   prices: Record<string, number>
   discounts: Record<string, number>
+  products: string[]
   updated_at: string
 }
 
@@ -30,10 +31,10 @@ export function useUpdatePricePreset() {
   const supabase = createClient()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, prices, discounts }: { id: string; prices: Record<string, number>; discounts: Record<string, number> }) => {
+    mutationFn: async ({ id, prices, discounts, products }: { id: string; prices: Record<string, number>; discounts: Record<string, number>; products: string[] }) => {
       const { error } = await supabase
         .from('price_presets')
-        .update({ prices, discounts, updated_at: new Date().toISOString() })
+        .update({ prices, discounts, products, updated_at: new Date().toISOString() })
         .eq('id', id)
       if (error) throw error
     },

@@ -380,27 +380,28 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
                 <Label>Category *</Label>
                 <Select value={category} onValueChange={(v) => {
                   setValue('customer_category', v as any)
-                  // Apply price + discount preset for this category
+                  // Apply price + discount preset for this category (only for SKUs active in the preset)
                   const preset = pricePresets?.find(p => p.category === v)
                   if (preset) {
-                    if (Object.keys(preset.prices).length > 0) {
-                      setProductPrices(prev => {
-                        const next = { ...prev }
-                        for (const p of SPIKA_PRODUCTS) {
+                    const activeSkus = preset.products ?? []
+                    setProductPrices(prev => {
+                      const next = { ...prev }
+                      for (const p of SPIKA_PRODUCTS) {
+                        if (activeSkus.includes(p.sku)) {
                           next[p.sku] = preset.prices[p.sku] ?? p.default_price
                         }
-                        return next
-                      })
-                    }
-                    if (Object.keys(preset.discounts ?? {}).length > 0) {
-                      setProductDiscounts(prev => {
-                        const next = { ...prev }
-                        for (const p of SPIKA_PRODUCTS) {
+                      }
+                      return next
+                    })
+                    setProductDiscounts(prev => {
+                      const next = { ...prev }
+                      for (const p of SPIKA_PRODUCTS) {
+                        if (activeSkus.includes(p.sku)) {
                           next[p.sku] = (preset.discounts ?? {})[p.sku] ?? 0
                         }
-                        return next
-                      })
-                    }
+                      }
+                      return next
+                    })
                   }
                 }}>
                   <SelectTrigger className="w-full"><SelectValue placeholder="Select category" /></SelectTrigger>

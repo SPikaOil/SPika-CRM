@@ -210,6 +210,7 @@ function CategoriesTab() {
   const [openCategory, setOpenCategory] = useState<string | null>(null)
   const [localPrices, setLocalPrices] = useState<Record<string, Record<string, number>>>({})
   const [localDiscounts, setLocalDiscounts] = useState<Record<string, Record<string, number>>>({})
+  const [localProducts, setLocalProducts] = useState<Record<string, string[]>>({})
   const [saving, setSaving] = useState<string | null>(null)
 
   // New category form
@@ -221,13 +222,26 @@ function CategoriesTab() {
     if (!presets) return
     const initPrices: Record<string, Record<string, number>> = {}
     const initDiscounts: Record<string, Record<string, number>> = {}
+    const initProducts: Record<string, string[]> = {}
     for (const p of presets) {
       initPrices[p.category] = { ...p.prices }
       initDiscounts[p.category] = { ...(p.discounts ?? {}) }
+      initProducts[p.category] = [...(p.products ?? [])]
     }
     setLocalPrices(initPrices)
     setLocalDiscounts(initDiscounts)
+    setLocalProducts(initProducts)
   }, [presets])
+
+  function toggleProduct(category: string, sku: string, checked: boolean) {
+    setLocalProducts(prev => {
+      const current = prev[category] ?? []
+      return {
+        ...prev,
+        [category]: checked ? [...current, sku] : current.filter(s => s !== sku),
+      }
+    })
+  }
 
   function setPrice(category: string, sku: string, v: number) {
     setLocalPrices(prev => ({ ...prev, [category]: { ...prev[category], [sku]: v } }))
@@ -240,7 +254,15 @@ function CategoriesTab() {
   async function handleSave(category: string, id: string) {
     setSaving(category)
     try {
-      await updatePreset({ id, prices: localPrices[category] ?? {}, discounts: localDiscounts[category] ?? {} })
+      const activeSkus = localProducts[category] ?? []
+      // Only keep prices/discounts for active SKUs
+      const filteredPrices = Object.fromEntries(
+        Object.entries(localPrices[category] ?? {}).filter(([sku]) => activeSkus.includes(sku))
+      )
+      const filteredDiscounts = Object.fromEntries(
+        Object.entries(localDiscounts[category] ?? {}).filter(([sku]) => activeSkus.includes(sku))
+      )
+      await updatePreset({ id, prices: filteredPrices, discounts: filteredDiscounts, products: activeSkus })
       toast.success('Saved')
     } catch (err: any) {
       toast.error(err.message)
@@ -288,6 +310,7 @@ function CategoriesTab() {
           const isOpen = openCategory === preset.category
           const prices = localPrices[preset.category] ?? {}
           const discounts = localDiscounts[preset.category] ?? {}
+          const activeCount = (preset.products ?? []).length
           const customCount = Object.keys(preset.prices).length + Object.keys(preset.discounts ?? {}).length
 
           return (
@@ -301,7 +324,7 @@ function CategoriesTab() {
                   <div>
                     <p className="text-sm font-medium">{preset.label}</p>
                     <p className="text-xs text-muted-foreground">
-                      {customCount > 0 ? `${customCount} custom values` : 'Using product defaults'} · key: {preset.category}
+                      {activeCount > 0 ? `${activeCount} products` : 'No products selected'}{customCount > 0 ? ` · ${customCount} custom prices` : ''} · key: {preset.category}
                     </p>
                   </div>
                   {isOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
@@ -319,34 +342,47 @@ function CategoriesTab() {
               {isOpen && (
                 <div className="border-t space-y-0">
                   <div className="divide-y">
-                    {SPIKA_PRODUCTS.map(product => (
-                      <div key={product.sku} className="px-4 py-3">
-                        <div className="mb-2">
-                          <p className="text-sm font-medium">{product.name}</p>
-                          <p className="text-xs text-muted-foreground">default XCG {product.default_price.toFixed(2)}</p>
-                        </div>
-                        <div className="flex gap-3">
-                          <div className="flex-1 space-y-1">
-                            <p className="text-xs text-muted-foreground">Price (XCG)</p>
-                            <PriceInput
-                              value={prices[product.sku] ?? 0}
-                              onChange={v => setPrice(preset.category, product.sku, v)}
-                              placeholder={product.default_price.toFixed(2)}
-                              className="h-8"
+                    {SPIKA_PRODUCTS.map(product => {
+                      const active = (localProducts[preset.category] ?? []).includes(product.sku)
+                      return (
+                        <div key={product.sku} className="px-4 py-3">
+                          <label className="flex items-center gap-3 cursor-pointer mb-2">
+                            <input
+                              type="checkbox"
+                              checked={active}
+                              onChange={e => toggleProduct(preset.category, product.sku, e.target.checked)}
+                              className="h-4 w-4 rounded border-gray-300"
                             />
-                          </div>
-                          <div className="flex-1 space-y-1">
-                            <p className="text-xs text-muted-foreground">Discount</p>
-                            <PriceInput
-                              value={discounts[product.sku] ?? 0}
-                              onChange={v => setDiscount(preset.category, product.sku, v)}
-                              placeholder="0.00"
-                              className="h-8"
-                            />
-                          </div>
+                            <div>
+                              <p className="text-sm font-medium">{product.name}</p>
+                              <p className="text-xs text-muted-foreground">default XCG {product.default_price.toFixed(2)}</p>
+                            </div>
+                          </label>
+                          {active && (
+                            <div className="flex gap-3 pl-7">
+                              <div className="flex-1 space-y-1">
+                                <p className="text-xs text-muted-foreground">Price (XCG)</p>
+                                <PriceInput
+                                  value={prices[product.sku] ?? 0}
+                                  onChange={v => setPrice(preset.category, product.sku, v)}
+                                  placeholder={product.default_price.toFixed(2)}
+                                  className="h-8"
+                                />
+                              </div>
+                              <div className="flex-1 space-y-1">
+                                <p className="text-xs text-muted-foreground">Discount</p>
+                                <PriceInput
+                                  value={discounts[product.sku] ?? 0}
+                                  onChange={v => setDiscount(preset.category, product.sku, v)}
+                                  placeholder="0.00"
+                                  className="h-8"
+                                />
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                   <div className="px-4 py-3 border-t">
                     <Button
