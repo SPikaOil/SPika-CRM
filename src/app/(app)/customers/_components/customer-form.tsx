@@ -101,7 +101,8 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
   const pendingPresetCategory = useRef<string | null>(null)
   const isInitialRender = useRef(true)
 
-  function applyPreset(categoryKey: string, presets: typeof pricePresets) {
+  function applyPreset(categoryKey: string | null, presets: typeof pricePresets) {
+    if (!categoryKey) return
     const preset = presets?.find(p => p.category === categoryKey)
     if (!preset) return
     const activeSkus = (preset.products ?? []).length > 0
