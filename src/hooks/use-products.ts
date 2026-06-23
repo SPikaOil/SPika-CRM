@@ -12,6 +12,7 @@ export interface ProductRecord {
   box_height_cm: number | null
   box_length_cm: number | null
   box_width_cm: number | null
+  real_volume_ml: number | null
 }
 
 export function useProducts() {

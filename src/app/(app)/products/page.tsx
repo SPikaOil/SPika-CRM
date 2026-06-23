@@ -21,6 +21,7 @@ type EditingRow = {
   box_height_cm: string
   box_length_cm: string
   box_width_cm: string
+  real_volume_ml: string
 }
 
 function num(v: number | null) { return v != null ? String(v) : '' }
@@ -42,6 +43,7 @@ function ProductsTab() {
       box_height_cm: num(p.box_height_cm),
       box_length_cm: num(p.box_length_cm),
       box_width_cm: num(p.box_width_cm),
+      real_volume_ml: num(p.real_volume_ml),
     })
   }
 
@@ -58,6 +60,7 @@ function ProductsTab() {
           box_height_cm: parse(editing.box_height_cm),
           box_length_cm: parse(editing.box_length_cm),
           box_width_cm: parse(editing.box_width_cm),
+          real_volume_ml: parse(editing.real_volume_ml),
         },
       })
       toast.success('Product updated')
@@ -69,6 +72,7 @@ function ProductsTab() {
 
   const fields: { key: keyof EditingRow; label: string; type?: string }[] = [
     { key: 'product_code',      label: 'Product Code' },
+    { key: 'real_volume_ml',    label: 'Real Volume (ml)', type: 'number' },
     { key: 'weight_g',          label: 'Weight (g)',    type: 'number' },
     { key: 'bottles_per_carton',label: 'Btls / Carton', type: 'number' },
     { key: 'box_height_cm',     label: 'Height (cm)',   type: 'number' },
