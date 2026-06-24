@@ -16,6 +16,7 @@ import {
   Package,
   FolderOpen,
   Globe,
+  BarChart2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
@@ -31,6 +32,7 @@ const allNavItems = [
   { href: '/sales-documents', label: 'Sales Docs',       icon: FolderOpen,      adminOnly: false },
   { href: '/tasks',           label: 'Tasks',            icon: ClipboardList,   adminOnly: true  },
   { href: '/agenda',          label: 'Agenda',           icon: CalendarDays,    adminOnly: false },
+  { href: '/reports',         label: 'Reports',          icon: BarChart2,       adminOnly: true  },
 ]
 
 const adminOnlyItems = [
