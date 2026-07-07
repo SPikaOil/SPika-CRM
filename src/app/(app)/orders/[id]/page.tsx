@@ -389,7 +389,7 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {(users ?? []).filter(u => u.role !== 'customer').map(u => (
+                  {(users ?? []).filter(u => u.role !== 'customer' && u.is_active !== false).map(u => (
                     <SelectItem key={u.id} value={u.id} label={u.name}>{u.name}</SelectItem>
                   ))}
                 </SelectContent>

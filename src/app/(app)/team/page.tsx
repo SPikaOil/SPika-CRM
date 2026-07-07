@@ -22,8 +22,8 @@ import { toast } from 'sonner'
 import { User } from '@/types'
 
 const roleConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
-  admin:  { label: 'Admin',  color: 'bg-red-100 text-red-700',   icon: ShieldCheck },
-  sales:  { label: 'Sales',  color: 'bg-blue-100 text-blue-700', icon: UserCircle2 },
+  admin:  { label: 'Admin',  color: 'bg-green-100 text-green-700', icon: ShieldCheck },
+  sales:  { label: 'Sales',  color: 'bg-blue-100 text-blue-700',   icon: UserCircle2 },
 }
 
 export default function TeamPage() {
@@ -58,6 +58,13 @@ export default function TeamPage() {
   // Deactivate confirm
   const [deactivateUser, setDeactivateUser] = useState<User | null>(null)
   const [deactivating, setDeactivating] = useState(false)
+  const [openWork, setOpenWork] = useState<{ openLeads: number; openOrders: number; openTasks: number } | null>(null)
+
+  // Reactivate
+  const [reactivatingId, setReactivatingId] = useState<string | null>(null)
+
+  // Member filter
+  const [memberFilter, setMemberFilter] = useState<'active' | 'inactive' | 'all'>('active')
 
   // Own password change
   const [showOwnPw, setShowOwnPw] = useState(false)
@@ -163,19 +170,48 @@ export default function TeamPage() {
     }
   }
 
+  // When the deactivate dialog opens, check what open work is still assigned
+  useEffect(() => {
+    if (!deactivateUser) { setOpenWork(null); return }
+    fetch(`/api/admin/users/${deactivateUser.id}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(setOpenWork)
+      .catch(() => setOpenWork(null))
+  }, [deactivateUser])
+
   async function handleDeactivate() {
     if (!deactivateUser) return
     setDeactivating(true)
     try {
       const res = await fetch(`/api/admin/users/${deactivateUser.id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error((await res.json()).error)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
       toast.success(`${deactivateUser.name} has been deactivated`)
-      setUsers(u => u.filter(x => x.id !== deactivateUser.id))
+      setUsers(u => u.map(x => x.id === deactivateUser.id ? { ...x, ...data } : x))
       setDeactivateUser(null)
     } catch (err: any) {
       toast.error(err.message)
     } finally {
       setDeactivating(false)
+    }
+  }
+
+  async function handleReactivate(user: User) {
+    setReactivatingId(user.id)
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reactivate: true }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      toast.success(`${user.name} has been reactivated`)
+      setUsers(u => u.map(x => x.id === user.id ? { ...x, ...data } : x))
+    } catch (err: any) {
+      toast.error(err.message)
+    } finally {
+      setReactivatingId(null)
     }
   }
 
@@ -187,6 +223,9 @@ export default function TeamPage() {
     )
   }
 
+  const activeUsers = users.filter(u => u.is_active !== false)
+  const formerUsers = users.filter(u => u.is_active === false)
+
   return (
     <div className="p-4 lg:p-6 max-w-2xl mx-auto space-y-4">
       {/* Header */}
@@ -194,7 +233,7 @@ export default function TeamPage() {
         <div className="flex items-center gap-3">
           <Users className="h-6 w-6 text-red-600" />
           <h1 className="text-2xl font-bold">Team</h1>
-          <Badge variant="secondary">{users.length} members</Badge>
+          <Badge variant="secondary">{activeUsers.length} members</Badge>
         </div>
         <Button className="bg-red-600 hover:bg-red-700 gap-2" onClick={() => setShowCreate(true)}>
           <Plus className="h-4 w-4" /> Add Member
@@ -219,25 +258,46 @@ export default function TeamPage() {
         </CardContent>
       </Card>
 
+      {/* Member filter */}
+      <div className="flex gap-2">
+        {([
+          { key: 'active',   label: `Active (${activeUsers.length})` },
+          { key: 'inactive', label: `Inactive (${formerUsers.length})` },
+          { key: 'all',      label: `All (${users.length})` },
+        ] as const).map(f => (
+          <Button
+            key={f.key}
+            size="sm"
+            variant={memberFilter === f.key ? 'default' : 'outline'}
+            className={memberFilter === f.key ? 'bg-red-600 hover:bg-red-700' : ''}
+            onClick={() => setMemberFilter(f.key)}
+          >
+            {f.label}
+          </Button>
+        ))}
+      </div>
+
       {/* User list */}
-      <div className="space-y-3">
-        {users.map(user => {
+      {memberFilter !== 'inactive' && (
+      <div className="space-y-2">
+        {activeUsers.map(user => {
           const rc = roleConfig[user.role] ?? roleConfig.sales
           const Icon = rc.icon
           return (
-            <Card key={user.id}>
-              <CardContent className="py-4 flex items-center gap-4">
-                <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${rc.color}`}>
-                  <Icon className="h-5 w-5" />
+            <Card key={user.id} className="py-0">
+              <CardContent className="py-2 flex items-center gap-3">
+                <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${rc.color}`}>
+                  <Icon className="h-4 w-4" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-semibold text-sm">{user.name}</p>
                     <Badge className={`text-xs ${rc.color}`}>{rc.label}</Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-                  {user.phone && <p className="text-xs text-muted-foreground">{user.phone}</p>}
-                  <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                  <p className="text-xs text-muted-foreground truncate">
+                    {user.email}{user.phone ? ` · ${user.phone}` : ''}
+                  </p>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
                     <Clock className="h-3 w-3" />
                     {(user as any).last_seen_at
                       ? `Last seen: ${new Date((user as any).last_seen_at).toLocaleString('en', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`
@@ -268,7 +328,52 @@ export default function TeamPage() {
             </Card>
           )
         })}
+        {activeUsers.length === 0 && (
+          <p className="text-sm text-muted-foreground text-center py-6">No active members.</p>
+        )}
       </div>
+      )}
+
+      {/* Former team members */}
+      {memberFilter !== 'active' && (formerUsers.length > 0 || memberFilter === 'inactive') && (
+        <div className="space-y-2 pt-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-2">
+            <UserX className="h-3.5 w-3.5" /> Former team members
+          </p>
+          {formerUsers.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-6">No deactivated members.</p>
+          )}
+          {formerUsers.map(user => {
+            const rc = roleConfig[user.role] ?? roleConfig.sales
+            const Icon = rc.icon
+            return (
+              <Card key={user.id} className="opacity-60 py-0">
+                <CardContent className="py-2 flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-full flex items-center justify-center shrink-0 bg-gray-100 text-gray-500">
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-semibold text-sm">{user.name}</p>
+                      <Badge className="text-xs bg-gray-100 text-gray-600">Deactivated</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                  </div>
+                  <Button
+                    variant="outline" size="sm" className="shrink-0 gap-2"
+                    onClick={() => handleReactivate(user)}
+                    disabled={reactivatingId === user.id}
+                  >
+                    {reactivatingId === user.id
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : <><Check className="h-3.5 w-3.5" /> Reactivate</>}
+                  </Button>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
 
       {/* ── Create user dialog ── */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
@@ -402,9 +507,20 @@ export default function TeamPage() {
         <DialogContent>
           <DialogHeader><DialogTitle>Deactivate {deactivateUser?.name}?</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">
-            They will no longer be able to log in. Their data and order history stays intact.
-            You can reactivate them from Supabase if needed.
+            They will be logged out immediately and can no longer sign in. Their sales history stays
+            intact, and they move to &ldquo;Former team members&rdquo; where you can reactivate them anytime.
           </p>
+          {openWork && (openWork.openLeads > 0 || openWork.openOrders > 0 || openWork.openTasks > 0) && (
+            <div className="rounded-md border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800">
+              <p className="font-medium">Still assigned to {deactivateUser?.name}:</p>
+              <ul className="mt-1 list-disc list-inside">
+                {openWork.openLeads > 0 && <li>{openWork.openLeads} open lead{openWork.openLeads > 1 ? 's' : ''}</li>}
+                {openWork.openOrders > 0 && <li>{openWork.openOrders} open order{openWork.openOrders > 1 ? 's' : ''}</li>}
+                {openWork.openTasks > 0 && <li>{openWork.openTasks} open task{openWork.openTasks > 1 ? 's' : ''}</li>}
+              </ul>
+              <p className="mt-1">Reassign these to an active team member so they don&rsquo;t go unattended.</p>
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeactivateUser(null)}>Cancel</Button>
             <Button variant="destructive" onClick={handleDeactivate} disabled={deactivating}>

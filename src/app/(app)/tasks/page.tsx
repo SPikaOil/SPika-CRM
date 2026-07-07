@@ -147,7 +147,7 @@ export default function TasksPage() {
                     <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="">Unassigned</SelectItem>
-                      {users?.map((u) => (
+                      {users?.filter(u => u.is_active !== false).map((u) => (
                         <SelectItem key={u.id} value={u.id} label={u.name}>{u.name}</SelectItem>
                       ))}
                     </SelectContent>
