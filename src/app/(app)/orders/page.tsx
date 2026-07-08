@@ -443,6 +443,7 @@ function OrderRow({
   onRevert?: (e: React.MouseEvent) => void
   dimmed?: boolean
 }) {
+  const router = useRouter()
   return (
     <Link
       href={`/orders/${order.id}`}
@@ -475,12 +476,16 @@ function OrderRow({
           })()}
           <div className="flex gap-1">
             {order.status === 'processing' && (
-              <Link href={`/delivery/${order.id}`} onClick={(e) => e.stopPropagation()}>
-                <Button size="sm" className="h-7 bg-red-600 hover:bg-red-700 text-xs gap-1">
-                  <Truck className="h-3 w-3" />
-                  Deliver
-                </Button>
-              </Link>
+              // Not a <Link>: the whole row is already an anchor and nested
+              // anchors are invalid HTML (causes hydration errors)
+              <Button
+                size="sm"
+                className="h-7 bg-red-600 hover:bg-red-700 text-xs gap-1"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); router.push(`/delivery/${order.id}`) }}
+              >
+                <Truck className="h-3 w-3" />
+                Deliver
+              </Button>
             )}
             {isAdmin && order.status === 'invoice_ready' && onMarkPaid && (
               <Button size="sm" className="h-7 bg-emerald-600 hover:bg-emerald-700 text-xs gap-1" onClick={onMarkPaid}>

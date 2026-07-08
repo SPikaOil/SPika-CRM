@@ -84,8 +84,10 @@ export default function OrderDetailPage({
   const [draftItems, setDraftItems] = useState<QuoteItem[]>([])
   const [editReason, setEditReason] = useState('')
   const [isDownloading, setIsDownloading] = useState<'invoice' | 'note' | null>(null)
+  const [isDownloadingSigned, setIsDownloadingSigned] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null)
+  const [pdfTitle, setPdfTitle] = useState('Delivery Note')
   const [isGeneratingPreview, setIsGeneratingPreview] = useState<'invoice' | 'note' | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -125,12 +127,26 @@ export default function OrderDetailPage({
   async function handleViewPDF(type: 'invoice' | 'note') {
     if (!order) return
     setIsGeneratingPreview(type)
+
+    // Mobile browsers can't render multi-page PDFs inside an iframe overlay —
+    // open the PDF in its own tab instead. The tab must be opened synchronously
+    // on the user gesture, before any await, or the popup gets blocked.
+    const isMobile = /Android|iPad|iPhone|iPod/.test(navigator.userAgent)
+    const mobileTab = isMobile ? window.open('', '_blank') : null
+
     try {
       const docType = type === 'invoice' ? 'INVOICE' : 'DELIVERY NOTE'
       const blob = await buildDeliveryPdfBlob(docType)
       const url = URL.createObjectURL(blob)
-      setPdfBlobUrl(url)
+      if (mobileTab) {
+        mobileTab.location.href = url
+        setTimeout(() => URL.revokeObjectURL(url), 60000)
+      } else {
+        setPdfTitle(docType === 'INVOICE' ? 'Invoice' : 'Delivery Note')
+        setPdfBlobUrl(url)
+      }
     } catch (err) {
+      if (mobileTab) mobileTab.close()
       toast.error('Failed to generate preview')
       console.error(err)
     } finally {
@@ -138,18 +154,62 @@ export default function OrderDetailPage({
     }
   }
 
+  function signedPdfStoragePath(): string | null {
+    const signedUrl = (order as any)?.signed_pdf_url
+    if (!signedUrl) return null
+    const match = signedUrl.match(/\/object\/(?:public\/)?pod-files\/(.+)$/)
+    return match ? match[1] : signedUrl
+  }
+
   async function handleViewSignedPDF() {
     if (!order) return
-    const signedUrl = (order as any).signed_pdf_url
-    if (!signedUrl) return
+    const storagePath = signedPdfStoragePath()
+    if (!storagePath) return
+    // Open the tab synchronously — popups opened after an await are blocked on mobile
+    const tab = window.open('', '_blank')
     try {
-      const match = signedUrl.match(/\/object\/(?:public\/)?pod-files\/(.+)$/)
-      const storagePath = match ? match[1] : signedUrl
       const { data: signedData, error } = await supabase.storage.from('pod-files').createSignedUrl(storagePath, 120)
       if (error || !signedData) throw error ?? new Error('Could not create signed URL')
-      window.open(signedData.signedUrl, '_blank')
+      if (tab) tab.location.href = signedData.signedUrl
+      else window.open(signedData.signedUrl, '_blank')
     } catch (err: any) {
+      if (tab) tab.close()
       toast.error(err.message ?? 'Could not open signed PDF')
+    }
+  }
+
+  async function handleDownloadSignedPDF() {
+    if (!order) return
+    const storagePath = signedPdfStoragePath()
+    if (!storagePath) return
+    setIsDownloadingSigned(true)
+
+    const isMobile = /Android|iPad|iPhone|iPod/.test(navigator.userAgent)
+    const fallbackTab = isMobile ? window.open('', '_blank') : null
+
+    try {
+      // Download the stored file itself — the frozen original with signature,
+      // delivery photo and prices — never a regenerated version
+      const { data: signedData, error } = await supabase.storage.from('pod-files').createSignedUrl(storagePath, 120)
+      if (error || !signedData) throw error ?? new Error('Could not create signed URL')
+      const res = await fetch(signedData.signedUrl)
+      if (!res.ok) throw new Error('Could not fetch signed PDF')
+      const blob = await res.blob()
+
+      const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[/\\:*?"<>|]/g, '').trim()
+      const customerName = (order.customer?.company_name ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
+      const ext = storagePath.includes('.') ? storagePath.split('.').pop() : 'pdf'
+      const filename = customerName
+        ? `${orderNum} - ${customerName} - Signed Invoice.${ext}`
+        : `${orderNum} - Signed Invoice.${ext}`
+
+      const { triggerDownload } = await import('@/lib/download-pdf')
+      triggerDownload(blob, filename, fallbackTab)
+    } catch (err: any) {
+      if (fallbackTab) fallbackTab.close()
+      toast.error(err.message ?? 'Could not download signed PDF')
+    } finally {
+      setIsDownloadingSigned(false)
     }
   }
 
@@ -157,10 +217,10 @@ export default function OrderDetailPage({
     if (!order) return
     setIsDownloading(type)
 
-    // On iOS, window.open() is blocked if called after an async gap.
-    // Open the tab immediately on the user gesture, then redirect it to the blob URL.
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
-    const iosTab = isIOS ? window.open('', '_blank') : null
+    // Popups opened after an async gap are blocked on mobile — open the
+    // fallback tab immediately on the user gesture.
+    const isMobile = /Android|iPad|iPhone|iPod/.test(navigator.userAgent)
+    const fallbackTab = isMobile ? window.open('', '_blank') : null
 
     try {
       const docType = type === 'invoice' ? 'INVOICE' : 'DELIVERY NOTE'
@@ -169,23 +229,11 @@ export default function OrderDetailPage({
       const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[/\\:*?"<>|]/g, '').trim()
       const customerName = (order.customer?.company_name ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
       const filename = customerName ? `${orderNum} - ${customerName} - ${label}.pdf` : `${orderNum} - ${label}.pdf`
-      const file = new File([blob], filename, { type: 'application/pdf' })
-      const url = URL.createObjectURL(file)
 
-      if (iosTab) {
-        iosTab.location.href = url
-        setTimeout(() => URL.revokeObjectURL(url), 30000)
-      } else {
-        const a = document.createElement('a')
-        a.href = url
-        a.download = filename
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        setTimeout(() => URL.revokeObjectURL(url), 10000)
-      }
+      const { triggerDownload } = await import('@/lib/download-pdf')
+      triggerDownload(blob, filename, fallbackTab)
     } catch (err) {
-      if (iosTab) iosTab.close()
+      if (fallbackTab) fallbackTab.close()
       toast.error('Failed to download PDF')
       console.error(err)
     } finally {
@@ -206,10 +254,12 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
       const supabase = createClient()
       const safeOrder = (order.order_number ?? order.id.slice(0, 8)).replace(/[/\\:*?"<>|]/g, '').trim()
       const safeCust = (order.customer?.company_name ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
-      const path = `signed-notes/${safeCust ? `${safeOrder} - ${safeCust}` : safeOrder}.pdf`
+      // Keep the real file extension — a photo saved as ".pdf" is unopenable
+      const ext = file.type === 'application/pdf' ? 'pdf' : (file.name.split('.').pop()?.toLowerCase() ?? 'pdf')
+      const path = `signed-notes/${safeCust ? `${safeOrder} - ${safeCust}` : safeOrder}.${ext}`
       const { error: uploadError } = await supabase.storage
         .from('pod-files')
-        .upload(path, file, { upsert: true })
+        .upload(path, file, { upsert: true, contentType: file.type || 'application/pdf' })
       if (uploadError) throw uploadError
 
       const { data: { publicUrl } } = supabase.storage.from('pod-files').getPublicUrl(path)
@@ -741,16 +791,30 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
             </div>
           </div>
 
-          {/* Signed PDF */}
+          {/* Signed PDF — the frozen original with signature, photo and prices */}
           {(order as any).signed_pdf_url && (
             <div className="space-y-1.5">
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Signed PDF</p>
-              <button
-                onClick={handleViewSignedPDF}
-                className="inline-flex items-center gap-2 text-sm text-blue-600 hover:underline px-1"
-              >
-                <FileCheck className="h-4 w-4" /> View Signed PDF
-              </button>
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Signed Invoice (with proof of delivery)</p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  onClick={handleDownloadSignedPDF}
+                  disabled={isDownloadingSigned}
+                  className="flex-1 sm:flex-none"
+                >
+                  {isDownloadingSigned
+                    ? <Clock className="h-4 w-4 mr-2 animate-spin" />
+                    : <Download className="h-4 w-4 mr-2" />
+                  }
+                  {isDownloadingSigned ? 'Preparing…' : 'Download / Share'}
+                </Button>
+                <button
+                  onClick={handleViewSignedPDF}
+                  className="inline-flex items-center gap-2 text-sm text-blue-600 hover:underline px-1"
+                >
+                  <FileCheck className="h-4 w-4" /> View
+                </button>
+              </div>
             </div>
           )}
 
@@ -1183,7 +1247,7 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
       {pdfBlobUrl && (
         <div className="fixed inset-0 z-50 bg-black/80 flex flex-col">
           <div className="flex items-center justify-between px-4 py-3 bg-background border-b">
-            <p className="font-semibold text-sm">Delivery Note — {order.order_number}</p>
+            <p className="font-semibold text-sm">{pdfTitle} — {order.order_number}</p>
             <Button variant="ghost" size="icon" onClick={handleClosePdf}>
               <X className="h-5 w-5" />
             </Button>
@@ -1191,7 +1255,7 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
           <iframe
             src={pdfBlobUrl}
             className="flex-1 w-full"
-            title="Delivery Note"
+            title={pdfTitle}
           />
         </div>
       )}

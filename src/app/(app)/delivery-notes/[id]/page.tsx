@@ -68,6 +68,7 @@ export default function DeliveryNoteDetailPage({
   const supabase = createClient()
 
   const [isDownloading, setIsDownloading] = useState(false)
+  const [isDownloadingSigned, setIsDownloadingSigned] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null)
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false)
@@ -76,6 +77,12 @@ export default function DeliveryNoteDetailPage({
   async function handleViewPDF() {
     if (!order) return
     setIsGeneratingPreview(true)
+
+    // Mobile browsers can't render multi-page PDFs inside an iframe overlay —
+    // open in a tab instead (opened synchronously to avoid popup blocking)
+    const isMobile = /Android|iPad|iPhone|iPod/.test(navigator.userAgent)
+    const mobileTab = isMobile ? window.open('', '_blank') : null
+
     try {
       const delivery = (order as any).delivery
       const React = await import('react')
@@ -121,8 +128,14 @@ export default function DeliveryNoteDetailPage({
         })
       ).toBlob()
       const url = URL.createObjectURL(blob)
-      setPdfBlobUrl(url)
+      if (mobileTab) {
+        mobileTab.location.href = url
+        setTimeout(() => URL.revokeObjectURL(url), 60000)
+      } else {
+        setPdfBlobUrl(url)
+      }
     } catch (err) {
+      if (mobileTab) mobileTab.close()
       toast.error('Failed to generate preview')
       console.error(err)
     } finally {
@@ -138,6 +151,12 @@ export default function DeliveryNoteDetailPage({
   async function handleDownloadPDF() {
     if (!order) return
     setIsDownloading(true)
+
+    // Popups opened after an async gap are blocked on mobile — open the
+    // fallback tab immediately on the user gesture.
+    const isMobile = /Android|iPad|iPhone|iPod/.test(navigator.userAgent)
+    const fallbackTab = isMobile ? window.open('', '_blank') : null
+
     try {
       // Always regenerate without prices — embed signature and POD photo if available
       const delivery = (order as any).delivery
@@ -185,13 +204,52 @@ export default function DeliveryNoteDetailPage({
       const { triggerDownload } = await import('@/lib/download-pdf')
       const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[#/\\:*?"<>|]/g, '').trim()
       const customerName = (order.customer?.company_name ?? '').replace(/[#/\\:*?"<>|]/g, '').trim()
-      const filename = customerName ? `${orderNum} - ${customerName}.pdf` : `${orderNum}.pdf`
-      triggerDownload(blob, filename)
+      // Same naming convention as the orders page
+      const filename = customerName ? `${orderNum} - ${customerName} - Delivery Note.pdf` : `${orderNum} - Delivery Note.pdf`
+      triggerDownload(blob, filename, fallbackTab)
     } catch (err) {
+      if (fallbackTab) fallbackTab.close()
       toast.error('Failed to download PDF')
       console.error(err)
     } finally {
       setIsDownloading(false)
+    }
+  }
+
+  async function handleDownloadSignedPDF() {
+    if (!order) return
+    const signedUrl = (order as any).signed_pdf_url
+    if (!signedUrl) return
+    setIsDownloadingSigned(true)
+
+    const isMobile = /Android|iPad|iPhone|iPod/.test(navigator.userAgent)
+    const fallbackTab = isMobile ? window.open('', '_blank') : null
+
+    try {
+      // Download the stored file itself — the frozen original with signature,
+      // delivery photo and prices — never a regenerated version
+      const match = signedUrl.match(/\/object\/(?:public\/)?pod-files\/(.+)$/)
+      const storagePath = match ? match[1] : signedUrl
+      const { data: signedData, error } = await supabase.storage.from('pod-files').createSignedUrl(storagePath, 120)
+      if (error || !signedData) throw error ?? new Error('Could not create signed URL')
+      const res = await fetch(signedData.signedUrl)
+      if (!res.ok) throw new Error('Could not fetch signed PDF')
+      const blob = await res.blob()
+
+      const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[/\\:*?"<>|]/g, '').trim()
+      const customerName = (order.customer?.company_name ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
+      const ext = storagePath.includes('.') ? storagePath.split('.').pop() : 'pdf'
+      const filename = customerName
+        ? `${orderNum} - ${customerName} - Signed Invoice.${ext}`
+        : `${orderNum} - Signed Invoice.${ext}`
+
+      const { triggerDownload } = await import('@/lib/download-pdf')
+      triggerDownload(blob, filename, fallbackTab)
+    } catch (err: any) {
+      if (fallbackTab) fallbackTab.close()
+      toast.error(err.message ?? 'Could not download signed PDF')
+    } finally {
+      setIsDownloadingSigned(false)
     }
   }
 
@@ -202,10 +260,12 @@ export default function DeliveryNoteDetailPage({
     try {
       const safeOrder = (order.order_number ?? order.id.slice(0, 8)).replace(/[/\\:*?"<>|]/g, '').trim()
       const safeCust = (order.customer?.company_name ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
-      const path = `signed-notes/${safeCust ? `${safeOrder} - ${safeCust}` : safeOrder}.pdf`
+      // Keep the real file extension — a photo saved as ".pdf" is unopenable
+      const ext = file.type === 'application/pdf' ? 'pdf' : (file.name.split('.').pop()?.toLowerCase() ?? 'pdf')
+      const path = `signed-notes/${safeCust ? `${safeOrder} - ${safeCust}` : safeOrder}.${ext}`
       const { error: uploadError } = await supabase.storage
         .from('pod-files')
-        .upload(path, file, { upsert: true })
+        .upload(path, file, { upsert: true, contentType: file.type || 'application/pdf' })
       if (uploadError) throw uploadError
       const {
         data: { publicUrl },
@@ -437,6 +497,25 @@ export default function DeliveryNoteDetailPage({
               </>
             )}
           </button>
+
+          {/* Signed Invoice — the frozen original with signature, photo and prices */}
+          {(order as any).signed_pdf_url && (
+            <div className="pt-2 border-t space-y-1.5">
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Signed Invoice (with proof of delivery)</p>
+              <Button
+                variant="outline"
+                onClick={handleDownloadSignedPDF}
+                disabled={isDownloadingSigned}
+                className="flex-1 sm:flex-none"
+              >
+                {isDownloadingSigned
+                  ? <Clock className="h-4 w-4 mr-2 animate-spin" />
+                  : <Download className="h-4 w-4 mr-2" />
+                }
+                {isDownloadingSigned ? 'Preparing…' : 'Download / Share'}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
