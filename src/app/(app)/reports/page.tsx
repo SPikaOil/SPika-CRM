@@ -23,8 +23,14 @@ interface RawOrder {
   total: number
   created_at: string
   planned_date: string | null
+  sales_date: string
   items: { sku: string; qty: number; unit_price: number; line_total: number }[]
   customer: { id: string; company_name: string } | null
+}
+
+// Timezone-proof local date string (YYYY-MM-DD) for comparing against sales_date
+function toDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 interface ProductVolume {
@@ -81,13 +87,15 @@ export default function ReportsPage() {
   async function fetchData() {
     setLoading(true)
     const [startDate, endDate] = getDateRange(preset, fromDate, toDate)
+    // sales_date (invoice date, else delivery date, else creation date) decides
+    // which period a sale belongs to
     const { data, error } = await supabase
-      .from('orders')
-      .select('id, order_number, status, total, created_at, planned_date, items, customer:customers(id, company_name)')
+      .from('orders_with_sales_date')
+      .select('id, order_number, status, total, created_at, planned_date, sales_date, items, customer:customers(id, company_name)')
       .in('status', DELIVERED_STATUSES)
-      .gte('created_at', startDate.toISOString())
-      .lte('created_at', endDate.toISOString())
-      .order('created_at', { ascending: false })
+      .gte('sales_date', toDateStr(startDate))
+      .lte('sales_date', toDateStr(endDate))
+      .order('sales_date', { ascending: false })
     // Supabase types a to-one FK join as an array, but it returns an object at runtime
     if (!error && data) setOrders(data as unknown as RawOrder[])
     setLoading(false)
@@ -154,7 +162,7 @@ export default function ReportsPage() {
       const id = o.customer?.id ?? 'unknown'
       const name = o.customer?.company_name ?? 'Unknown'
       if (!map[id]) map[id] = { name, orders: [] }
-      map[id].orders.push({ date: o.created_at, total: Number(o.total), num: o.order_number })
+      map[id].orders.push({ date: o.sales_date, total: Number(o.total), num: o.order_number })
     }
     return Object.values(map).sort((a, b) => b.orders.reduce((s, o) => s + o.total, 0) - a.orders.reduce((s, o) => s + o.total, 0))
   }, [orders])
@@ -166,7 +174,7 @@ export default function ReportsPage() {
       ...orders.map(o => [
         o.order_number,
         o.customer?.company_name ?? '',
-        new Date(o.created_at).toLocaleDateString('en'),
+        new Date(o.sales_date + 'T12:00:00').toLocaleDateString('en'),
         Number(o.total).toFixed(2),
         o.status,
       ]),
@@ -185,7 +193,7 @@ export default function ReportsPage() {
   if (authLoading) return null
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-4xl mx-auto">
+    <div className="p-3 lg:p-6 space-y-3 max-w-4xl mx-auto w-full">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -199,9 +207,9 @@ export default function ReportsPage() {
       </div>
 
       {/* Period picker */}
-      <Card>
-        <CardContent className="pt-4 pb-4 space-y-3">
-          <div className="flex flex-wrap gap-2">
+      <Card className="py-0">
+        <CardContent className="pt-2.5 pb-2.5 space-y-2">
+          <div className="flex flex-wrap gap-1.5">
             {[
               { value: 'this_month', label: 'This month' },
               { value: 'last_month', label: 'Last month' },
@@ -212,7 +220,7 @@ export default function ReportsPage() {
               <button
                 key={p.value}
                 onClick={() => setPreset(p.value)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
                   preset === p.value ? 'bg-red-600 text-white border-red-600' : 'border-border text-muted-foreground hover:bg-accent'
                 }`}
               >
@@ -241,35 +249,35 @@ export default function ReportsPage() {
       </Card>
 
       {/* KPI summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         {[
           { label: 'Total Revenue', value: formatCurrency(totalRevenue) },
           { label: 'Orders', value: String(orders.length) },
           { label: 'Total Bottles', value: String(bottleTotals.totalBottles) },
           { label: 'Real Volume', value: bottleTotals.totalRealMl > 0 ? `${(bottleTotals.totalRealMl / 1000).toFixed(1)} L` : '—' },
         ].map(k => (
-          <Card key={k.label}>
-            <CardContent className="pt-4 pb-4 text-center">
-              <p className="text-xs text-muted-foreground">{k.label}</p>
-              <p className="text-xl font-bold mt-1">{k.value}</p>
+          <Card key={k.label} className="py-0">
+            <CardContent className="pt-2 pb-2 text-center">
+              <p className="text-xs text-muted-foreground truncate">{k.label}</p>
+              <p className="text-lg font-bold leading-tight mt-0.5">{k.value}</p>
             </CardContent>
           </Card>
         ))}
       </div>
 
       {/* Sales per customer */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Sales per Customer</CardTitle>
+      <Card className="py-3 gap-2">
+        <CardHeader>
+          <CardTitle className="text-sm">Sales per Customer</CardTitle>
         </CardHeader>
-        <CardContent className="pb-4">
+        <CardContent>
           {perCustomer.length === 0 ? (
             <p className="text-sm text-muted-foreground">No data for this period.</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {perCustomer.map((c, i) => (
                 <div key={i}>
-                  {i > 0 && <Separator className="my-2" />}
+                  {i > 0 && <Separator className="my-1.5" />}
                   <div className="flex items-center gap-3">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{c.name}</p>
@@ -292,11 +300,11 @@ export default function ReportsPage() {
       </Card>
 
       {/* Sales per product */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Sales per Product</CardTitle>
+      <Card className="py-3 gap-2">
+        <CardHeader>
+          <CardTitle className="text-sm">Sales per Product</CardTitle>
         </CardHeader>
-        <CardContent className="pb-4">
+        <CardContent>
           {perProduct.length === 0 ? (
             <p className="text-sm text-muted-foreground">No data for this period.</p>
           ) : (
@@ -316,10 +324,10 @@ export default function ReportsPage() {
                     const totalMl = vol != null && p.qty > 0 ? p.qty * vol : null
                     return (
                       <tr key={p.sku} className="hover:bg-muted/30">
-                        <td className="py-2 font-medium">{p.name}</td>
-                        <td className="py-2 text-right">{p.qty}</td>
-                        <td className="py-2 text-right">{formatCurrency(p.revenue)}</td>
-                        <td className="py-2 text-right text-muted-foreground">
+                        <td className="py-1.5 font-medium">{p.name}</td>
+                        <td className="py-1.5 text-right">{p.qty}</td>
+                        <td className="py-1.5 text-right">{formatCurrency(p.revenue)}</td>
+                        <td className="py-1.5 text-right text-muted-foreground">
                           {totalMl != null ? `${(totalMl / 1000).toFixed(2)} L` : '—'}
                         </td>
                       </tr>
@@ -333,11 +341,11 @@ export default function ReportsPage() {
       </Card>
 
       {/* Sales flow per customer */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Sales Flow per Customer</CardTitle>
+      <Card className="py-3 gap-2">
+        <CardHeader>
+          <CardTitle className="text-sm">Sales Flow per Customer</CardTitle>
         </CardHeader>
-        <CardContent className="pb-4 space-y-4">
+        <CardContent className="space-y-2">
           {customerFlow.length === 0 ? (
             <p className="text-sm text-muted-foreground">No data for this period.</p>
           ) : (

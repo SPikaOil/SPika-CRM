@@ -92,8 +92,6 @@ interface OverdueOrder extends Order {
 }
 
 // ── Bottles card with settable monthly target ──────────────────────────────
-const TARGET_KEY = 'dashboard_bottle_target'
-
 interface WorkerBottles { name: string; count: number }
 
 function BottlesCard({
@@ -109,18 +107,36 @@ function BottlesCard({
   selectedMonth: string
   onMonthChange: (m: string) => void
 }) {
-  const [target, setTarget] = useState<number>(() => {
-    if (typeof window === 'undefined') return 500
-    return parseInt(localStorage.getItem(TARGET_KEY) ?? '500', 10)
-  })
+  // Target lives in the database (monthly_targets) so every device sees the
+  // same value. A month without its own target inherits the most recent one.
+  const [target, setTarget] = useState<number>(500)
   const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(String(target))
+  const [draft, setDraft] = useState('500')
 
-  function saveTarget() {
+  useEffect(() => {
+    let cancelled = false
+    const supabase = createClient()
+    supabase
+      .from('monthly_targets')
+      .select('month, bottle_target')
+      .lte('month', selectedMonth)
+      .order('month', { ascending: false })
+      .limit(1)
+      .then(({ data }) => {
+        if (!cancelled) setTarget(data?.[0]?.bottle_target ?? 500)
+      })
+    return () => { cancelled = true }
+  }, [selectedMonth])
+
+  async function saveTarget() {
     const n = parseInt(draft, 10)
     if (!isNaN(n) && n > 0) {
       setTarget(n)
-      localStorage.setItem(TARGET_KEY, String(n))
+      const supabase = createClient()
+      const { error } = await supabase
+        .from('monthly_targets')
+        .upsert({ month: selectedMonth, bottle_target: n })
+      if (error) console.error('Failed to save target:', error.message)
     }
     setEditing(false)
   }
@@ -403,16 +419,21 @@ export default function DashboardPage() {
   }
 
   async function loadBottlesForMonth(monthStr: string): Promise<number> {
+    // sales_date = invoice_date, else delivery date, else creation date —
+    // the invoice date decides which month a sale belongs to. Plain date
+    // strings keep the month boundary timezone-proof.
     const [year, month] = monthStr.split('-').map(Number)
-    const start = new Date(year, month - 1, 1).toISOString()
-    const end = new Date(year, month, 1).toISOString()
+    const start = `${monthStr}-01`
+    const end = month === 12
+      ? `${year + 1}-01-01`
+      : `${year}-${String(month + 1).padStart(2, '0')}-01`
 
     const { data } = await supabase
-      .from('orders')
+      .from('orders_with_sales_date')
       .select('items, assigned_to')
       .in('status', ['delivered', 'invoice_ready', 'invoice_blocked', 'paid'])
-      .gte('created_at', start)
-      .lt('created_at', end)
+      .gte('sales_date', start)
+      .lt('sales_date', end)
 
     const COUNTED_SKUS = ['oil-100ml', 'oil-50ml']
     let total = 0

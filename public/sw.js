@@ -1,4 +1,4 @@
-const CACHE_NAME = 'spika-crm-v2'
+const CACHE_NAME = 'spika-crm-v3'
 
 const STATIC_ASSETS = [
   '/manifest.json',
@@ -36,8 +36,26 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Cache-first for static assets only (JS, CSS, images, fonts)
-  if (request.method === 'GET' && /\.(js|css|png|jpg|jpeg|svg|webp|woff2?)(\?|$)/.test(request.url)) {
+  // JS and CSS: network-first. Serving stale app code from cache after a
+  // deploy mixes old and new bundles and breaks the app (blank downloads on
+  // iOS). The cache is only a fallback for offline use.
+  if (request.method === 'GET' && /\.(js|css)(\?|$)/.test(request.url)) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone()
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
+          }
+          return response
+        })
+        .catch(() => caches.match(request))
+    )
+    return
+  }
+
+  // Images and fonts are immutable enough for cache-first
+  if (request.method === 'GET' && /\.(png|jpg|jpeg|svg|webp|woff2?)(\?|$)/.test(request.url)) {
     event.respondWith(
       caches.match(request).then((cached) => {
         if (cached) return cached

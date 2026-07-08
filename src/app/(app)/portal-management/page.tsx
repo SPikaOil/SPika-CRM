@@ -221,7 +221,7 @@ export default function PortalManagementPage() {
   if (!isAdmin) return null
 
   return (
-    <div className="p-4 lg:p-6 space-y-4 max-w-3xl mx-auto">
+    <div className="p-3 lg:p-6 space-y-3 max-w-3xl mx-auto w-full">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -263,8 +263,8 @@ export default function PortalManagementPage() {
             </div>
           )}
           {requests.map(req => (
-            <Card key={req.id}>
-              <CardContent className="py-3 px-4">
+            <Card key={req.id} className="py-0">
+              <CardContent className="py-2.5 px-4">
                 <div className="flex items-start gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -355,26 +355,26 @@ export default function PortalManagementPage() {
 
       {tab === 'customers' && <>
       {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-3">
-        <Card>
-          <CardContent className="py-4 flex items-center gap-3">
-            <div className="h-9 w-9 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center shrink-0">
-              <MailCheck className="h-5 w-5 text-green-600" />
+      <div className="grid grid-cols-2 gap-2">
+        <Card className="py-0">
+          <CardContent className="py-2 flex items-center gap-2.5 min-w-0">
+            <div className="h-8 w-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center shrink-0">
+              <MailCheck className="h-4 w-4 text-green-600" />
             </div>
-            <div>
-              <p className="text-2xl font-bold">{activeCount}</p>
-              <p className="text-xs text-muted-foreground">Portal Access</p>
+            <div className="min-w-0">
+              <p className="text-lg font-bold leading-tight">{activeCount}</p>
+              <p className="text-xs text-muted-foreground truncate">Portal Access</p>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="py-4 flex items-center gap-3">
-            <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center shrink-0">
-              <ShieldOff className="h-5 w-5 text-muted-foreground" />
+        <Card className="py-0">
+          <CardContent className="py-2 flex items-center gap-2.5 min-w-0">
+            <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
+              <ShieldOff className="h-4 w-4 text-muted-foreground" />
             </div>
-            <div>
-              <p className="text-2xl font-bold">{noAccessCount}</p>
-              <p className="text-xs text-muted-foreground">No Access</p>
+            <div className="min-w-0">
+              <p className="text-lg font-bold leading-tight">{noAccessCount}</p>
+              <p className="text-xs text-muted-foreground truncate">No Access</p>
             </div>
           </CardContent>
         </Card>
@@ -399,8 +399,8 @@ export default function PortalManagementPage() {
           const isActioning = loading === customer.id
 
           return (
-            <Card key={customer.id}>
-              <CardContent className="py-3 px-4 flex items-center gap-3">
+            <Card key={customer.id} className="py-0">
+              <CardContent className="py-2 px-3 flex items-center gap-2">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm font-medium truncate">{customer.company_name}</p>

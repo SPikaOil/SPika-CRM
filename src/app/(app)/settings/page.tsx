@@ -89,7 +89,7 @@ export default function SettingsPage() {
   if (!isAdmin) return null
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-2xl mx-auto">
+    <div className="p-3 lg:p-6 space-y-3 max-w-2xl mx-auto w-full">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Settings className="h-6 w-6" />
@@ -99,17 +99,17 @@ export default function SettingsPage() {
       </div>
 
       {/* QuickBooks Export */}
-      <Card>
+      <Card className="py-3 gap-2">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Download className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Download className="h-4 w-4" />
             QuickBooks Export
           </CardTitle>
           <CardDescription>
             Export invoice-ready orders as CSV for QuickBooks import
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-2">
           <p className="text-sm text-muted-foreground">
             {invoiceReadyOrders?.length ?? 0} orders ready for invoicing
           </p>
@@ -125,10 +125,10 @@ export default function SettingsPage() {
       </Card>
 
       {/* Monthly Report */}
-      <Card>
+      <Card className="py-3 gap-2">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <BarChart2 className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <BarChart2 className="h-4 w-4" />
             Monthly Report
           </CardTitle>
           <CardDescription>
@@ -136,7 +136,7 @@ export default function SettingsPage() {
             Runs automatically on the last day of each month.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-2">
           <p className="text-sm text-muted-foreground">
             Includes: revenue, bottles sold, top customers, new customers, and portal requests.
           </p>
@@ -154,17 +154,17 @@ export default function SettingsPage() {
       </Card>
 
       {/* Quote Templates */}
-      <Card>
+      <Card className="py-3 gap-2">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <FileText className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <FileText className="h-4 w-4" />
             Quote Templates
           </CardTitle>
           <CardDescription>
             Manage product catalogs and pricing per category
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-2">
           {templates?.map((t) => (
             <div key={t.id}>
               <div className="flex items-center justify-between py-2">
@@ -195,15 +195,15 @@ export default function SettingsPage() {
       <ExchangeRatesCard />
 
       {/* User Management */}
-      <Card>
+      <Card className="py-3 gap-2">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Users className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Users className="h-4 w-4" />
             User Management
           </CardTitle>
           <CardDescription>Invite team members and manage roles</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-2">
           <InviteUserForm />
         </CardContent>
       </Card>
@@ -259,15 +259,15 @@ function CompanySettingsCard() {
   if (!loaded) return <Skeleton className="h-64 rounded-xl" />
 
   return (
-    <Card>
+    <Card className="py-3 gap-2">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Building2 className="h-5 w-5" />
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Building2 className="h-4 w-4" />
           Company Info
         </CardTitle>
         <CardDescription>Shown on delivery notes as the sender</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-2">
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2 space-y-1.5">
             <Label>Company Name</Label>
@@ -344,17 +344,17 @@ function ExchangeRatesCard() {
   if (!loaded) return <Skeleton className="h-40 rounded-xl" />
 
   return (
-    <Card>
+    <Card className="py-3 gap-2">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Tag className="h-5 w-5" />
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Tag className="h-4 w-4" />
           Exchange Rates
         </CardTitle>
         <CardDescription>
           Set how many XCG equals 1 unit of each currency. Used for automatic price conversion on orders.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-2">
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label>1 USD = ? XCG</Label>
@@ -447,10 +447,10 @@ function PricePresetsCard() {
   if (isLoading) return <Skeleton className="h-48 rounded-xl" />
 
   return (
-    <Card>
+    <Card className="py-3 gap-2">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Tag className="h-5 w-5" />
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Tag className="h-4 w-4" />
           Price Presets
         </CardTitle>
         <CardDescription>
@@ -558,15 +558,15 @@ function ProductCodesCard() {
   if (!loaded) return <Skeleton className="h-48 rounded-xl" />
 
   return (
-    <Card>
+    <Card className="py-3 gap-2">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Tag className="h-5 w-5" />
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Tag className="h-4 w-4" />
           Product Codes
         </CardTitle>
         <CardDescription>Internal product codes for CRM use only — not shown on invoices or delivery notes</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-2">
         <div className="rounded-lg border divide-y">
           {SPIKA_PRODUCTS.map((product) => (
             <div key={product.sku} className="flex items-center gap-3 px-3 py-2.5">
