@@ -26,7 +26,7 @@ const styles = StyleSheet.create({
     paddingBottom: 48,
     paddingHorizontal: 40,
   },
-  title: { fontSize: 22, fontFamily: 'Helvetica-Bold', color: RED, textAlign: 'right' },
+  title: { fontSize: 20, fontFamily: 'Helvetica-Bold', color: RED, textAlign: 'right' },
   subtitle: { fontSize: 10, color: GRAY, textAlign: 'right', marginTop: 2 },
   divider: { marginVertical: 10 },
   section: { marginBottom: 14 },
@@ -99,8 +99,8 @@ export function DonAndresBolPDF({ exportRecord, company = DEFAULT_COMPANY }: Pro
       <Page size="A4" style={styles.page}>
 
         {/* Header */}
-        <View style={{ marginBottom: 10, alignItems: 'center' }}>
-          <Image src="/spika-banner.png" style={{ width: '96%', height: 80, objectFit: 'contain' }} />
+        <View style={{ marginBottom: 2 }}>
+          <Image src="/spika-banner.png" style={{ width: '100%', height: 101, objectFit: 'contain' }} />
         </View>
         <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 2 }}>
           <View>

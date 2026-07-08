@@ -26,7 +26,7 @@ const styles = StyleSheet.create({
     paddingBottom: 48,
     paddingHorizontal: 40,
   },
-  title: { fontSize: 24, fontFamily: 'Helvetica-Bold', color: RED, textAlign: 'right' },
+  title: { fontSize: 20, fontFamily: 'Helvetica-Bold', color: RED, textAlign: 'right' },
   divider: { marginVertical: 10 },
   addressRow: { flexDirection: 'row', gap: 40, marginBottom: 16 },
   addressBlock: { flex: 1 },
@@ -98,8 +98,8 @@ export function PackingListPDF({ exportRecord, company = DEFAULT_COMPANY }: Prop
       <Page size="A4" style={styles.page}>
 
         {/* Header */}
-        <View style={{ marginBottom: 10, alignItems: 'center' }}>
-          <Image src="/spika-banner.png" style={{ width: '96%', height: 80, objectFit: 'contain' }} />
+        <View style={{ marginBottom: 2 }}>
+          <Image src="/spika-banner.png" style={{ width: '100%', height: 101, objectFit: 'contain' }} />
         </View>
         <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 4 }}>
           <Text style={styles.title}>PACKING LIST</Text>

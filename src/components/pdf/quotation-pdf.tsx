@@ -28,33 +28,33 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica',
     fontSize: 9,
     color: DARK,
-    paddingTop: 36,
-    paddingBottom: 60,
+    paddingTop: 28,
+    paddingBottom: 40,
     paddingHorizontal: 40,
   },
 
   // Header
-  header: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 20 },
-  docTitle: { fontSize: 28, fontFamily: 'Helvetica-Bold', color: RED, textAlign: 'right' },
+  header: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 4 },
+  docTitle: { fontSize: 20, fontFamily: 'Helvetica-Bold', color: RED, textAlign: 'right' },
 
-  divider: { marginVertical: 10 },
+  divider: { marginVertical: 5 },
 
   // Addresses
-  addressRow: { flexDirection: 'row', gap: 40, marginBottom: 16 },
+  addressRow: { flexDirection: 'row', gap: 40, marginBottom: 10 },
   addressBlock: { flex: 1 },
   addressLabel: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: GRAY, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 },
   addressLine: { fontSize: 9, color: DARK, marginBottom: 1 },
 
   // Meta
-  metaRow: { flexDirection: 'row', marginBottom: 14 },
+  metaRow: { flexDirection: 'row', marginBottom: 10 },
   metaBlock: { flex: 1, backgroundColor: LIGHT, padding: 8, borderRadius: 2 },
   metaGap: { width: 1 },
   metaLabel: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: GRAY, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
   metaValue: { fontSize: 9, color: DARK },
 
   // Table
-  tableHeader: { flexDirection: 'row', backgroundColor: RED, paddingVertical: 5, paddingHorizontal: 6 },
-  tableRow: { flexDirection: 'row', paddingVertical: 5, paddingHorizontal: 6, borderBottomWidth: 0.5, borderBottomColor: BORDER },
+  tableHeader: { flexDirection: 'row', backgroundColor: RED, paddingVertical: 4, paddingHorizontal: 6 },
+  tableRow: { flexDirection: 'row', paddingVertical: 4, paddingHorizontal: 6, borderBottomWidth: 0.5, borderBottomColor: BORDER },
   tableRowAlt: { backgroundColor: LIGHT },
   colProduct: { flex: 4 },
   colQty: { flex: 1, textAlign: 'center' },
@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
   totalDivider: { height: 0.5, backgroundColor: BORDER, width: 206, marginVertical: 4 },
 
   // Note box
-  noteBox: { marginTop: 24, padding: 12, backgroundColor: LIGHT, borderRadius: 4, borderLeftWidth: 3, borderLeftColor: RED },
+  noteBox: { marginTop: 12, padding: 12, backgroundColor: LIGHT, borderRadius: 4, borderLeftWidth: 3, borderLeftColor: RED },
   noteTitle: { fontSize: 8, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 4 },
   noteText: { fontSize: 8, color: GRAY, lineHeight: 1.5 },
 
@@ -104,8 +104,8 @@ export function QuotationPDF({ quote }: QuotationPDFProps) {
     <Document>
       <Page size="A4" style={styles.page}>
         {/* Header */}
-        <View style={{ marginBottom: 10, alignItems: 'center' }}>
-          <Image src="/spika-banner.png" style={{ width: '96%', height: 80, objectFit: 'contain' }} />
+        <View style={{ marginBottom: 2 }}>
+          <Image src="/spika-banner.png" style={{ width: '100%', height: 101, objectFit: 'contain' }} />
         </View>
         <View style={styles.header}>
           <Text style={styles.docTitle}>QUOTATION</Text>

@@ -22,29 +22,29 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica',
     fontSize: 9,
     color: DARK,
-    paddingTop: 36,
-    paddingBottom: 48,
+    paddingTop: 28,
+    paddingBottom: 36,
     paddingHorizontal: 40,
   },
 
   // ── Header ──
-  header: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
   brandBlock: { flexDirection: 'column', gap: 2 },
   brandName: { fontSize: 20, fontFamily: 'Helvetica-Bold', color: RED, letterSpacing: 1 },
   brandSub: { fontSize: 8, color: GRAY, letterSpacing: 2 },
-  invoiceTitle: { fontSize: 28, fontFamily: 'Helvetica-Bold', color: RED, textAlign: 'right' },
+  invoiceTitle: { fontSize: 20, fontFamily: 'Helvetica-Bold', color: RED, textAlign: 'right' },
 
-  divider: { marginVertical: 10 },
+  divider: { marginVertical: 5 },
 
   // ── From / Bill To ──
-  addressRow: { flexDirection: 'row', gap: 40, marginBottom: 16 },
+  addressRow: { flexDirection: 'row', gap: 40, marginBottom: 10 },
   addressBlock: { flex: 1 },
   addressLabel: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: GRAY, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 },
   addressLine: { fontSize: 9, color: DARK, marginBottom: 1 },
   addressRed: { fontSize: 9, color: RED, marginBottom: 1 },
 
   // ── Meta table ──
-  metaRow: { flexDirection: 'row', gap: 0, marginBottom: 14 },
+  metaRow: { flexDirection: 'row', gap: 0, marginBottom: 10 },
   metaBlock: { flex: 1, backgroundColor: LIGHT, padding: 8, borderRadius: 2 },
   metaLabel: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: GRAY, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
   metaValue: { fontSize: 9, color: DARK },
@@ -53,13 +53,13 @@ const styles = StyleSheet.create({
   tableHeader: {
     flexDirection: 'row',
     backgroundColor: RED,
-    paddingVertical: 5,
+    paddingVertical: 4,
     paddingHorizontal: 6,
     marginBottom: 0,
   },
   tableRow: {
     flexDirection: 'row',
-    paddingVertical: 5,
+    paddingVertical: 4,
     paddingHorizontal: 6,
     borderBottomWidth: 0.5,
     borderBottomColor: BORDER,
@@ -85,7 +85,7 @@ const styles = StyleSheet.create({
   outOfScope: { fontSize: 7, color: GRAY, textAlign: 'right', marginTop: 2 },
 
   // ── Bank details ──
-  bankSection: { marginTop: 24, borderTopWidth: 0.5, borderTopColor: BORDER, paddingTop: 10 },
+  bankSection: { marginTop: 12, borderTopWidth: 0.5, borderTopColor: BORDER, paddingTop: 8 },
   bankTitle: { fontSize: 8, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 6 },
   bankLine: { fontSize: 8, color: GRAY, marginBottom: 1 },
   bankRed: { fontSize: 8, color: RED },
@@ -170,8 +170,8 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
       <Page size="A4" style={styles.page}>
 
         {/* ── Header ── */}
-        <View style={{ marginBottom: 10, alignItems: 'center' }}>
-          <Image src="/spika-banner.png" style={{ width: '96%', height: 80, objectFit: 'contain' }} />
+        <View style={{ marginBottom: 2 }}>
+          <Image src="/spika-banner.png" style={{ width: '100%', height: 101, objectFit: 'contain' }} />
         </View>
         <View style={[styles.header, { justifyContent: 'flex-end' }]}>
           <Text style={styles.invoiceTitle}>{documentType}</Text>
@@ -329,22 +329,22 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
         )}
 
         {/* ── Signature area ── */}
-        <View style={[styles.signedNote, { marginTop: 24 }]}>
+        <View style={[styles.signedNote, { marginTop: 12 }]}>
           <Text style={[styles.signedNoteText, { fontFamily: 'Helvetica-Bold', marginBottom: 4 }]}>
             Signature / Confirmation
           </Text>
           <Text style={styles.signedNoteText}>
             By signing this document, the recipient confirms receipt of the above goods in good condition.
           </Text>
-          <View style={{ flexDirection: 'row', marginTop: 16, gap: 40 }}>
+          <View style={{ flexDirection: 'row', marginTop: 10, gap: 40 }}>
             <View style={{ flex: 1 }}>
               {signatureDataUrl ? (
                 <Image
                   src={signatureDataUrl}
-                  style={{ width: 200, height: 64, objectFit: 'contain' }}
+                  style={{ width: 200, height: 52, objectFit: 'contain' }}
                 />
               ) : (
-                <View style={{ height: 64 }} />
+                <View style={{ height: 52 }} />
               )}
               <Svg height={1}><Line x1={0} y1={0} x2={200} y2={0} strokeWidth={0.5} stroke={BORDER} /></Svg>
               <Text style={[styles.signedNoteText, { marginTop: 4 }]}>
@@ -352,10 +352,15 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
               </Text>
             </View>
             <View style={{ flex: 1 }}>
-              <View style={{ height: 64 }} />
+              <View style={{ height: 52 }} />
               <Svg height={1}><Line x1={0} y1={0} x2={200} y2={0} strokeWidth={0.5} stroke={BORDER} /></Svg>
               <Text style={[styles.signedNoteText, { marginTop: 4 }]}>
-                {signatureDataUrl ? new Date().toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Date'}
+                {signatureDataUrl
+                  // Date the goods were actually signed for — not the date this PDF was generated
+                  ? fmt((order as any).delivery?.delivered_at
+                      ? new Date((order as any).delivery.delivered_at)
+                      : (order.planned_date ? new Date(order.planned_date + 'T12:00:00') : today))
+                  : 'Date'}
               </Text>
             </View>
           </View>
@@ -375,11 +380,11 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
       {/* ── Page 2: Proof of Delivery Photo ── */}
       {deliveryPhotoDataUrl && (
         <Page size="A4" style={styles.page}>
-          <View style={{ marginBottom: 10, alignItems: 'center' }}>
-            <Image src="/spika-banner.png" style={{ width: '96%', height: 80, objectFit: 'contain' }} />
+          <View style={{ marginBottom: 2 }}>
+            <Image src="/spika-banner.png" style={{ width: '100%', height: 101, objectFit: 'contain' }} />
           </View>
           <View style={[styles.header, { justifyContent: 'flex-end' }]}>
-            <Text style={[styles.invoiceTitle, { fontSize: 20 }]}>PROOF OF DELIVERY</Text>
+            <Text style={styles.invoiceTitle}>PROOF OF DELIVERY</Text>
           </View>
           <Svg height={1} style={styles.divider}>
             <Line x1={0} y1={0} x2={515} y2={0} strokeWidth={1} stroke={RED} />
