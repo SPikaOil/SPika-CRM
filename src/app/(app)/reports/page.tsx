@@ -88,7 +88,8 @@ export default function ReportsPage() {
       .gte('created_at', startDate.toISOString())
       .lte('created_at', endDate.toISOString())
       .order('created_at', { ascending: false })
-    if (!error && data) setOrders(data as RawOrder[])
+    // Supabase types a to-one FK join as an array, but it returns an object at runtime
+    if (!error && data) setOrders(data as unknown as RawOrder[])
     setLoading(false)
   }
 
