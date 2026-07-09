@@ -128,25 +128,27 @@ export default function OrderDetailPage({
     if (!order) return
     setIsGeneratingPreview(type)
 
-    // Mobile browsers can't render multi-page PDFs inside an iframe overlay —
-    // open the PDF in its own tab instead. The tab must be opened synchronously
-    // on the user gesture, before any await, or the popup gets blocked.
+    // NEVER open a tab before generating: on iOS, window.open() switches to
+    // the new tab and freezes this page mid-generation — the tab stays blank
+    // forever. Generate first, then hand the finished file over.
     const isMobile = /Android|iPad|iPhone|iPod/.test(navigator.userAgent)
-    const mobileTab = isMobile ? window.open('', '_blank') : null
 
     try {
       const docType = type === 'invoice' ? 'INVOICE' : 'DELIVERY NOTE'
+      const label = type === 'invoice' ? 'Invoice' : 'Delivery Note'
       const blob = await buildDeliveryPdfBlob(docType)
-      const url = URL.createObjectURL(blob)
-      if (mobileTab) {
-        mobileTab.location.href = url
-        setTimeout(() => URL.revokeObjectURL(url), 60000)
+      if (isMobile) {
+        // Share sheet: preview via Quick Look, or save/send directly
+        const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[/\\:*?"<>|]/g, '').trim()
+        const customerName = (order.customer?.company_name ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
+        const filename = customerName ? `${orderNum} - ${customerName} - ${label}.pdf` : `${orderNum} - ${label}.pdf`
+        const { triggerDownload } = await import('@/lib/download-pdf')
+        triggerDownload(blob, filename)
       } else {
-        setPdfTitle(docType === 'INVOICE' ? 'Invoice' : 'Delivery Note')
-        setPdfBlobUrl(url)
+        setPdfTitle(label)
+        setPdfBlobUrl(URL.createObjectURL(blob))
       }
     } catch (err: any) {
-      if (mobileTab) mobileTab.close()
       toast.error(`Preview failed: ${err?.message ?? 'unknown error'}`, { duration: 8000 })
       console.error(err)
     } finally {
@@ -165,7 +167,12 @@ export default function OrderDetailPage({
     if (!order) return
     const storagePath = signedPdfStoragePath()
     if (!storagePath) return
-    // Open the tab synchronously — popups opened after an await are blocked on mobile
+    // On mobile, a pre-opened tab freezes this page mid-request (iOS suspends
+    // background tabs) — use the share sheet flow instead, which previews too
+    const isMobile = /Android|iPad|iPhone|iPod/.test(navigator.userAgent)
+    if (isMobile) {
+      return handleDownloadSignedPDF()
+    }
     const tab = window.open('', '_blank')
     try {
       const { data: signedData, error } = await supabase.storage.from('pod-files').createSignedUrl(storagePath, 120)
@@ -184,9 +191,6 @@ export default function OrderDetailPage({
     if (!storagePath) return
     setIsDownloadingSigned(true)
 
-    const isMobile = /Android|iPad|iPhone|iPod/.test(navigator.userAgent)
-    const fallbackTab = isMobile ? window.open('', '_blank') : null
-
     try {
       // Download the stored file itself — the frozen original with signature,
       // delivery photo and prices — never a regenerated version
@@ -204,10 +208,9 @@ export default function OrderDetailPage({
         : `${orderNum} - Signed Invoice.${ext}`
 
       const { triggerDownload } = await import('@/lib/download-pdf')
-      triggerDownload(blob, filename, fallbackTab)
+      triggerDownload(blob, filename)
     } catch (err: any) {
-      if (fallbackTab) fallbackTab.close()
-      toast.error(err.message ?? 'Could not download signed PDF')
+      toast.error(`Download failed: ${err?.message ?? 'unknown error'}`, { duration: 8000 })
     } finally {
       setIsDownloadingSigned(false)
     }
@@ -216,11 +219,6 @@ export default function OrderDetailPage({
   async function handleDownloadPDF(type: 'invoice' | 'note') {
     if (!order) return
     setIsDownloading(type)
-
-    // Popups opened after an async gap are blocked on mobile — open the
-    // fallback tab immediately on the user gesture.
-    const isMobile = /Android|iPad|iPhone|iPod/.test(navigator.userAgent)
-    const fallbackTab = isMobile ? window.open('', '_blank') : null
 
     try {
       const docType = type === 'invoice' ? 'INVOICE' : 'DELIVERY NOTE'
@@ -231,9 +229,8 @@ export default function OrderDetailPage({
       const filename = customerName ? `${orderNum} - ${customerName} - ${label}.pdf` : `${orderNum} - ${label}.pdf`
 
       const { triggerDownload } = await import('@/lib/download-pdf')
-      triggerDownload(blob, filename, fallbackTab)
+      triggerDownload(blob, filename)
     } catch (err: any) {
-      if (fallbackTab) fallbackTab.close()
       // Show the real error — silent blanks made mobile issues undiagnosable
       toast.error(`Download failed: ${err?.message ?? 'unknown error'}`, { duration: 8000 })
       console.error(err)
@@ -1361,8 +1358,6 @@ function ExportOrderSection({ order }: { order: Order & { customer?: any } }) {
   async function downloadPdf(type: 'commercial_invoice' | 'packing_list' | 'bill_of_lading' | 'shipping_label') {
     if (!exp) return
     setIsDownloading(true)
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
-    const iosTab = isIOS ? window.open('', '_blank') : null
     try {
       const React = await import('react')
       const { pdf } = await import('@react-pdf/renderer')
@@ -1390,10 +1385,9 @@ function ExportOrderSection({ order }: { order: Order & { customer?: any } }) {
       const blob = await pdf(element).toBlob()
       const expNum = exp.export_number.replace(/[#/\\:*?"<>|]/g, '').trim()
       const cName = (order.customer?.company_name ?? '').replace(/[#/\\:*?"<>|]/g, '').trim()
-      triggerDownload(blob, `${cName ? `${expNum} - ${cName}` : expNum} - ${labels[type]}.pdf`, iosTab)
-    } catch {
-      if (iosTab) iosTab.close()
-      toast.error('Failed to generate PDF')
+      triggerDownload(blob, `${cName ? `${expNum} - ${cName}` : expNum} - ${labels[type]}.pdf`)
+    } catch (err: any) {
+      toast.error(`Download failed: ${err?.message ?? 'unknown error'}`, { duration: 8000 })
     }
     finally { setIsDownloading(false) }
   }

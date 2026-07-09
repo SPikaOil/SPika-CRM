@@ -78,10 +78,9 @@ export default function DeliveryNoteDetailPage({
     if (!order) return
     setIsGeneratingPreview(true)
 
-    // Mobile browsers can't render multi-page PDFs inside an iframe overlay —
-    // open in a tab instead (opened synchronously to avoid popup blocking)
+    // NEVER open a tab before generating: on iOS, window.open() switches to
+    // the new tab and freezes this page mid-generation — blank tab forever.
     const isMobile = /Android|iPad|iPhone|iPod/.test(navigator.userAgent)
-    const mobileTab = isMobile ? window.open('', '_blank') : null
 
     try {
       const delivery = (order as any).delivery
@@ -127,16 +126,18 @@ export default function DeliveryNoteDetailPage({
           company,
         })
       ).toBlob()
-      const url = URL.createObjectURL(blob)
-      if (mobileTab) {
-        mobileTab.location.href = url
-        setTimeout(() => URL.revokeObjectURL(url), 60000)
+      if (isMobile) {
+        // Share sheet: preview via Quick Look, or save/send directly
+        const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[#/\\:*?"<>|]/g, '').trim()
+        const customerName = (order.customer?.company_name ?? '').replace(/[#/\\:*?"<>|]/g, '').trim()
+        const filename = customerName ? `${orderNum} - ${customerName} - Delivery Note.pdf` : `${orderNum} - Delivery Note.pdf`
+        const { triggerDownload } = await import('@/lib/download-pdf')
+        triggerDownload(blob, filename)
       } else {
-        setPdfBlobUrl(url)
+        setPdfBlobUrl(URL.createObjectURL(blob))
       }
-    } catch (err) {
-      if (mobileTab) mobileTab.close()
-      toast.error('Failed to generate preview')
+    } catch (err: any) {
+      toast.error(`Preview failed: ${err?.message ?? 'unknown error'}`, { duration: 8000 })
       console.error(err)
     } finally {
       setIsGeneratingPreview(false)
@@ -151,11 +152,6 @@ export default function DeliveryNoteDetailPage({
   async function handleDownloadPDF() {
     if (!order) return
     setIsDownloading(true)
-
-    // Popups opened after an async gap are blocked on mobile — open the
-    // fallback tab immediately on the user gesture.
-    const isMobile = /Android|iPad|iPhone|iPod/.test(navigator.userAgent)
-    const fallbackTab = isMobile ? window.open('', '_blank') : null
 
     try {
       // Always regenerate without prices — embed signature and POD photo if available
@@ -206,9 +202,8 @@ export default function DeliveryNoteDetailPage({
       const customerName = (order.customer?.company_name ?? '').replace(/[#/\\:*?"<>|]/g, '').trim()
       // Same naming convention as the orders page
       const filename = customerName ? `${orderNum} - ${customerName} - Delivery Note.pdf` : `${orderNum} - Delivery Note.pdf`
-      triggerDownload(blob, filename, fallbackTab)
+      triggerDownload(blob, filename)
     } catch (err: any) {
-      if (fallbackTab) fallbackTab.close()
       toast.error(`Download failed: ${err?.message ?? 'unknown error'}`, { duration: 8000 })
       console.error(err)
     } finally {
@@ -221,9 +216,6 @@ export default function DeliveryNoteDetailPage({
     const signedUrl = (order as any).signed_pdf_url
     if (!signedUrl) return
     setIsDownloadingSigned(true)
-
-    const isMobile = /Android|iPad|iPhone|iPod/.test(navigator.userAgent)
-    const fallbackTab = isMobile ? window.open('', '_blank') : null
 
     try {
       // Download the stored file itself — the frozen original with signature,
@@ -244,10 +236,9 @@ export default function DeliveryNoteDetailPage({
         : `${orderNum} - Signed Invoice.${ext}`
 
       const { triggerDownload } = await import('@/lib/download-pdf')
-      triggerDownload(blob, filename, fallbackTab)
+      triggerDownload(blob, filename)
     } catch (err: any) {
-      if (fallbackTab) fallbackTab.close()
-      toast.error(err.message ?? 'Could not download signed PDF')
+      toast.error(`Download failed: ${err?.message ?? 'unknown error'}`, { duration: 8000 })
     } finally {
       setIsDownloadingSigned(false)
     }
