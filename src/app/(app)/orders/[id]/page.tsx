@@ -145,9 +145,9 @@ export default function OrderDetailPage({
         setPdfTitle(docType === 'INVOICE' ? 'Invoice' : 'Delivery Note')
         setPdfBlobUrl(url)
       }
-    } catch (err) {
+    } catch (err: any) {
       if (mobileTab) mobileTab.close()
-      toast.error('Failed to generate preview')
+      toast.error(`Preview failed: ${err?.message ?? 'unknown error'}`, { duration: 8000 })
       console.error(err)
     } finally {
       setIsGeneratingPreview(null)
@@ -232,9 +232,10 @@ export default function OrderDetailPage({
 
       const { triggerDownload } = await import('@/lib/download-pdf')
       triggerDownload(blob, filename, fallbackTab)
-    } catch (err) {
+    } catch (err: any) {
       if (fallbackTab) fallbackTab.close()
-      toast.error('Failed to download PDF')
+      // Show the real error — silent blanks made mobile issues undiagnosable
+      toast.error(`Download failed: ${err?.message ?? 'unknown error'}`, { duration: 8000 })
       console.error(err)
     } finally {
       setIsDownloading(null)

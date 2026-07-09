@@ -5,5 +5,16 @@
       "path": "/api/report/monthly",
       "schedule": "0 23 28-31 * *"
     }
+  ],
+  "headers": [
+    {
+      "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0"
+        }
+      ]
+    }
   ]
 }

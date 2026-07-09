@@ -207,9 +207,9 @@ export default function DeliveryNoteDetailPage({
       // Same naming convention as the orders page
       const filename = customerName ? `${orderNum} - ${customerName} - Delivery Note.pdf` : `${orderNum} - Delivery Note.pdf`
       triggerDownload(blob, filename, fallbackTab)
-    } catch (err) {
+    } catch (err: any) {
       if (fallbackTab) fallbackTab.close()
-      toast.error('Failed to download PDF')
+      toast.error(`Download failed: ${err?.message ?? 'unknown error'}`, { duration: 8000 })
       console.error(err)
     } finally {
       setIsDownloading(false)
