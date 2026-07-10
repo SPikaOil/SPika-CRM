@@ -3,9 +3,9 @@
  *
  * Netherlands         → VAT  (field: vat_number,  code: NL)
  * Bonaire / BES       → CRIB (field: crib_number, code: BON)
- * Curaçao             → CRIB (field: crib_number, code: CW)
- * Aruba               → CRIB (field: crib_number, code: AW)
- * Sint Maarten        → CRIB (field: crib_number, code: SX)
+ * Curaçao             → CRIB (field: crib_number, code: CUR)
+ * Aruba               → CRIB (field: crib_number, code: AUA)
+ * Sint Maarten        → CRIB (field: crib_number, code: SXM)
  * Other / unknown     → show both, default label VAT
  *
  * Country codes must match src/lib/country.ts (badges/filters) — the user
@@ -26,9 +26,9 @@ const NL_COUNTRIES = ['netherlands', 'nederland', 'nl']
 
 const CRIB_COUNTRIES = [
   'bonaire', 'bon', 'bq', 'caribbean netherlands', 'bes',
-  'curaçao', 'curacao', 'cw',
-  'aruba', 'aw',
-  'sint maarten', 'sx',
+  'curaçao', 'curacao', 'cw', 'cur',
+  'aruba', 'aw', 'aua',
+  'sint maarten', 'sx', 'sxm',
 ]
 
 export function getTaxIdInfo(country: string): TaxIdInfo {
@@ -46,9 +46,9 @@ export function getTaxIdInfo(country: string): TaxIdInfo {
 
   if (CRIB_COUNTRIES.some((k) => c === k || c.startsWith(k))) {
     const prefix =
-      c.includes('cura') ? 'CW' :
-      c.includes('aruba') || c === 'aw' ? 'AW' :
-      c.includes('sint maarten') || c === 'sx' ? 'SX' :
+      c.includes('cura') || c === 'cw' || c === 'cur' ? 'CUR' :
+      c.includes('aruba') || c === 'aw' || c === 'aua' ? 'AUA' :
+      c.includes('sint maarten') || c === 'sx' || c === 'sxm' ? 'SXM' :
       'BON'
     return {
       label: 'CRIB Number',
