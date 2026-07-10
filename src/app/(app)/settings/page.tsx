@@ -2,7 +2,9 @@
 
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Settings, Users, FileText, Download, Building2, Loader2, Tag, ChevronDown, ChevronUp, BarChart2 } from 'lucide-react'
+import { Settings, Users, FileText, Download, Building2, Loader2, Tag, ChevronDown, ChevronUp, BarChart2, Mail } from 'lucide-react'
+import { Textarea } from '@/components/ui/textarea'
+import { DEFAULT_TEMPLATES, TEMPLATE_LABELS, type ReminderTemplate, type TemplateKey } from '@/lib/reminder-templates'
 import { PriceInput } from '@/components/ui/price-input'
 import { SPIKA_PRODUCTS } from '@/lib/products'
 import { useAuth } from '@/contexts/auth-context'
@@ -185,6 +187,9 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Payment Reminder Templates */}
+      <ReminderTemplatesCard />
+
       {/* Product Codes */}
       <ProductCodesCard />
 
@@ -212,6 +217,114 @@ export default function SettingsPage() {
 }
 
 const COMPANY_ID = '00000000-0000-0000-0000-000000000001'
+
+function ReminderTemplatesCard() {
+  const supabase = createClient()
+  const [templates, setTemplates] = useState<Record<TemplateKey, ReminderTemplate>>(DEFAULT_TEMPLATES)
+  const [openKey, setOpenKey] = useState<TemplateKey | null>(null)
+  const [saving, setSaving] = useState<TemplateKey | null>(null)
+
+  useEffect(() => {
+    supabase
+      .from('email_templates')
+      .select('key, subject, body')
+      .then(({ data }) => {
+        if (!data || data.length === 0) return
+        setTemplates(prev => {
+          const next = { ...prev }
+          for (const t of data) {
+            if (t.key in next) next[t.key as TemplateKey] = { subject: t.subject, body: t.body }
+          }
+          return next
+        })
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function save(key: TemplateKey) {
+    const tpl = templates[key]
+    if (!tpl.subject.trim() || !tpl.body.trim()) {
+      toast.error('Subject and body cannot be empty')
+      return
+    }
+    setSaving(key)
+    const { error } = await supabase
+      .from('email_templates')
+      .upsert({ key, subject: tpl.subject, body: tpl.body, updated_at: new Date().toISOString() })
+    setSaving(null)
+    if (error) toast.error(`Could not save: ${error.message}`)
+    else toast.success(`${TEMPLATE_LABELS[key]} saved`)
+  }
+
+  function update(key: TemplateKey, field: 'subject' | 'body', value: string) {
+    setTemplates(prev => ({ ...prev, [key]: { ...prev[key], [field]: value } }))
+  }
+
+  return (
+    <Card className="py-3 gap-2">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Mail className="h-4 w-4" />
+          Payment Reminder Templates
+        </CardTitle>
+        <CardDescription>
+          E-mail texts behind the &ldquo;Remind&rdquo; button on the dashboard. Placeholders are filled
+          in automatically: {'{contact} {company} {order} {amount} {due_date} {days}'}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {(Object.keys(TEMPLATE_LABELS) as TemplateKey[]).map(key => (
+          <div key={key} className="rounded-lg border">
+            <button
+              className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium hover:bg-accent transition-colors"
+              onClick={() => setOpenKey(openKey === key ? null : key)}
+            >
+              {TEMPLATE_LABELS[key]}
+              {openKey === key ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+            {openKey === key && (
+              <div className="px-3 pb-3 space-y-2 border-t pt-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Subject</Label>
+                  <Input
+                    value={templates[key].subject}
+                    onChange={e => update(key, 'subject', e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Body</Label>
+                  <Textarea
+                    value={templates[key].body}
+                    onChange={e => update(key, 'body', e.target.value)}
+                    rows={10}
+                    className="text-sm font-mono"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    className="bg-red-600 hover:bg-red-700"
+                    onClick={() => save(key)}
+                    disabled={saving === key}
+                  >
+                    {saving === key ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setTemplates(prev => ({ ...prev, [key]: DEFAULT_TEMPLATES[key] }))}
+                  >
+                    Reset to default
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  )
+}
 
 function CompanySettingsCard() {
   const supabase = createClient()

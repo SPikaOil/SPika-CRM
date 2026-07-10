@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/auth-context'
 import { useUsers } from '@/hooks/use-users'
 import { Order, Task } from '@/types'
+import { DEFAULT_TEMPLATES, TEMPLATE_LABELS, fillTemplate, type ReminderTemplate, type TemplateKey } from '@/lib/reminder-templates'
 
 interface Stats {
   orders_out_for_delivery: number
@@ -852,71 +853,23 @@ export default function DashboardPage() {
 }
 
 // ── Email template modal ───────────────────────────────────────────────────
-type TemplateKey = 'first' | 'second' | 'final'
+// Texts live in src/lib/reminder-templates.ts (defaults) and can be
+// overridden per template in Settings (email_templates table).
 
-const TEMPLATE_LABELS: Record<TemplateKey, string> = {
-  first: 'First Reminder',
-  second: 'Second Reminder',
-  final: 'Final Notice',
-}
-
-function buildTemplate(template: TemplateKey, order: OverdueOrder): { subject: string; body: string } {
+function buildTemplate(
+  template: TemplateKey,
+  order: OverdueOrder,
+  overrides: Partial<Record<TemplateKey, ReminderTemplate>>
+): ReminderTemplate {
   const customer = order.customer as any
-  const contactName = customer?.contact_person || customer?.company_name || 'Sir/Madam'
-  const company = customer?.company_name ?? ''
-  const amount = `XCG ${Number(order.total).toFixed(2)}`
-  const dueStr = order.dueDate.toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })
-  const days = order.daysOverdue
-  const orderNum = order.order_number
-
-  if (template === 'first') {
-    return {
-      subject: `Payment Reminder – Order ${orderNum}`,
-      body: `Dear ${contactName},
-
-We hope this message finds you well.
-
-This is a friendly reminder that payment for order ${orderNum} in the amount of ${amount} was due on ${dueStr}.
-
-If you have already arranged payment, please disregard this message. Otherwise, we kindly ask that you process the outstanding balance at your earliest convenience.
-
-Should you have any questions regarding your invoice, please do not hesitate to reach out.
-
-Thank you for your continued business.
-
-Best regards,
-SPika Team`,
-    }
-  }
-
-  if (template === 'second') {
-    return {
-      subject: `Second Payment Reminder – Order ${orderNum} (${days} Days Overdue)`,
-      body: `Dear ${contactName},
-
-We are following up on our earlier reminder regarding order ${orderNum} for ${company}.
-
-The outstanding balance of ${amount} was due on ${dueStr} and is now ${days} days overdue. We kindly request that you arrange payment as soon as possible.
-
-If you are experiencing any difficulties, please contact us so we can discuss a suitable payment arrangement.
-
-Best regards,
-SPika Team`,
-    }
-  }
-
-  return {
-    subject: `FINAL NOTICE – Overdue Payment – Order ${orderNum}`,
-    body: `Dear ${contactName},
-
-Despite our previous reminders, payment for order ${orderNum} (${company}) in the amount of ${amount}, which was due on ${dueStr}, remains outstanding for ${days} days.
-
-This is our final notice. If payment is not received within 7 days of this message, we may be required to suspend services and/or refer this matter to a collection agency.
-
-Please contact us immediately to resolve this matter.
-
-SPika Team`,
-  }
+  return fillTemplate(overrides[template] ?? DEFAULT_TEMPLATES[template], {
+    contact: customer?.contact_person || customer?.company_name || 'Sir/Madam',
+    company: customer?.company_name ?? '',
+    order: order.order_number,
+    amount: `XCG ${Number(order.total).toFixed(2)}`,
+    due_date: order.dueDate.toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' }),
+    days: String(order.daysOverdue),
+  })
 }
 
 function EmailTemplateModal({
@@ -934,7 +887,22 @@ function EmailTemplateModal({
   setCopied: (v: boolean) => void
   onClose: () => void
 }) {
-  const { subject, body } = buildTemplate(selectedTemplate, order)
+  // Custom texts set in Settings override the built-in defaults
+  const [overrides, setOverrides] = useState<Partial<Record<TemplateKey, ReminderTemplate>>>({})
+  useEffect(() => {
+    createClient()
+      .from('email_templates')
+      .select('key, subject, body')
+      .then(({ data }) => {
+        if (data) {
+          setOverrides(Object.fromEntries(
+            data.map(t => [t.key as TemplateKey, { subject: t.subject, body: t.body }])
+          ))
+        }
+      })
+  }, [])
+
+  const { subject, body } = buildTemplate(selectedTemplate, order, overrides)
   const customer = order.customer as any
 
   function handleCopy() {

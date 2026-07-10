@@ -80,6 +80,22 @@ export default function PortalManagementPage() {
     return 'active'
   }
 
+  // Country is free text in billing_address ("Curacao", "CURAÇAO ", "Nederland", …)
+  // — normalize to a compact country code for the list
+  function countryCode(customer: Customer): string | null {
+    const raw = (customer.billing_address as any)?.country
+    if (!raw || !raw.trim()) return null
+    const c = raw.trim().toLowerCase()
+    if (c.startsWith('cura')) return 'CW'
+    if (c === 'netherlands' || c === 'the netherlands' || c === 'nederland' || c === 'holland') return 'NL'
+    if (c.startsWith('bonaire')) return 'BQ'
+    if (c.startsWith('aruba')) return 'AW'
+    if (c.startsWith('united states') || c === 'usa' || c === 'us') return 'US'
+    if (c.startsWith('germany') || c.startsWith('duits')) return 'DE'
+    if (c.startsWith('belgi')) return 'BE'
+    return raw.trim().slice(0, 2).toUpperCase()
+  }
+
   async function handleInvite(customer: Customer) {
     if (!customer.email) {
       toast.error('This customer has no email address — add one first')
@@ -404,6 +420,11 @@ export default function PortalManagementPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm font-medium truncate">{customer.company_name}</p>
+                    {countryCode(customer) && (
+                      <Badge variant="outline" className="text-xs px-1 py-0 text-muted-foreground shrink-0">
+                        {countryCode(customer)}
+                      </Badge>
+                    )}
                     {statusBadge(status)}
                   </div>
                   <p className="text-xs text-muted-foreground truncate mt-0.5">
