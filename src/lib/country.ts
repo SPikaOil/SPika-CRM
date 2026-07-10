@@ -5,7 +5,7 @@ export function countryCode(raw?: string | null): string | null {
   const c = raw.trim().toLowerCase()
   if (c.startsWith('cura')) return 'CW'
   if (c === 'netherlands' || c === 'the netherlands' || c === 'nederland' || c === 'holland') return 'NL'
-  if (c.startsWith('bonaire')) return 'BQ'
+  if (c.startsWith('bonaire')) return 'BON'
   if (c.startsWith('aruba')) return 'AW'
   if (c.startsWith('united states') || c === 'usa' || c === 'us') return 'US'
   if (c.startsWith('germany') || c.startsWith('duits')) return 'DE'
