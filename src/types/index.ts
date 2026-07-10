@@ -73,6 +73,8 @@ export const SPIKA_STAND_TYPES: { value: SpikaStand['type']; label: string; capa
 
 export interface Customer {
   id: string
+  // 'S-0001' — auto-assigned by DB trigger (migration 039); null pre-migration
+  customer_number?: string | null
   company_name: string
   customer_category: CustomerCategory
   contact_person: string

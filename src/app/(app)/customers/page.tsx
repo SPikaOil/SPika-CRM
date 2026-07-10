@@ -21,6 +21,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { SPIKA_PRODUCTS } from '@/lib/products'
+import { customerCountryCode } from '@/lib/country'
 
 type ImportRow = {
   company_name: string
@@ -132,7 +133,16 @@ function downloadTemplateXML() {
 export default function CustomersPage() {
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('all')
+  const [country, setCountry] = useState('all')
   const { data: customers, isLoading } = useCustomers(search, category)
+
+  // Country filter is applied client-side on normalized country codes
+  const countryCodes = Array.from(
+    new Set((customers ?? []).map(c => customerCountryCode(c)).filter(Boolean))
+  ).sort() as string[]
+  const visibleCustomers = (customers ?? []).filter(
+    c => country === 'all' || customerCountryCode(c) === country
+  )
   const { isAdmin } = useAuth()
   const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -299,6 +309,17 @@ export default function CustomersPage() {
             <SelectItem value="b2c">B2C</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={country} onValueChange={(v) => setCountry(v ?? 'all')}>
+          <SelectTrigger className="w-full sm:w-32">
+            <SelectValue placeholder="Country" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All countries</SelectItem>
+            {countryCodes.map(code => (
+              <SelectItem key={code} value={code}>{code}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* List */}
@@ -308,7 +329,7 @@ export default function CustomersPage() {
             <Skeleton key={i} className="h-20 rounded-xl" />
           ))}
         </div>
-      ) : customers?.length === 0 ? (
+      ) : visibleCustomers.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-3">
           <Building2 className="h-12 w-12 opacity-20" />
           <p className="font-medium">No customers found</p>
@@ -316,7 +337,7 @@ export default function CustomersPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {customers?.map((customer) => (
+          {visibleCustomers.map((customer) => (
             <Link
               key={customer.id}
               href={`/customers/${customer.id}`}
@@ -328,7 +349,14 @@ export default function CustomersPage() {
                 </span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-medium truncate leading-tight">{customer.company_name}</p>
+                <div className="flex items-center gap-2 min-w-0">
+                  <p className="font-medium truncate leading-tight">{customer.company_name}</p>
+                  {(customer as any).customer_number && (
+                    <span className="font-mono text-xs text-muted-foreground shrink-0">
+                      {(customer as any).customer_number}
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                   <Badge
                     variant="secondary"
@@ -336,6 +364,11 @@ export default function CustomersPage() {
                   >
                     {customer.customer_category}
                   </Badge>
+                  {customerCountryCode(customer) && (
+                    <Badge variant="outline" className="text-xs px-1 py-0 text-muted-foreground shrink-0">
+                      {customerCountryCode(customer)}
+                    </Badge>
+                  )}
                   {customer.status === 'inactive' && (
                     <Badge variant="outline" className="text-xs text-muted-foreground">
                       Inactive

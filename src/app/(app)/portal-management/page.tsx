@@ -8,10 +8,12 @@ import { useAuth } from '@/contexts/auth-context'
 import { useCustomers } from '@/hooks/use-customers'
 import { createClient } from '@/lib/supabase/client'
 import { Customer, AccessRequest } from '@/types'
+import { customerCountryCode } from '@/lib/country'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
 
 type PortalStatus = 'no_access' | 'invited' | 'active'
@@ -33,6 +35,8 @@ export default function PortalManagementPage() {
   const { data: customers, isLoading: customersLoading } = useCustomers()
   const [portalUsers, setPortalUsers] = useState<Record<string, string>>({})
   const [search, setSearch] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [countryFilter, setCountryFilter] = useState('all')
   const [loading, setLoading] = useState<string | null>(null)
   const [tab, setTab] = useState<'customers' | 'requests'>('customers')
   const [requests, setRequests] = useState<AccessRequest[]>([])
@@ -80,21 +84,7 @@ export default function PortalManagementPage() {
     return 'active'
   }
 
-  // Country is free text in billing_address ("Curacao", "CURAÇAO ", "Nederland", …)
-  // — normalize to a compact country code for the list
-  function countryCode(customer: Customer): string | null {
-    const raw = (customer.billing_address as any)?.country
-    if (!raw || !raw.trim()) return null
-    const c = raw.trim().toLowerCase()
-    if (c.startsWith('cura')) return 'CW'
-    if (c === 'netherlands' || c === 'the netherlands' || c === 'nederland' || c === 'holland') return 'NL'
-    if (c.startsWith('bonaire')) return 'BQ'
-    if (c.startsWith('aruba')) return 'AW'
-    if (c.startsWith('united states') || c === 'usa' || c === 'us') return 'US'
-    if (c.startsWith('germany') || c.startsWith('duits')) return 'DE'
-    if (c.startsWith('belgi')) return 'BE'
-    return raw.trim().slice(0, 2).toUpperCase()
-  }
+  const countryCode = (customer: Customer) => customerCountryCode(customer)
 
   async function handleInvite(customer: Customer) {
     if (!customer.email) {
@@ -213,13 +203,19 @@ export default function PortalManagementPage() {
 
   const pendingCount = requests.filter(r => ['pending', 'link_sent', 'approved_pending_setup'].includes(r.status)).length
 
-  const filtered = (customers ?? [])
-    .filter(c => c.status === 'active')
+  const activeCustomers = (customers ?? []).filter(c => c.status === 'active')
+  const availableCountries = Array.from(
+    new Set(activeCustomers.map(c => customerCountryCode(c)).filter(Boolean))
+  ).sort() as string[]
+
+  const filtered = activeCustomers
     .filter(c =>
       !search ||
       c.company_name.toLowerCase().includes(search.toLowerCase()) ||
       c.email?.toLowerCase().includes(search.toLowerCase())
     )
+    .filter(c => categoryFilter === 'all' || c.customer_category === categoryFilter)
+    .filter(c => countryFilter === 'all' || customerCountryCode(c) === countryFilter)
 
   const activeCount = filtered.filter(c => portalUsers[c.id]).length
   const noAccessCount = filtered.filter(c => !portalUsers[c.id]).length
@@ -396,15 +392,44 @@ export default function PortalManagementPage() {
         </Card>
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search customers..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="pl-9"
-        />
+      {/* Search + filters */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search customers..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v ?? 'all')}>
+          <SelectTrigger className="w-full sm:w-36">
+            <SelectValue placeholder="Category" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All categories</SelectItem>
+            <SelectItem value="wholesale">Wholesale</SelectItem>
+            <SelectItem value="horeca">HORECA</SelectItem>
+            <SelectItem value="supermarket">Supermarket</SelectItem>
+            <SelectItem value="shops">Shops</SelectItem>
+            <SelectItem value="dtf">DTF</SelectItem>
+            <SelectItem value="other">Other</SelectItem>
+            <SelectItem value="b2c">B2C</SelectItem>
+            <SelectItem value="export">Export</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={countryFilter} onValueChange={(v) => setCountryFilter(v ?? 'all')}>
+          <SelectTrigger className="w-full sm:w-32">
+            <SelectValue placeholder="Country" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All countries</SelectItem>
+            {availableCountries.map(code => (
+              <SelectItem key={code} value={code}>{code}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Customer list */}

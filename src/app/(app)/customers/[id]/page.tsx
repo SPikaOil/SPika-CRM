@@ -219,6 +219,9 @@ export default function CustomerDetailPage({
         <div className="flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-2xl font-bold">{customer.company_name}</h1>
+            {(customer as any).customer_number && (
+              <span className="font-mono text-sm text-muted-foreground">{(customer as any).customer_number}</span>
+            )}
             <Badge className={`capitalize ${categoryColors[customer.customer_category]}`}>
               {customer.customer_category}
             </Badge>
