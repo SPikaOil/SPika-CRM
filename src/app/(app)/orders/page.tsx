@@ -449,7 +449,7 @@ function OrderRow({
       href={`/orders/${order.id}`}
       className={`block px-3 py-2 rounded-xl border bg-card hover:bg-accent transition-colors ${dimmed ? 'opacity-60' : ''}`}
     >
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex items-center justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="font-mono text-sm font-medium">{order.order_number}</p>
@@ -468,7 +468,7 @@ function OrderRow({
             {order.assigned_user?.name ?? '—'} · {new Date(order.created_at).toLocaleDateString()}
           </p>
         </div>
-        <div className="flex flex-col items-end gap-1.5 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           {isAdmin && (() => {
             const credit = (order.delivery?.table_bottles_returned ?? 0) * (order.customer?.table_bottle_return_price ?? 2.50)
             const adj = Number(order.total) - credit
