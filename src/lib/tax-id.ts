@@ -1,12 +1,15 @@
 /**
  * Maps a billing country to the correct tax identifier convention.
  *
- * Netherlands         → VAT  (field: vat_number,  ISO: NL)
- * Bonaire / BES       → CRIB (field: crib_number, ISO: BQ)
- * Curaçao             → CRIB (field: crib_number, ISO: CW)
- * Aruba               → CRIB (field: crib_number, ISO: AW)
- * Sint Maarten        → CRIB (field: crib_number, ISO: SX)
+ * Netherlands         → VAT  (field: vat_number,  code: NL)
+ * Bonaire / BES       → CRIB (field: crib_number, code: BON)
+ * Curaçao             → CRIB (field: crib_number, code: CW)
+ * Aruba               → CRIB (field: crib_number, code: AW)
+ * Sint Maarten        → CRIB (field: crib_number, code: SX)
  * Other / unknown     → show both, default label VAT
+ *
+ * Country codes must match src/lib/country.ts (badges/filters) — the user
+ * wants one consistent set of codes everywhere.
  */
 
 export type TaxField = 'vat_number' | 'crib_number'
@@ -15,14 +18,14 @@ export interface TaxIdInfo {
   label: string        // e.g. "VAT Number" or "CRIB Number"
   shortLabel: string   // e.g. "VAT" or "CRIB"
   field: TaxField
-  prefix: string       // ISO country code prepended to the number, e.g. "NL" or "BQ"
+  prefix: string       // country code prepended to the number, e.g. "NL" or "BON"
   placeholder: string
 }
 
 const NL_COUNTRIES = ['netherlands', 'nederland', 'nl']
 
 const CRIB_COUNTRIES = [
-  'bonaire', 'bq', 'caribbean netherlands', 'bes',
+  'bonaire', 'bon', 'bq', 'caribbean netherlands', 'bes',
   'curaçao', 'curacao', 'cw',
   'aruba', 'aw',
   'sint maarten', 'sx',
@@ -46,7 +49,7 @@ export function getTaxIdInfo(country: string): TaxIdInfo {
       c.includes('cura') ? 'CW' :
       c.includes('aruba') || c === 'aw' ? 'AW' :
       c.includes('sint maarten') || c === 'sx' ? 'SX' :
-      'BQ'
+      'BON'
     return {
       label: 'CRIB Number',
       shortLabel: 'CRIB',
@@ -66,7 +69,7 @@ export function getTaxIdInfo(country: string): TaxIdInfo {
   }
 }
 
-/** Returns a formatted display string like "NL VAT#123" or "BQ CRIB#456" */
+/** Returns a formatted display string like "NL VAT#123" or "BON CRIB#456" */
 export function formatTaxId(country: string, vatNumber?: string, cribNumber?: string): string | null {
   if (!country && !vatNumber && !cribNumber) return null
   const info = getTaxIdInfo(country ?? '')
