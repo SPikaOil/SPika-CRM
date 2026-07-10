@@ -318,8 +318,12 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
       ? Number(rest.table_count)
       : null
 
+    // CRIB is digits only — strip accidental '#' and whitespace on save
+    const cribNumber = (rest.crib_number ?? '').replace(/[#\s]/g, '')
+
     await onSubmit({
       ...rest,
+      crib_number: cribNumber,
       table_count: tableCount,
       billing_emails: billingEmails,
       spika_stands: stands,
@@ -684,14 +688,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
             <CardContent className="space-y-4">
               {category !== 'b2c' && (
                 <div className="space-y-1.5">
-                  <Label>
-                    {taxIdInfo.label}
-                    {taxIdInfo.prefix && (
-                      <span className="ml-1.5 text-xs font-mono bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
-                        {taxIdInfo.prefix}
-                      </span>
-                    )}
-                  </Label>
+                  <Label>{taxIdInfo.label}</Label>
                   {taxIdInfo.field === 'vat_number'
                     ? <Input {...register('vat_number')} placeholder={taxIdInfo.placeholder} />
                     : <Input {...register('crib_number')} placeholder={taxIdInfo.placeholder} />

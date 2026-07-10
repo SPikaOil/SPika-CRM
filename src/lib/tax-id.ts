@@ -69,12 +69,15 @@ export function getTaxIdInfo(country: string): TaxIdInfo {
   }
 }
 
-/** Returns a formatted display string like "NL VAT#123" or "BON CRIB#456" */
+/**
+ * Returns a formatted display string like "VAT#123" or "CRIB#456".
+ * The country only decides WHICH tax id applies — the country code itself
+ * must never appear on invoices, delivery notes, quotations or the app UI.
+ */
 export function formatTaxId(country: string, vatNumber?: string, cribNumber?: string): string | null {
   if (!country && !vatNumber && !cribNumber) return null
   const info = getTaxIdInfo(country ?? '')
-  const value = info.field === 'crib_number' ? cribNumber : vatNumber
+  const value = (info.field === 'crib_number' ? cribNumber : vatNumber)?.replace(/^#+/, '')
   if (!value) return null
-  const prefix = info.prefix ? `${info.prefix} ` : ''
-  return `${prefix}${info.shortLabel}#${value}`
+  return `${info.shortLabel}#${value}`
 }
