@@ -79,11 +79,11 @@ function StatCard({
   if (href) {
     return (
       <Link href={href}>
-        <Card className="hover:bg-accent transition-colors cursor-pointer">{inner}</Card>
+        <Card className="py-0 hover:bg-accent transition-colors cursor-pointer">{inner}</Card>
       </Link>
     )
   }
-  return <Card>{inner}</Card>
+  return <Card className="py-0">{inner}</Card>
 }
 
 interface OverdueOrder extends Order {
@@ -245,9 +245,9 @@ function OverdueBanner({
       {/* Collapsed header — always visible */}
       <button
         onClick={() => setExpanded(v => !v)}
-        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-red-100/40 dark:hover:bg-red-900/20 transition-colors"
+        className="w-full flex items-center gap-3 px-3 py-2 hover:bg-red-100/40 dark:hover:bg-red-900/20 transition-colors"
       >
-        <CreditCard className="h-5 w-5 text-red-600 shrink-0" />
+        <CreditCard className="h-4 w-4 text-red-600 shrink-0" />
         <div className="flex-1 text-left">
           <p className="font-semibold text-red-700 dark:text-red-400">
             {orders.length} overdue payment{orders.length > 1 ? 's' : ''}
@@ -267,7 +267,7 @@ function OverdueBanner({
       {expanded && (
         <div className="divide-y divide-red-100 dark:divide-red-900 border-t border-red-200 dark:border-red-800">
           {orders.map((order) => (
-            <div key={order.id} className="flex items-center justify-between px-4 py-3 gap-3">
+            <div key={order.id} className="flex items-center justify-between px-3 py-2 gap-3">
               <Link href={`/orders/${order.id}`} className="flex-1 min-w-0 hover:opacity-70 transition-opacity">
                 <p className="text-sm font-medium">{(order.customer as any)?.company_name}</p>
                 <p className="text-xs text-muted-foreground font-mono">{order.order_number}</p>
@@ -304,9 +304,9 @@ function RefillBanner({ rows }: { rows: RefillRow[] }) {
     <div className="rounded-xl border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/20 overflow-hidden">
       <button
         onClick={() => setExpanded(v => !v)}
-        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-green-100/40 dark:hover:bg-green-900/20 transition-colors"
+        className="w-full flex items-center gap-3 px-3 py-2 hover:bg-green-100/40 dark:hover:bg-green-900/20 transition-colors"
       >
-        <Droplets className="h-5 w-5 text-green-600 shrink-0" />
+        <Droplets className="h-4 w-4 text-green-600 shrink-0" />
         <div className="flex-1 text-left">
           <p className="font-semibold text-green-700 dark:text-green-400">
             {rows.length} bottle refill{rows.length > 1 ? 's' : ''} coming up
@@ -338,7 +338,7 @@ function RefillBanner({ rows }: { rows: RefillRow[] }) {
               <Link
                 key={row.customer_id}
                 href={`/customers/${row.customer_id}`}
-                className="flex items-center justify-between px-4 py-3 gap-3 hover:bg-green-100/40 dark:hover:bg-green-900/20 transition-colors"
+                className="flex items-center justify-between px-3 py-2 gap-3 hover:bg-green-100/40 dark:hover:bg-green-900/20 transition-colors"
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium">{row.company_name}</p>
@@ -689,8 +689,8 @@ export default function DashboardPage() {
       {/* Pending access requests */}
       {isAdmin && pendingAccessRequests > 0 && (
         <Link href="/portal-management">
-          <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 hover:bg-blue-100/60 dark:hover:bg-blue-900/20 transition-colors">
-            <UserPlus className="h-5 w-5 text-blue-600 shrink-0" />
+          <div className="flex items-center gap-3 px-3 py-2 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 hover:bg-blue-100/60 dark:hover:bg-blue-900/20 transition-colors">
+            <UserPlus className="h-4 w-4 text-blue-600 shrink-0" />
             <p className="flex-1 text-sm font-semibold text-blue-700 dark:text-blue-400">
               {pendingAccessRequests} reseller request{pendingAccessRequests > 1 ? 's' : ''} awaiting approval
             </p>
@@ -751,10 +751,10 @@ export default function DashboardPage() {
             All clients <ArrowRight className="h-3 w-3" />
           </Link>
         </div>
-        <Card>
+        <Card className="py-0">
           <CardContent className="p-0 divide-y">
             {isLoading && [0,1,2,3].map(i => (
-              <div key={i} className="flex items-center gap-3 px-4 py-2.5">
+              <div key={i} className="flex items-center gap-3 px-3 py-2">
                 <Skeleton className="h-4 w-28" />
                 <Skeleton className="h-4 w-20 ml-auto" />
               </div>
@@ -772,7 +772,7 @@ export default function DashboardPage() {
                 <Link
                   key={row.customer_id}
                   href={`/customers/${row.customer_id}`}
-                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 transition-colors group"
+                  className="flex items-center gap-3 px-3 py-2 hover:bg-muted/50 transition-colors group"
                 >
                   <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   <p className="text-sm font-medium flex-1 truncate">{row.company_name}</p>
@@ -798,10 +798,10 @@ export default function DashboardPage() {
               All tasks <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
-          <Card>
+          <Card className="py-0">
             <CardContent className="p-0 divide-y">
               {isLoading && [0,1,2].map(i => (
-                <div key={i} className="flex items-center gap-3 px-4 py-2.5">
+                <div key={i} className="flex items-center gap-3 px-3 py-2">
                   <Skeleton className="h-4 w-36" />
                   <Skeleton className="h-4 w-16 ml-auto" />
                 </div>
@@ -827,7 +827,7 @@ export default function DashboardPage() {
                   <Link
                     key={task.id}
                     href="/tasks"
-                    className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 transition-colors"
+                    className="flex items-center gap-3 px-3 py-2 hover:bg-muted/50 transition-colors"
                   >
                     <ClipboardList className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     <div className="flex-1 min-w-0">

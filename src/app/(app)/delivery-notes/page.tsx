@@ -136,7 +136,7 @@ export default function DeliveryNotesPage() {
       </div>
 
       {isLoading ? (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-20 rounded-xl" />
           ))}
@@ -206,7 +206,7 @@ function DeliveryNoteRow({
   return (
     <Link
       href={`/delivery-notes/${order.id}`}
-      className={`block p-4 rounded-xl border bg-card hover:bg-accent transition-colors ${
+      className={`block px-3 py-2 rounded-xl border bg-card hover:bg-accent transition-colors ${
         dimmed ? 'opacity-60' : ''
       }`}
     >
@@ -214,6 +214,7 @@ function DeliveryNoteRow({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="font-mono text-sm font-medium">{order.order_number}</p>
+            <p className="font-medium text-sm truncate">{order.customer?.company_name}</p>
             <Badge className={`text-xs ${statusColors[order.status]}`}>
               {statusLabels[order.status]}
             </Badge>
@@ -224,8 +225,7 @@ function DeliveryNoteRow({
               <Badge className="text-xs bg-emerald-100 text-emerald-700">🎁 Free Bottles</Badge>
             )}
           </div>
-          <p className="font-medium mt-0.5">{order.customer?.company_name}</p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs text-muted-foreground mt-0.5">
             {order.assigned_user?.name ?? '—'} ·{' '}
             {new Date(order.created_at).toLocaleDateString()}
           </p>

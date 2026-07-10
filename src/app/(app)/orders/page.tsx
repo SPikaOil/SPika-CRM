@@ -447,12 +447,13 @@ function OrderRow({
   return (
     <Link
       href={`/orders/${order.id}`}
-      className={`block p-4 rounded-xl border bg-card hover:bg-accent transition-colors ${dimmed ? 'opacity-60' : ''}`}
+      className={`block px-3 py-2 rounded-xl border bg-card hover:bg-accent transition-colors ${dimmed ? 'opacity-60' : ''}`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="font-mono text-sm font-medium">{order.order_number}</p>
+            <p className="font-medium text-sm truncate">{order.customer?.company_name}</p>
             <Badge className={`text-xs ${statusColors[order.status]}`}>
               {statusLabels[order.status]}
             </Badge>
@@ -463,8 +464,7 @@ function OrderRow({
               <Badge className="text-xs bg-emerald-100 text-emerald-700">🎁 Free Bottles</Badge>
             )}
           </div>
-          <p className="font-medium mt-0.5">{order.customer?.company_name}</p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs text-muted-foreground mt-0.5">
             {order.assigned_user?.name ?? '—'} · {new Date(order.created_at).toLocaleDateString()}
           </p>
         </div>
