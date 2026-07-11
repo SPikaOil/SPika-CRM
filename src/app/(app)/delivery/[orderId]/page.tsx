@@ -269,14 +269,17 @@ export default function DeliveryPage({
             const { data: companyData } = await supabase.from('company_settings').select('*').eq('id', '00000000-0000-0000-0000-000000000001').single()
             const company = companyData ?? undefined
 
-            // Convert photo to data URL for embedding in PDF
+            // Convert photo to data URL for embedding in PDF, downscaled so the
+            // signed invoice stays small enough to share on iOS
             let deliveryPhotoDataUrl: string | undefined
             if (photoFile) {
-              deliveryPhotoDataUrl = await new Promise<string>((resolve) => {
+              const raw = await new Promise<string>((resolve) => {
                 const reader = new FileReader()
                 reader.onloadend = () => resolve(reader.result as string)
                 reader.readAsDataURL(photoFile)
               })
+              const { downscaleDataUrl } = await import('@/lib/image-utils')
+              deliveryPhotoDataUrl = await downscaleDataUrl(raw)
             }
 
             const pdfBlob = await (pdf as any)(

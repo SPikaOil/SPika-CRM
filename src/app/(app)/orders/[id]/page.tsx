@@ -106,7 +106,11 @@ export default function OrderDetailPage({
       try {
         const res = await fetch(`/api/image-proxy?url=${encodeURIComponent(delivery.pod_file_url)}`)
         const json = await res.json()
-        deliveryPhotoDataUrl = json.dataUrl
+        if (json.dataUrl) {
+          // Shrink the photo so the PDF stays small enough to share on iOS
+          const { downscaleDataUrl } = await import('@/lib/image-utils')
+          deliveryPhotoDataUrl = await downscaleDataUrl(json.dataUrl)
+        }
       } catch { /* non-fatal */ }
     }
     return (pdf as any)(
@@ -165,12 +169,11 @@ export default function OrderDetailPage({
 
   async function handleViewSignedPDF() {
     if (!order) return
-    const storagePath = signedPdfStoragePath()
-    if (!storagePath) return
-    // On mobile, a pre-opened tab freezes this page mid-request (iOS suspends
-    // background tabs) — use the share sheet flow instead, which previews too
+    // On mobile (or when nothing is stored yet) route through the download/
+    // regenerate flow — it previews via the share sheet and backfills the PDF.
     const isMobile = /Android|iPad|iPhone|iPod/.test(navigator.userAgent)
-    if (isMobile) {
+    const storagePath = signedPdfStoragePath()
+    if (isMobile || !storagePath) {
       return handleDownloadSignedPDF()
     }
     const tab = window.open('', '_blank')
@@ -187,25 +190,38 @@ export default function OrderDetailPage({
 
   async function handleDownloadSignedPDF() {
     if (!order) return
-    const storagePath = signedPdfStoragePath()
-    if (!storagePath) return
     setIsDownloadingSigned(true)
 
     try {
-      // Download the stored file itself — the frozen original with signature,
-      // delivery photo and prices — never a regenerated version
-      const { data: signedData, error } = await supabase.storage.from('pod-files').createSignedUrl(storagePath, 120)
-      if (error || !signedData) throw error ?? new Error('Could not create signed URL')
-      const res = await fetch(signedData.signedUrl)
-      if (!res.ok) throw new Error('Could not fetch signed PDF')
-      const blob = await res.blob()
-
       const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[/\\:*?"<>|]/g, '').trim()
       const customerName = (order.customer?.company_name ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
-      const ext = storagePath.includes('.') ? storagePath.split('.').pop() : 'pdf'
       const filename = customerName
-        ? `${orderNum} - ${customerName} - Signed Invoice.${ext}`
-        : `${orderNum} - Signed Invoice.${ext}`
+        ? `${orderNum} - ${customerName} - Signed Invoice.pdf`
+        : `${orderNum} - Signed Invoice.pdf`
+
+      let blob: Blob
+      const storagePath = signedPdfStoragePath()
+      if (storagePath) {
+        // Stored frozen original — signature + delivery photo + prices
+        const { data: signedData, error } = await supabase.storage.from('pod-files').createSignedUrl(storagePath, 120)
+        if (error || !signedData) throw error ?? new Error('Could not create signed URL')
+        const res = await fetch(signedData.signedUrl)
+        if (!res.ok) throw new Error('Could not fetch signed PDF')
+        blob = await res.blob()
+      } else {
+        // No stored signed PDF (generation failed at delivery time on ~24% of
+        // orders). Regenerate now from the stored signature/photo and backfill
+        // it so the record exists from here on.
+        blob = await buildDeliveryPdfBlob('INVOICE')
+        try {
+          const path = `signed-notes/${customerName ? `${orderNum} - ${customerName}` : orderNum}.pdf`
+          await supabase.storage.from('pod-files').upload(path, blob, { upsert: true, contentType: 'application/pdf' })
+          const { data: { publicUrl } } = supabase.storage.from('pod-files').getPublicUrl(path)
+          await updateOrder.mutateAsync({ id: order.id, values: { signed_pdf_url: publicUrl } as any })
+        } catch (backfillErr) {
+          console.error('Signed PDF backfill failed (download still proceeds):', backfillErr)
+        }
+      }
 
       const { triggerDownload } = await import('@/lib/download-pdf')
       triggerDownload(blob, filename)
@@ -789,8 +805,11 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
             </div>
           </div>
 
-          {/* Signed PDF — the frozen original with signature, photo and prices */}
-          {(order as any).signed_pdf_url && (
+          {/* Signed Invoice — the frozen signed proof-of-delivery. Available for
+              any signed/delivered order; regenerates on demand if the PDF was
+              never stored (generation failed on ~24% of past deliveries). */}
+          {((order as any).signed_pdf_url || (order as any).signature_data_url ||
+            ['delivered', 'invoice_ready', 'invoice_blocked', 'paid'].includes(order.status)) && (
             <div className="space-y-1.5">
               <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Signed Invoice (with proof of delivery)</p>
               <div className="flex flex-wrap gap-2">

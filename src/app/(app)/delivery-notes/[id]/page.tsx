@@ -108,7 +108,10 @@ export default function DeliveryNoteDetailPage({
             `/api/image-proxy?url=${encodeURIComponent(delivery.pod_file_url)}`
           )
           const json = await res.json()
-          deliveryPhotoDataUrl = json.dataUrl
+          if (json.dataUrl) {
+            const { downscaleDataUrl } = await import('@/lib/image-utils')
+            deliveryPhotoDataUrl = await downscaleDataUrl(json.dataUrl)
+          }
         } catch {
           /* non-fatal */
         }

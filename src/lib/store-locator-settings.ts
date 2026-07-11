@@ -5,17 +5,24 @@
 export type PinShape = 'pin' | 'dot' | 'square'
 export type MapStyle = 'standard' | 'light' | 'dark' | 'voyager'
 
-// Fixed set of location categories (drives pin colour). The council concluded
-// category — not per-customer identity — is what actually helps the visitor.
-export const CATEGORIES = ['supermarket', 'restaurant', 'hotel', 'shop', 'other'] as const
-export type Category = typeof CATEGORIES[number]
+// Categories drive pin colour. The list is DYNAMIC: these are the seeded
+// defaults, but new categories (e.g. "snack bar") can be added any time and
+// automatically surface in Settings to get their own colour.
+export const DEFAULT_CATEGORIES = ['supermarket', 'restaurant', 'hotel', 'shop', 'other'] as const
 
-export const CATEGORY_LABELS: Record<Category, string> = {
+const SEED_LABELS: Record<string, string> = {
   supermarket: 'Supermarket',
   restaurant: 'Restaurant / Café',
   hotel: 'Hotel',
   shop: 'Specialty shop',
   other: 'Other',
+}
+
+// Human label for a category key: a known seed label, else title-cased.
+export function labelForCategory(cat: string): string {
+  const key = (cat || 'other').toLowerCase()
+  if (SEED_LABELS[key]) return SEED_LABELS[key]
+  return key.replace(/\b\w/g, c => c.toUpperCase())
 }
 
 export interface StoreLocatorSettings {
@@ -26,8 +33,11 @@ export interface StoreLocatorSettings {
   introText: string
   colorByCategory: boolean
   pinColor: string                       // fallback / when colorByCategory is off
-  categoryColors: Record<Category, string>
+  categoryColors: Record<string, string> // dynamic — any category can be added
 }
+
+// A neutral default colour for a category that has no colour set yet
+export const DEFAULT_CATEGORY_COLOR = '#6b7280'
 
 export const DEFAULT_SETTINGS: StoreLocatorSettings = {
   pinShape: 'pin',
@@ -68,7 +78,7 @@ export const TILE_LAYERS: Record<MapStyle, { url: string; attribution: string }>
 
 export function categoryColor(settings: StoreLocatorSettings, category: string): string {
   if (!settings.colorByCategory) return settings.pinColor
-  const c = (category || 'other').toLowerCase() as Category
+  const c = (category || 'other').toLowerCase()
   return settings.categoryColors[c] ?? settings.pinColor
 }
 

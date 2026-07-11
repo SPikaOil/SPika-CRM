@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
-import { CATEGORIES, CATEGORY_LABELS, DEFAULT_SETTINGS, type StoreLocatorSettings } from '@/lib/store-locator-settings'
+import { DEFAULT_CATEGORIES, labelForCategory, DEFAULT_SETTINGS, type StoreLocatorSettings } from '@/lib/store-locator-settings'
 
 const PinPickerMap = dynamic(() => import('@/components/map/pin-picker-map').then(m => m.PinPickerMap), {
   ssr: false,
@@ -126,6 +126,14 @@ export default function StoreLocatorAdminPage() {
 
   const embedUrl = typeof window !== 'undefined' ? `${window.location.origin}/storelocator` : '/storelocator'
 
+  // Category suggestions: defaults + colours defined in settings + any already
+  // used on pins (so a category typed here later shows up in Settings too)
+  const knownCategories = Array.from(new Set([
+    ...DEFAULT_CATEGORIES,
+    ...Object.keys(settings.categoryColors),
+    ...locs.map(l => (l.category || '').toLowerCase()).filter(Boolean),
+  ])).sort()
+
   if (authLoading || !isAdmin) return null
 
   return (
@@ -162,12 +170,16 @@ export default function StoreLocatorAdminPage() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Category (sets pin colour)</Label>
-              <Select value={form.category || 'other'} onValueChange={v => setForm(f => ({ ...f, category: v || 'other' }))}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map(c => <SelectItem key={c} value={c}>{CATEGORY_LABELS[c]}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Input
+                list="locator-categories"
+                value={form.category}
+                onChange={e => setForm(f => ({ ...f, category: e.target.value.toLowerCase() }))}
+                placeholder="e.g. supermarket, or type a new one"
+                className="h-9"
+              />
+              <datalist id="locator-categories">
+                {knownCategories.map(c => <option key={c} value={c}>{labelForCategory(c)}</option>)}
+              </datalist>
             </div>
           </div>
           <div className="space-y-1">

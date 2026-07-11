@@ -10,10 +10,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import {
-  DEFAULT_SETTINGS, type StoreLocatorSettings, type PinShape, type MapStyle,
-  CATEGORIES, CATEGORY_LABELS,
+  DEFAULT_SETTINGS, DEFAULT_CATEGORIES, DEFAULT_CATEGORY_COLOR, labelForCategory,
+  type StoreLocatorSettings, type PinShape, type MapStyle,
 } from '@/lib/store-locator-settings'
 
 const PreviewMap = dynamic(() => import('@/components/map/settings-preview-map').then(m => m.SettingsPreviewMap), {
@@ -37,16 +38,47 @@ export function StoreLocatorSettingsCard() {
   const supabase = createClient()
   const [s, setS] = useState<StoreLocatorSettings>(DEFAULT_SETTINGS)
   const [saving, setSaving] = useState(false)
+  const [newCat, setNewCat] = useState('')
 
   useEffect(() => {
-    supabase.from('app_settings').select('value').eq('key', 'store_locator').maybeSingle()
-      .then(({ data }) => {
-        if ((data as any)?.value) {
-          try { setS({ ...DEFAULT_SETTINGS, ...JSON.parse((data as any).value) }) } catch { /* keep defaults */ }
-        }
-      })
+    // Load saved settings AND any categories already used on pins, so a
+    // category like "snack bar" typed on the Store Locator tab automatically
+    // surfaces here to get its own colour.
+    Promise.all([
+      supabase.from('app_settings').select('value').eq('key', 'store_locator').maybeSingle(),
+      supabase.from('store_locations').select('category'),
+    ]).then(([setRes, locRes]) => {
+      let loaded = DEFAULT_SETTINGS
+      if ((setRes.data as any)?.value) {
+        try { loaded = { ...DEFAULT_SETTINGS, ...JSON.parse((setRes.data as any).value) } } catch { /* keep defaults */ }
+      }
+      const colors: Record<string, string> = { ...loaded.categoryColors }
+      // Seed defaults + surface pin categories not yet coloured
+      for (const c of DEFAULT_CATEGORIES) if (!(c in colors)) colors[c] = DEFAULT_CATEGORY_COLOR
+      for (const row of (locRes.data ?? [])) {
+        const c = ((row as any).category || '').toLowerCase()
+        if (c && !(c in colors)) colors[c] = DEFAULT_CATEGORY_COLOR
+      }
+      setS({ ...loaded, categoryColors: colors })
+    })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  function addCategory() {
+    const c = newCat.trim().toLowerCase()
+    if (!c) return
+    if (s.categoryColors[c]) { toast.error('That category already exists'); return }
+    setS(prev => ({ ...prev, categoryColors: { ...prev.categoryColors, [c]: DEFAULT_CATEGORY_COLOR } }))
+    setNewCat('')
+  }
+
+  function removeCategory(cat: string) {
+    setS(prev => {
+      const next = { ...prev.categoryColors }
+      delete next[cat]
+      return { ...prev, categoryColors: next }
+    })
+  }
 
   function set<K extends keyof StoreLocatorSettings>(key: K, value: StoreLocatorSettings[K]) {
     setS(prev => ({ ...prev, [key]: value }))
@@ -106,15 +138,27 @@ export function StoreLocatorSettingsCard() {
         </label>
 
         {s.colorByCategory ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {CATEGORIES.map(cat => (
-              <div key={cat} className="flex items-center gap-2">
-                <input type="color" value={s.categoryColors[cat]}
-                  onChange={e => set('categoryColors', { ...s.categoryColors, [cat]: e.target.value })}
-                  className="h-8 w-10 rounded border cursor-pointer" />
-                <span className="text-sm">{CATEGORY_LABELS[cat]}</span>
-              </div>
-            ))}
+          <div className="space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {Object.keys(s.categoryColors).sort().map(cat => (
+                <div key={cat} className="flex items-center gap-2">
+                  <input type="color" value={s.categoryColors[cat]}
+                    onChange={e => set('categoryColors', { ...s.categoryColors, [cat]: e.target.value })}
+                    className="h-8 w-10 rounded border cursor-pointer" />
+                  <span className="text-sm flex-1 truncate">{labelForCategory(cat)}</span>
+                  {!(DEFAULT_CATEGORIES as readonly string[]).includes(cat) && (
+                    <button onClick={() => removeCategory(cat)} className="text-xs text-muted-foreground hover:text-red-600">remove</button>
+                  )}
+                </div>
+              ))}
+            </div>
+            {/* Add a new category (also appears automatically when used on a pin) */}
+            <div className="flex gap-2">
+              <Input value={newCat} onChange={e => setNewCat(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCategory() } }}
+                placeholder="Add category, e.g. snack bar" className="h-8" />
+              <Button size="sm" variant="outline" onClick={addCategory}><Plus className="h-4 w-4" /></Button>
+            </div>
           </div>
         ) : (
           <div className="flex items-center gap-2">

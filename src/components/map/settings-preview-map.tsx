@@ -3,7 +3,7 @@
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { type StoreLocatorSettings, TILE_LAYERS, CATEGORIES, categoryColor, pinSvg } from '@/lib/store-locator-settings'
+import { type StoreLocatorSettings, TILE_LAYERS, categoryColor, pinSvg } from '@/lib/store-locator-settings'
 
 function icon(settings: StoreLocatorSettings, category: string) {
   const s = pinSvg(categoryColor(settings, category), settings.pinShape)
@@ -22,8 +22,9 @@ export function SettingsPreviewMap({ settings, onCenterPick }: {
 }) {
   const tiles = TILE_LAYERS[settings.mapStyle] ?? TILE_LAYERS.voyager
   const c = settings.center
-  const samples = CATEGORIES.map((cat, i) => {
-    const angle = (i / CATEGORIES.length) * Math.PI * 2
+  const cats = Object.keys(settings.categoryColors)
+  const samples = cats.map((cat, i) => {
+    const angle = (i / Math.max(1, cats.length)) * Math.PI * 2
     return { cat, lat: c.lat + Math.cos(angle) * 0.02, lng: c.lng + Math.sin(angle) * 0.03 }
   })
   return (
