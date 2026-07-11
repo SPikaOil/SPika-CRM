@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { Settings, Users, FileText, Download, Building2, Loader2, Tag, ChevronDown, ChevronUp, BarChart2, Mail } from 'lucide-react'
 import { Textarea } from '@/components/ui/textarea'
 import { DEFAULT_TEMPLATES, TEMPLATE_LABELS, type ReminderTemplate, type TemplateKey } from '@/lib/reminder-templates'
+import { StoreLocatorSettingsCard } from '@/components/settings/store-locator-settings-card'
 import { PriceInput } from '@/components/ui/price-input'
 import { SPIKA_PRODUCTS } from '@/lib/products'
 import { useAuth } from '@/contexts/auth-context'
@@ -186,6 +187,9 @@ export default function SettingsPage() {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Store Locator appearance */}
+      <StoreLocatorSettingsCard />
 
       {/* Payment Reminder Templates */}
       <ReminderTemplatesCard />

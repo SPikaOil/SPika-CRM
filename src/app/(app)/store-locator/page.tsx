@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
+import { CATEGORIES, CATEGORY_LABELS, DEFAULT_SETTINGS, type StoreLocatorSettings } from '@/lib/store-locator-settings'
 
 const PinPickerMap = dynamic(() => import('@/components/map/pin-picker-map').then(m => m.PinPickerMap), {
   ssr: false,
@@ -41,6 +42,7 @@ export default function StoreLocatorAdminPage() {
 
   const [locs, setLocs] = useState<Loc[]>([])
   const [customers, setCustomers] = useState<any[]>([])
+  const [settings, setSettings] = useState<StoreLocatorSettings>(DEFAULT_SETTINGS)
   const [loading, setLoading] = useState(true)
 
   const [form, setForm] = useState<typeof EMPTY>(EMPTY)
@@ -53,12 +55,16 @@ export default function StoreLocatorAdminPage() {
   }, [isAdmin, authLoading, router])
 
   async function load() {
-    const [locsRes, custRes] = await Promise.all([
+    const [locsRes, custRes, setRes] = await Promise.all([
       supabase.from('store_locations').select('*').order('name'),
       supabase.from('customers').select('id, company_name, display_as, billing_address').order('company_name'),
+      supabase.from('app_settings').select('value').eq('key', 'store_locator').maybeSingle(),
     ])
     setLocs((locsRes.data as Loc[]) ?? [])
     setCustomers(custRes.data ?? [])
+    if ((setRes.data as any)?.value) {
+      try { setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse((setRes.data as any).value) }) } catch { /* keep defaults */ }
+    }
     setLoading(false)
   }
   useEffect(() => { load() /* eslint-disable-next-line */ }, [])
@@ -155,8 +161,13 @@ export default function StoreLocatorAdminPage() {
               <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Van der Tweel Zeelandia" className="h-9" />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Category (optional)</Label>
-              <Input value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} placeholder="supermarket / restaurant / hotel" className="h-9" />
+              <Label className="text-xs">Category (sets pin colour)</Label>
+              <Select value={form.category || 'other'} onValueChange={v => setForm(f => ({ ...f, category: v || 'other' }))}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {CATEGORIES.map(c => <SelectItem key={c} value={c}>{CATEGORY_LABELS[c]}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <div className="space-y-1">
@@ -171,7 +182,7 @@ export default function StoreLocatorAdminPage() {
           <div className="space-y-1">
             <Label className="text-xs">Click on the map to place the pin (drag to adjust)</Label>
             <div className="h-64 rounded-lg overflow-hidden border">
-              <PinPickerMap lat={form.lat} lng={form.lng} onPick={(lat, lng) => setForm(f => ({ ...f, lat, lng }))} />
+              <PinPickerMap lat={form.lat} lng={form.lng} category={form.category} settings={settings} onPick={(lat, lng) => setForm(f => ({ ...f, lat, lng }))} />
             </div>
             {form.lat != null && (
               <p className="text-xs text-muted-foreground">📍 {form.lat.toFixed(5)}, {form.lng!.toFixed(5)}</p>
