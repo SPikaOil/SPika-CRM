@@ -157,6 +157,29 @@ export function emailInvoiceReady(p: { orderNumber: string; customerName: string
   `)
 }
 
+export function emailHandoverReceipt(p: {
+  memberName: string
+  items: { name: string; qty: number }[]
+  signedAt: string
+  notes?: string
+}) {
+  const itemRows = p.items
+    .map(i => row(i.name, `${i.qty}×`))
+    .join('')
+  return layout(`
+    <h2 style="margin:0 0 4px;font-size:20px;color:#111;">Bottles received for delivery</h2>
+    <p style="margin:0 0 20px;color:#6b7280;font-size:14px;">
+      Hi ${p.memberName}, you signed for receipt of the following bottles. You are responsible for these until delivery.
+    </p>
+    ${badge('Handover confirmed', '#16a34a')}
+    <table style="margin-top:16px;width:100%;border-collapse:collapse;">
+      ${itemRows}
+      ${row('Signed at', p.signedAt)}
+    </table>
+    ${p.notes ? `<p style="margin-top:12px;color:#6b7280;font-size:13px;">Note: ${p.notes}</p>` : ''}
+  `)
+}
+
 export function emailOBFormSigned(p: { customerName: string; signerName: string }) {
   return layout(`
     <h2 style="margin:0 0 4px;font-size:20px;color:#111;">OB form signed</h2>

@@ -19,6 +19,8 @@ import {
   Globe,
   LogOut,
   BarChart2,
+  Droplets,
+  PackageCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
@@ -46,6 +48,8 @@ const adminMoreItems = [
   { href: '/sales-documents',     label: 'Sales Docs',  icon: FolderOpen },
   { href: '/tasks',               label: 'Tasks',       icon: ClipboardList },
   { href: '/reports',              label: 'Reports',     icon: BarChart2 },
+  { href: '/stock',               label: 'Stock SPika', icon: Droplets },
+  { href: '/handover',            label: 'Handover',    icon: PackageCheck },
   { href: '/portal-management',   label: 'Portal',      icon: Globe },
   { href: '/team',                label: 'Team',        icon: UserCog },
   { href: '/settings',            label: 'Settings',    icon: Settings },

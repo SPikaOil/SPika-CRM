@@ -69,6 +69,7 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(false)
   const [orders, setOrders] = useState<RawOrder[]>([])
   const [productVolumes, setProductVolumes] = useState<Record<string, number | null>>({})
+  const [oilStock, setOilStock] = useState<{ month: string; litres: number; note: string }[]>([])
 
   useEffect(() => {
     if (!authLoading && !isAdmin) router.replace('/dashboard')
@@ -82,6 +83,9 @@ export default function ReportsPage() {
       for (const p of data as ProductVolume[]) map[p.sku] = p.real_volume_ml
       setProductVolumes(map)
     })
+    // fetch monthly oil stock (last 12 months)
+    supabase.from('oil_stock').select('month, litres, note').order('month', { ascending: false }).limit(12)
+      .then(({ data }) => setOilStock((data as any) ?? []))
   }, [])
 
   async function fetchData() {
@@ -369,6 +373,37 @@ export default function ReportsPage() {
                 </div>
               </div>
             ))
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Oil stock per month */}
+      <Card className="py-3 gap-2">
+        <CardHeader>
+          <CardTitle className="text-sm">SPika Oil Stock per Month</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {oilStock.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No stock recorded yet. Record it in Stock SPika.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {oilStock.map((s, i) => {
+                const [y, m] = s.month.split('-').map(Number)
+                const label = new Date(y, m - 1, 1).toLocaleDateString('en', { month: 'long', year: 'numeric' })
+                return (
+                  <div key={s.month}>
+                    {i > 0 && <Separator className="my-1.5" />}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">{label}</p>
+                        {s.note && <p className="text-xs text-muted-foreground truncate">{s.note}</p>}
+                      </div>
+                      <p className="text-sm font-semibold shrink-0">{Number(s.litres).toFixed(1)} L</p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           )}
         </CardContent>
       </Card>

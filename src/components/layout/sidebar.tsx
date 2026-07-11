@@ -17,6 +17,8 @@ import {
   FolderOpen,
   Globe,
   BarChart2,
+  Droplets,
+  PackageCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
@@ -33,6 +35,8 @@ const allNavItems = [
   { href: '/tasks',           label: 'Tasks',            icon: ClipboardList,   adminOnly: true  },
   { href: '/agenda',          label: 'Agenda',           icon: CalendarDays,    adminOnly: false },
   { href: '/reports',         label: 'Reports',          icon: BarChart2,       adminOnly: true  },
+  { href: '/stock',           label: 'Stock SPika',      icon: Droplets,        adminOnly: true  },
+  { href: '/handover',        label: 'Handover Btls',    icon: PackageCheck,    adminOnly: true  },
 ]
 
 const adminOnlyItems = [

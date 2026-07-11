@@ -6,6 +6,7 @@ import {
   emailOrderPlaced, emailOrderConfirmed, emailOutForDelivery,
   emailOrderDelivered, emailInvoiceReady, emailOBFormSigned,
   emailNewCustomer, emailTaskAssigned, emailQuoteSent, emailTaskCompleted,
+  emailHandoverReceipt,
 } from '@/lib/resend'
 
 export async function POST(req: NextRequest) {
@@ -56,6 +57,20 @@ export async function POST(req: NextRequest) {
               html: emailOutForDelivery({ orderNumber, customerName, workerName: worker.name }),
             })
           }
+        }
+        break
+      }
+
+      // ── Sales: signed for receipt of bottles (Handover Btls) ───
+      case 'handover_receipt': {
+        const { memberId, items, signedAt, notes } = payload
+        const { data: member } = await admin.from('users').select('name, email').eq('id', memberId).single()
+        if (member?.email) {
+          await sendEmail({
+            to: member.email,
+            subject: 'Handover confirmed — bottles received for delivery',
+            html: emailHandoverReceipt({ memberName: member.name, items, signedAt, notes }),
+          })
         }
         break
       }

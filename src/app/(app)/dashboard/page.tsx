@@ -19,6 +19,7 @@ interface Stats {
   deliveries_today: number
   deliveries_missing_pod: number
   bottles_this_month: number
+  revenue_this_month: number
 }
 
 const OPEN_STATUSES = ['pending_approval', 'approved', 'out_for_delivery', 'invoice_ready', 'invoice_blocked']
@@ -92,58 +93,131 @@ interface OverdueOrder extends Order {
   dueDate: Date
 }
 
-// ── Bottles card with settable monthly target ──────────────────────────────
+// ── Bottles + Sales card with settable monthly targets ─────────────────────
 interface WorkerBottles { name: string; count: number }
 
-function BottlesCard({
-  bottles,
-  workerBottles,
-  isLoading,
-  selectedMonth,
-  onMonthChange,
+// One compact metric with an inline editable monthly target + progress bar.
+// The target lives in the database so every device sees the same value; a
+// month without its own target inherits the most recent one.
+// Explicit class strings — Tailwind can't see dynamically built class names
+const METRIC_COLORS = {
+  blue: {
+    iconBg: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30',
+    text: 'text-blue-600 dark:text-blue-400',
+    bar: 'bg-blue-500',
+    link: 'text-blue-600',
+  },
+  green: {
+    iconBg: 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30',
+    text: 'text-green-600 dark:text-green-400',
+    bar: 'bg-green-500',
+    link: 'text-green-600',
+  },
+} as const
+
+function MetricProgress({
+  icon: Icon, label, value, formatValue, color,
+  table, targetColumn, defaultTarget, selectedMonth, isLoading,
 }: {
-  bottles: number
-  workerBottles: WorkerBottles[]
-  isLoading: boolean
+  icon: React.ElementType
+  label: string
+  value: number
+  formatValue: (n: number) => string
+  color: keyof typeof METRIC_COLORS
+  table: string
+  targetColumn: string
+  defaultTarget: number
   selectedMonth: string
-  onMonthChange: (m: string) => void
+  isLoading: boolean
 }) {
-  // Target lives in the database (monthly_targets) so every device sees the
-  // same value. A month without its own target inherits the most recent one.
-  const [target, setTarget] = useState<number>(500)
+  const c = METRIC_COLORS[color]
+  const [target, setTarget] = useState<number>(defaultTarget)
   const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState('500')
+  const [draft, setDraft] = useState(String(defaultTarget))
 
   useEffect(() => {
     let cancelled = false
-    const supabase = createClient()
-    supabase
-      .from('monthly_targets')
-      .select('month, bottle_target')
+    createClient()
+      .from(table)
+      .select(`month, ${targetColumn}`)
       .lte('month', selectedMonth)
       .order('month', { ascending: false })
       .limit(1)
       .then(({ data }) => {
-        if (!cancelled) setTarget(data?.[0]?.bottle_target ?? 500)
+        if (!cancelled) setTarget((data?.[0] as any)?.[targetColumn] ?? defaultTarget)
       })
     return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMonth])
 
   async function saveTarget() {
     const n = parseInt(draft, 10)
     if (!isNaN(n) && n > 0) {
       setTarget(n)
-      const supabase = createClient()
-      const { error } = await supabase
-        .from('monthly_targets')
-        .upsert({ month: selectedMonth, bottle_target: n })
+      const { error } = await createClient()
+        .from(table)
+        .upsert({ month: selectedMonth, [targetColumn]: n })
       if (error) console.error('Failed to save target:', error.message)
     }
     setEditing(false)
   }
 
-  const pct = target > 0 ? Math.min(100, Math.round((bottles / target) * 100)) : 0
+  const pct = target > 0 ? Math.min(100, Math.round((value / target) * 100)) : 0
 
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2">
+        <div className={`p-1.5 rounded-md ${c.iconBg}`}>
+          <Icon className="h-3.5 w-3.5" />
+        </div>
+        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      </div>
+      <div className="flex items-end gap-2">
+        {isLoading ? <Skeleton className="h-7 w-16" /> : (
+          <>
+            <p className={`text-2xl font-bold ${c.text}`}>{formatValue(value)}</p>
+            <p className="text-xs text-muted-foreground mb-0.5">/ {formatValue(target)} · {pct}%</p>
+            {editing ? (
+              <div className="flex items-center gap-1 ml-auto shrink-0">
+                <Input autoFocus type="number" value={draft}
+                  onChange={e => setDraft(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') saveTarget(); if (e.key === 'Escape') setEditing(false) }}
+                  className="h-6 w-16 text-xs text-right px-2" />
+                <button onClick={saveTarget} className={`text-xs ${c.link} font-medium hover:underline`}>Save</button>
+              </div>
+            ) : (
+              <button onClick={() => { setDraft(String(target)); setEditing(true) }}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground ml-auto shrink-0">
+                <Pencil className="h-3 w-3" />
+              </button>
+            )}
+          </>
+        )}
+      </div>
+      {!isLoading && (
+        <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+          <div className={`h-full rounded-full ${c.bar} transition-all duration-500`} style={{ width: `${pct}%` }} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function BottlesCard({
+  bottles,
+  revenue,
+  workerBottles,
+  isLoading,
+  selectedMonth,
+  onMonthChange,
+}: {
+  bottles: number
+  revenue: number
+  workerBottles: WorkerBottles[]
+  isLoading: boolean
+  selectedMonth: string
+  onMonthChange: (m: string) => void
+}) {
   // Build last 12 months as options
   const monthOptions = Array.from({ length: 12 }, (_, i) => {
     const d = new Date()
@@ -154,18 +228,13 @@ function BottlesCard({
     return { value, label }
   })
 
+  const fmtMoney = (n: number) => `XCG ${Math.round(n).toLocaleString('en')}`
+
   return (
-    <Card>
+    <Card className="py-0">
       <CardContent className="p-3 space-y-2">
-        {/* Header row */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-md text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30">
-              <Package className="h-3.5 w-3.5" />
-            </div>
-            <p className="text-xs font-medium text-muted-foreground">Bottles Sold</p>
-          </div>
-          {/* Month picker */}
+        {/* Month picker */}
+        <div className="flex justify-end">
           <select
             value={selectedMonth}
             onChange={e => onMonthChange(e.target.value)}
@@ -177,35 +246,19 @@ function BottlesCard({
           </select>
         </div>
 
-        {/* Total + progress */}
-        <div className="flex items-end gap-2">
-          {isLoading ? <Skeleton className="h-7 w-16" /> : (
-            <>
-              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{bottles}</p>
-              <p className="text-xs text-muted-foreground mb-0.5">/ {target} · {pct}%</p>
-              {editing ? (
-                <div className="flex items-center gap-1 ml-auto shrink-0">
-                  <Input autoFocus type="number" value={draft}
-                    onChange={e => setDraft(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') saveTarget(); if (e.key === 'Escape') setEditing(false) }}
-                    className="h-6 w-14 text-xs text-right px-2" />
-                  <button onClick={saveTarget} className="text-xs text-blue-600 font-medium hover:underline">Save</button>
-                </div>
-              ) : (
-                <button onClick={() => { setDraft(String(target)); setEditing(true) }}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground ml-auto shrink-0">
-                  <Pencil className="h-3 w-3" />
-                </button>
-              )}
-            </>
-          )}
+        {/* Bottles + Sales side by side */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <MetricProgress
+            icon={Package} label="Bottles Sold" value={bottles} formatValue={n => String(n)}
+            color="blue" table="monthly_targets" targetColumn="bottle_target" defaultTarget={500}
+            selectedMonth={selectedMonth} isLoading={isLoading}
+          />
+          <MetricProgress
+            icon={CreditCard} label="Sales" value={revenue} formatValue={fmtMoney}
+            color="green" table="monthly_revenue_targets" targetColumn="revenue_target" defaultTarget={10000}
+            selectedMonth={selectedMonth} isLoading={isLoading}
+          />
         </div>
-
-        {!isLoading && (
-          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-            <div className="h-full rounded-full bg-blue-500 transition-all duration-500" style={{ width: `${pct}%` }} />
-          </div>
-        )}
 
         {/* Per-worker breakdown */}
         {!isLoading && workerBottles.length > 0 && (
@@ -419,7 +472,7 @@ export default function DashboardPage() {
     setOverdueOrders(overdue)
   }
 
-  async function loadBottlesForMonth(monthStr: string): Promise<number> {
+  async function loadBottlesForMonth(monthStr: string): Promise<{ bottles: number; revenue: number }> {
     // sales_date = invoice_date, else delivery date, else creation date —
     // the invoice date decides which month a sale belongs to. Plain date
     // strings keep the month boundary timezone-proof.
@@ -431,13 +484,14 @@ export default function DashboardPage() {
 
     const { data } = await supabase
       .from('orders_with_sales_date')
-      .select('items, assigned_to')
+      .select('items, assigned_to, total')
       .in('status', ['delivered', 'invoice_ready', 'invoice_blocked', 'paid'])
       .gte('sales_date', start)
       .lt('sales_date', end)
 
     const COUNTED_SKUS = ['oil-100ml', 'oil-50ml']
     let total = 0
+    let revenue = 0
     const byWorker: Record<string, number> = {}
 
     for (const order of data ?? []) {
@@ -446,13 +500,14 @@ export default function DashboardPage() {
         .filter(item => COUNTED_SKUS.includes(item.sku))
         .reduce((sum, item) => sum + (item.qty ?? 0), 0)
       total += count
+      revenue += Number((order as any).total ?? 0)
       if (order.assigned_to) {
         byWorker[order.assigned_to] = (byWorker[order.assigned_to] ?? 0) + count
       }
     }
 
     setByWorker(byWorker)
-    return total
+    return { bottles: total, revenue }
   }
 
   async function loadAccessRequests() {
@@ -598,7 +653,7 @@ export default function DashboardPage() {
 
   async function loadStats() {
     await Promise.all([loadPendingOrders(), loadOverdueOrders(), loadAccessRequests(), loadClientOverview(), loadRefillData(), loadWeekTasks()])
-    const [kpisRes, bottlesCount] = await Promise.all([
+    const [kpisRes, monthData] = await Promise.all([
       supabase
         .from('v_dashboard_kpis')
         .select('orders_out_for_delivery, deliveries_today, deliveries_missing_pod')
@@ -612,7 +667,8 @@ export default function DashboardPage() {
       orders_out_for_delivery: kpis?.orders_out_for_delivery ?? 0,
       deliveries_today:        kpis?.deliveries_today ?? 0,
       deliveries_missing_pod:  kpis?.deliveries_missing_pod ?? 0,
-      bottles_this_month:      bottlesCount,
+      bottles_this_month:      monthData.bottles,
+      revenue_this_month:      monthData.revenue,
     })
     setIsLoading(false)
   }
@@ -631,11 +687,11 @@ export default function DashboardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Reload bottles when month changes
+  // Reload bottles + revenue when month changes
   useEffect(() => {
     if (!isAdmin) return
-    loadBottlesForMonth(selectedMonth).then(count => {
-      setStats(prev => prev ? { ...prev, bottles_this_month: count } : prev)
+    loadBottlesForMonth(selectedMonth).then(d => {
+      setStats(prev => prev ? { ...prev, bottles_this_month: d.bottles, revenue_this_month: d.revenue } : prev)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMonth])
@@ -737,6 +793,7 @@ export default function DashboardPage() {
       {isAdmin && (
         <BottlesCard
           bottles={stats?.bottles_this_month ?? 0}
+          revenue={stats?.revenue_this_month ?? 0}
           workerBottles={workerBottles}
           isLoading={isLoading}
           selectedMonth={selectedMonth}
