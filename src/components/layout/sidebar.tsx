@@ -19,6 +19,7 @@ import {
   BarChart2,
   Droplets,
   PackageCheck,
+  MapPin,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
@@ -37,6 +38,7 @@ const allNavItems = [
   { href: '/reports',         label: 'Reports',          icon: BarChart2,       adminOnly: true  },
   { href: '/stock',           label: 'Stock SPika',      icon: Droplets,        adminOnly: true  },
   { href: '/handover',        label: 'Handover Btls',    icon: PackageCheck,    adminOnly: true  },
+  { href: '/store-locator',   label: 'Store Locator',    icon: MapPin,          adminOnly: true  },
 ]
 
 const adminOnlyItems = [

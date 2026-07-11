@@ -46,6 +46,11 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse
   }
 
+  // Public store locator (embedded on the website via iframe) + its data API
+  if (pathname.startsWith('/storelocator') || pathname.startsWith('/api/storelocator')) {
+    return supabaseResponse
+  }
+
   // Protected routes — redirect to login if not authenticated
   if (!user) {
     const url = request.nextUrl.clone()

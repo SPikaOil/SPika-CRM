@@ -21,6 +21,7 @@ import {
   BarChart2,
   Droplets,
   PackageCheck,
+  MapPin,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
@@ -50,6 +51,7 @@ const adminMoreItems = [
   { href: '/reports',              label: 'Reports',     icon: BarChart2 },
   { href: '/stock',               label: 'Stock SPika', icon: Droplets },
   { href: '/handover',            label: 'Handover',    icon: PackageCheck },
+  { href: '/store-locator',       label: 'Locator',     icon: MapPin },
   { href: '/portal-management',   label: 'Portal',      icon: Globe },
   { href: '/team',                label: 'Team',        icon: UserCog },
   { href: '/settings',            label: 'Settings',    icon: Settings },
