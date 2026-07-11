@@ -28,6 +28,8 @@ insert into public.app_settings (key, value)
 -- 4. Handover batches: bottles handed to a sales member for delivery
 create table if not exists public.handover_batches (
   id            uuid primary key default gen_random_uuid(),
+  batch_number  text,                          -- partijnummer (manual)
+  handover_date date,                          -- date of handover
   member_id     uuid not null references public.users(id),
   items         jsonb not null default '[]',   -- [{ sku, name, qty }]
   notes         text not null default '',

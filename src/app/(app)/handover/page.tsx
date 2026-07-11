@@ -22,12 +22,19 @@ const HANDOVER_SKUS = SPIKA_PRODUCTS.filter(p => !p.sku.includes('return')).map(
 
 interface Batch {
   id: string
+  batch_number: string | null
+  handover_date: string | null
   member_id: string
   items: { sku: string; name: string; qty: number }[]
   notes: string
   signed_at: string | null
   signer_name: string | null
   created_at: string
+}
+
+function todayStr() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 export default function HandoverPage() {
@@ -40,6 +47,8 @@ export default function HandoverPage() {
   const [loading, setLoading] = useState(true)
 
   // New batch form
+  const [batchNumber, setBatchNumber] = useState('')
+  const [handoverDate, setHandoverDate] = useState(todayStr())
   const [memberId, setMemberId] = useState('')
   const [qtys, setQtys] = useState<Record<string, number>>({})
   const [notes, setNotes] = useState('')
@@ -90,12 +99,14 @@ export default function HandoverPage() {
     if (items.length === 0) { toast.error('Add at least one bottle'); return }
     setCreating(true)
     const { error } = await supabase.from('handover_batches').insert({
+      batch_number: batchNumber.trim() || null,
+      handover_date: handoverDate || null,
       member_id: memberId, items, notes, created_by: profile?.id,
     })
     setCreating(false)
     if (error) { toast.error(error.message); return }
     toast.success('Handover batch created')
-    setMemberId(''); setQtys({}); setNotes('')
+    setBatchNumber(''); setHandoverDate(todayStr()); setMemberId(''); setQtys({}); setNotes('')
     loadBatches()
   }
 
@@ -124,6 +135,7 @@ export default function HandoverPage() {
           type: 'handover_receipt',
           payload: {
             memberId: signBatch.member_id,
+            batchNumber: signBatch.batch_number,
             items: signBatch.items,
             signedAt: new Date(signedAt).toLocaleString('en', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
             notes: signBatch.notes,
@@ -159,6 +171,16 @@ export default function HandoverPage() {
       <Card className="py-3 gap-2">
         <CardHeader><CardTitle className="text-sm">New handover</CardTitle></CardHeader>
         <CardContent className="space-y-3">
+          <div className="flex gap-2">
+            <div className="space-y-1 flex-1">
+              <Label className="text-xs">Batch number</Label>
+              <Input value={batchNumber} onChange={e => setBatchNumber(e.target.value)} placeholder="e.g. P-2026-014" className="h-9" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Date</Label>
+              <Input type="date" value={handoverDate} onChange={e => setHandoverDate(e.target.value)} className="h-9 w-40" />
+            </div>
+          </div>
           <div className="space-y-1">
             <Label className="text-xs">Allocate to</Label>
             <Select value={memberId} onValueChange={v => setMemberId(v ?? '')}>
@@ -200,7 +222,11 @@ export default function HandoverPage() {
                 <Card key={b.id} className="py-0">
                   <CardContent className="py-2.5 px-3 flex items-center gap-3">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium">{memberName(b.member_id)}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium">{memberName(b.member_id)}</p>
+                        {b.batch_number && <span className="font-mono text-xs text-muted-foreground shrink-0">{b.batch_number}</span>}
+                        {b.handover_date && <span className="text-xs text-muted-foreground shrink-0">{new Date(b.handover_date + 'T12:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short' })}</span>}
+                      </div>
                       <p className="text-xs text-muted-foreground truncate">
                         {b.items.map(i => `${i.qty}× ${i.name.replace('SPika Oil - ', '').replace('SPika2Go - ', '')}`).join(' · ')}
                       </p>
@@ -220,7 +246,10 @@ export default function HandoverPage() {
                 <Card key={b.id} className="py-0 opacity-80">
                   <CardContent className="py-2.5 px-3 flex items-center gap-3">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium">{memberName(b.member_id)}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium">{memberName(b.member_id)}</p>
+                        {b.batch_number && <span className="font-mono text-xs text-muted-foreground shrink-0">{b.batch_number}</span>}
+                      </div>
                       <p className="text-xs text-muted-foreground truncate">
                         {b.items.map(i => `${i.qty}× ${i.name.replace('SPika Oil - ', '').replace('SPika2Go - ', '')}`).join(' · ')}
                       </p>

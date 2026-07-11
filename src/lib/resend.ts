@@ -159,6 +159,7 @@ export function emailInvoiceReady(p: { orderNumber: string; customerName: string
 
 export function emailHandoverReceipt(p: {
   memberName: string
+  batchNumber?: string | null
   items: { name: string; qty: number }[]
   signedAt: string
   notes?: string
@@ -173,6 +174,7 @@ export function emailHandoverReceipt(p: {
     </p>
     ${badge('Handover confirmed', '#16a34a')}
     <table style="margin-top:16px;width:100%;border-collapse:collapse;">
+      ${p.batchNumber ? row('Batch', p.batchNumber) : ''}
       ${itemRows}
       ${row('Signed at', p.signedAt)}
     </table>

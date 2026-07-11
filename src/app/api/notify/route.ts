@@ -63,13 +63,15 @@ export async function POST(req: NextRequest) {
 
       // ── Sales: signed for receipt of bottles (Handover Btls) ───
       case 'handover_receipt': {
-        const { memberId, items, signedAt, notes } = payload
+        const { memberId, batchNumber, items, signedAt, notes } = payload
         const { data: member } = await admin.from('users').select('name, email').eq('id', memberId).single()
         if (member?.email) {
           await sendEmail({
             to: member.email,
-            subject: 'Handover confirmed — bottles received for delivery',
-            html: emailHandoverReceipt({ memberName: member.name, items, signedAt, notes }),
+            subject: batchNumber
+              ? `Handover confirmed — batch ${batchNumber}`
+              : 'Handover confirmed — bottles received for delivery',
+            html: emailHandoverReceipt({ memberName: member.name, batchNumber, items, signedAt, notes }),
           })
         }
         break
