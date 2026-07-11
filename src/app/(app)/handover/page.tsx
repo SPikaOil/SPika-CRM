@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import SignaturePad from 'signature_pad'
-import { PackageCheck, Loader2, Plus, Minus, Check, Clock, X } from 'lucide-react'
+import { PackageCheck, Loader2, Plus, Minus, Check, Clock, X, Trash2, Eye } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
 import { useUsers } from '@/hooks/use-users'
 import { createClient } from '@/lib/supabase/client'
@@ -27,6 +27,7 @@ interface Batch {
   member_id: string
   items: { sku: string; name: string; qty: number }[]
   notes: string
+  signature_url: string | null
   signed_at: string | null
   signer_name: string | null
   created_at: string
@@ -57,6 +58,10 @@ export default function HandoverPage() {
   // Signing
   const [signBatch, setSignBatch] = useState<Batch | null>(null)
   const [signing, setSigning] = useState(false)
+
+  // Delete (reconciliation after delivery)
+  const [deleteBatch, setDeleteBatch] = useState<Batch | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sigPadRef = useRef<SignaturePad | null>(null)
 
@@ -108,6 +113,25 @@ export default function HandoverPage() {
     toast.success('Handover batch created')
     setBatchNumber(''); setHandoverDate(todayStr()); setMemberId(''); setQtys({}); setNotes('')
     loadBatches()
+  }
+
+  async function confirmDelete() {
+    if (!deleteBatch) return
+    setDeleting(true)
+    try {
+      // Remove the signature file too, if any
+      const path = `handover/${deleteBatch.id}.png`
+      await supabase.storage.from('pod-files').remove([path]).catch(() => {})
+      const { error } = await supabase.from('handover_batches').delete().eq('id', deleteBatch.id)
+      if (error) throw error
+      toast.success('Handover record removed')
+      setDeleteBatch(null)
+      loadBatches()
+    } catch (err: any) {
+      toast.error(err.message ?? 'Could not delete')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   async function confirmSign() {
@@ -233,6 +257,7 @@ export default function HandoverPage() {
                     </div>
                     <Badge className="bg-orange-500 text-white text-xs shrink-0"><Clock className="h-3 w-3 mr-1" />Pending</Badge>
                     <Button size="sm" className="bg-red-600 hover:bg-red-700 shrink-0" onClick={() => setSignBatch(b)}>Sign</Button>
+                    <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-red-600" onClick={() => setDeleteBatch(b)} title="Delete"><Trash2 className="h-4 w-4" /></Button>
                   </CardContent>
                 </Card>
               ))}
@@ -254,9 +279,15 @@ export default function HandoverPage() {
                         {b.items.map(i => `${i.qty}× ${i.name.replace('SPika Oil - ', '').replace('SPika2Go - ', '')}`).join(' · ')}
                       </p>
                     </div>
+                    {b.signature_url && (
+                      <a href={b.signature_url} target="_blank" rel="noreferrer" className="shrink-0 text-muted-foreground hover:text-foreground" title="View signature">
+                        <Eye className="h-4 w-4" />
+                      </a>
+                    )}
                     <Badge className="bg-green-600 text-white text-xs shrink-0"><Check className="h-3 w-3 mr-1" />
                       {b.signed_at ? new Date(b.signed_at).toLocaleDateString('en', { day: 'numeric', month: 'short' }) : 'Signed'}
                     </Badge>
+                    <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-red-600" onClick={() => setDeleteBatch(b)} title="Delete after reconciliation"><Trash2 className="h-4 w-4" /></Button>
                   </CardContent>
                 </Card>
               ))}
@@ -289,6 +320,31 @@ export default function HandoverPage() {
                   {signing ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Check className="h-4 w-4 mr-1" /> Confirm</>}
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation — reconciliation after delivery */}
+      {deleteBatch && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-background rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md shadow-xl p-4 space-y-3">
+            <p className="font-semibold flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-red-600" /> Remove handover record?
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Only remove {deleteBatch.batch_number ? `batch ${deleteBatch.batch_number}` : 'this handover'} for{' '}
+              {memberName(deleteBatch.member_id)} once all deliveries are done and there are no discrepancies.
+              This deletes the record and its signature permanently.
+            </p>
+            <div className="rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              {deleteBatch.items.map(i => `${i.qty}× ${i.name.replace('SPika Oil - ', '').replace('SPika2Go - ', '')}`).join(' · ')}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setDeleteBatch(null)}>Cancel</Button>
+              <Button variant="destructive" className="flex-1" onClick={confirmDelete} disabled={deleting}>
+                {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Trash2 className="h-4 w-4 mr-1" /> Delete</>}
+              </Button>
             </div>
           </div>
         </div>
