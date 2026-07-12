@@ -59,21 +59,10 @@ function anchorDownload(file: File, filename: string) {
 export function triggerDownload(blob: Blob, filename: string, legacyTab?: Window | null) {
   // Close any tab a legacy caller still opened — it would otherwise stay blank
   try { legacyTab?.close() } catch { /* ignore */ }
-
-  const file = new File([blob], filename, { type: blob.type || 'application/pdf' })
-  const isMobile = /Android|iPad|iPhone|iPod/.test(navigator.userAgent)
-
-  if (isMobile && navigator.canShare && navigator.canShare({ files: [file] })) {
-    // Share sheet: WhatsApp / Mail / Save to Files, filename preserved
-    navigator.share({ files: [file], title: filename }).catch((err) => {
-      // AbortError = user closed the sheet on purpose — not a failure
-      if (err?.name !== 'AbortError') anchorDownload(file, filename)
-    })
-    return
-  }
-
-  // Desktop and mobile-without-share: direct download (iOS 13+ supports this)
-  anchorDownload(file, filename)
+  // Plain save. Sharing is handled by the in-app viewer's Share button
+  // (navigator.share of the file) — never here, to avoid the "Cannot Send
+  // Message" failure that title+files sharing caused on iOS.
+  anchorDownload(new File([blob], filename, { type: blob.type || 'application/pdf' }), filename)
 }
 
 export async function downloadDeliveryNotePDF(

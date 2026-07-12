@@ -71,17 +71,43 @@ export default function DeliveryNoteDetailPage({
   const [isDownloadingSigned, setIsDownloadingSigned] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null)
+  const [pdfTitle, setPdfTitle] = useState('Delivery Note')
+  const [pdfShareFile, setPdfShareFile] = useState<File | null>(null)
+  const [isSharing, setIsSharing] = useState(false)
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Preview a PDF in-app, then Share the actual named file (iOS-reliable)
+  function showPdfInApp(blob: Blob, title: string, filename: string) {
+    setPdfTitle(title)
+    setPdfShareFile(new File([blob], filename, { type: 'application/pdf' }))
+    if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl)
+    setPdfBlobUrl(URL.createObjectURL(blob))
+  }
+
+  async function sharePdf() {
+    if (!pdfShareFile) return
+    setIsSharing(true)
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [pdfShareFile] })) {
+        await navigator.share({ files: [pdfShareFile] })
+      } else {
+        const { triggerDownload } = await import('@/lib/download-pdf')
+        triggerDownload(pdfShareFile, pdfShareFile.name)
+      }
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        const { triggerDownload } = await import('@/lib/download-pdf')
+        triggerDownload(pdfShareFile, pdfShareFile.name)
+      }
+    } finally {
+      setIsSharing(false)
+    }
+  }
 
   async function handleViewPDF() {
     if (!order) return
     setIsGeneratingPreview(true)
-
-    // NEVER open a tab before generating: on iOS, window.open() switches to
-    // the new tab and freezes this page mid-generation — blank tab forever.
-    const isMobile = /Android|iPad|iPhone|iPod/.test(navigator.userAgent)
-
     try {
       const delivery = (order as any).delivery
       const React = await import('react')
@@ -129,16 +155,10 @@ export default function DeliveryNoteDetailPage({
           company,
         })
       ).toBlob()
-      if (isMobile) {
-        // Share sheet: preview via Quick Look, or save/send directly
-        const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[#/\\:*?"<>|]/g, '').trim()
-        const customerName = (order.customer?.company_name ?? '').replace(/[#/\\:*?"<>|]/g, '').trim()
-        const filename = customerName ? `${orderNum} - ${customerName} - Delivery Note.pdf` : `${orderNum} - Delivery Note.pdf`
-        const { triggerDownload } = await import('@/lib/download-pdf')
-        triggerDownload(blob, filename)
-      } else {
-        setPdfBlobUrl(URL.createObjectURL(blob))
-      }
+      const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[#/\\:*?"<>|]/g, '').trim()
+      const customerName = (order.customer?.company_name ?? '').replace(/[#/\\:*?"<>|]/g, '').trim()
+      const filename = customerName ? `${orderNum} - ${customerName} - Delivery Note.pdf` : `${orderNum} - Delivery Note.pdf`
+      showPdfInApp(blob, 'Delivery Note', filename)
     } catch (err: any) {
       toast.error(`Preview failed: ${err?.message ?? 'unknown error'}`, { duration: 8000 })
       console.error(err)
@@ -150,6 +170,7 @@ export default function DeliveryNoteDetailPage({
   function handleClosePdf() {
     if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl)
     setPdfBlobUrl(null)
+    setPdfShareFile(null)
   }
 
   async function handleDownloadPDF() {
@@ -183,7 +204,10 @@ export default function DeliveryNoteDetailPage({
             `/api/image-proxy?url=${encodeURIComponent(delivery.pod_file_url)}`
           )
           const json = await res.json()
-          deliveryPhotoDataUrl = json.dataUrl
+          if (json.dataUrl) {
+            const { downscaleDataUrl } = await import('@/lib/image-utils')
+            deliveryPhotoDataUrl = await downscaleDataUrl(json.dataUrl)
+          }
         } catch { /* non-fatal */ }
       }
 
@@ -200,14 +224,12 @@ export default function DeliveryNoteDetailPage({
         })
       ).toBlob()
 
-      const { isMobileDevice, uploadAndOpenInViewer, triggerDownload } = await import('@/lib/download-pdf')
+      const { isMobileDevice, triggerDownload } = await import('@/lib/download-pdf')
       const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[#/\\:*?"<>|]/g, '').trim()
       const customerName = (order.customer?.company_name ?? '').replace(/[#/\\:*?"<>|]/g, '').trim()
-      // Same naming convention as the orders page
       const filename = customerName ? `${orderNum} - ${customerName} - Delivery Note.pdf` : `${orderNum} - Delivery Note.pdf`
       if (isMobileDevice()) {
-        const ok = await uploadAndOpenInViewer(supabase, blob, filename)
-        if (!ok) triggerDownload(blob, filename)
+        showPdfInApp(blob, 'Delivery Note', filename)
       } else {
         triggerDownload(blob, filename)
       }
@@ -228,27 +250,23 @@ export default function DeliveryNoteDetailPage({
     try {
       const match = signedUrl.match(/\/object\/(?:public\/)?pod-files\/(.+)$/)
       const storagePath = match ? match[1] : signedUrl
-      const { isMobileDevice, openStoredPdfInViewer, triggerDownload } = await import('@/lib/download-pdf')
+      const { isMobileDevice, triggerDownload } = await import('@/lib/download-pdf')
+
+      const { data: signedData, error } = await supabase.storage.from('pod-files').createSignedUrl(storagePath, 120)
+      if (error || !signedData) throw error ?? new Error('Could not create signed URL')
+      const res = await fetch(signedData.signedUrl)
+      if (!res.ok) throw new Error('Could not fetch signed PDF')
+      const blob = await res.blob()
+      const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[/\\:*?"<>|]/g, '').trim()
+      const customerName = (order.customer?.company_name ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
+      const filename = customerName
+        ? `${orderNum} - ${customerName} - Signed Invoice.pdf`
+        : `${orderNum} - Signed Invoice.pdf`
 
       if (isMobileDevice()) {
-        // Open on-screen in the iPhone viewer with the real filename
-        const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[/\\:*?"<>|]/g, '').trim()
-        const customerName = (order.customer?.company_name ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
-        const dlName = customerName ? `${orderNum} - ${customerName} - Signed Invoice.pdf` : `${orderNum} - Signed Invoice.pdf`
-        const ok = await openStoredPdfInViewer(supabase, storagePath, dlName)
-        if (!ok) throw new Error('Could not open signed PDF')
+        showPdfInApp(blob, 'Signed Invoice', filename)
       } else {
-        const { data: signedData, error } = await supabase.storage.from('pod-files').createSignedUrl(storagePath, 120)
-        if (error || !signedData) throw error ?? new Error('Could not create signed URL')
-        const res = await fetch(signedData.signedUrl)
-        if (!res.ok) throw new Error('Could not fetch signed PDF')
-        const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[/\\:*?"<>|]/g, '').trim()
-        const customerName = (order.customer?.company_name ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
-        const ext = storagePath.includes('.') ? storagePath.split('.').pop() : 'pdf'
-        const filename = customerName
-          ? `${orderNum} - ${customerName} - Signed Invoice.${ext}`
-          : `${orderNum} - Signed Invoice.${ext}`
-        triggerDownload(await res.blob(), filename)
+        triggerDownload(blob, filename)
       }
     } catch (err: any) {
       toast.error(`Download failed: ${err?.message ?? 'unknown error'}`, { duration: 8000 })
@@ -604,17 +622,25 @@ export default function DeliveryNoteDetailPage({
       {pdfBlobUrl && (
         <div className="fixed inset-0 z-50 bg-black/80 flex flex-col">
           <div className="flex items-center justify-between px-4 py-3 bg-background border-b">
-            <p className="font-semibold text-sm">
-              Delivery Note — {order.order_number}
+            <p className="font-semibold text-sm truncate">
+              {pdfTitle} — {order.order_number}
             </p>
-            <Button variant="ghost" size="icon" onClick={handleClosePdf}>
-              <X className="h-5 w-5" />
-            </Button>
+            <div className="flex items-center gap-2 shrink-0">
+              {pdfShareFile && (
+                <Button size="sm" className="bg-red-600 hover:bg-red-700 gap-1.5" onClick={sharePdf} disabled={isSharing}>
+                  {isSharing ? <Clock className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                  Share
+                </Button>
+              )}
+              <Button variant="ghost" size="icon" onClick={handleClosePdf}>
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
           </div>
           <iframe
             src={pdfBlobUrl}
-            className="flex-1 w-full"
-            title="Delivery Note"
+            className="flex-1 w-full bg-white"
+            title={pdfTitle}
           />
         </div>
       )}

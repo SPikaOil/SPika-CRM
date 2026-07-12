@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 
-const CURRENT_CACHE = 'spika-crm-v4'
+const CURRENT_CACHE = 'spika-crm-v5'
 
 export function ServiceWorkerRegister() {
   useEffect(() => {
