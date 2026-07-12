@@ -232,7 +232,10 @@ export default function DeliveryNoteDetailPage({
 
       if (isMobileDevice()) {
         // Open on-screen in the iPhone viewer with the real filename
-        const ok = await openStoredPdfInViewer(supabase, storagePath)
+        const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[/\\:*?"<>|]/g, '').trim()
+        const customerName = (order.customer?.company_name ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
+        const dlName = customerName ? `${orderNum} - ${customerName} - Signed Invoice.pdf` : `${orderNum} - Signed Invoice.pdf`
+        const ok = await openStoredPdfInViewer(supabase, storagePath, dlName)
         if (!ok) throw new Error('Could not open signed PDF')
       } else {
         const { data: signedData, error } = await supabase.storage.from('pod-files').createSignedUrl(storagePath, 120)

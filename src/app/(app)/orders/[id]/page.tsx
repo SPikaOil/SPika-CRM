@@ -217,7 +217,7 @@ export default function OrderDetailPage({
       if (isMobileDevice()) {
         // Open on-screen in the iPhone viewer with the real filename; native
         // Share/Save then works. Avoids navigator.share ("Cannot Send Message").
-        const ok = await openStoredPdfInViewer(supabase, storagePath)
+        const ok = await openStoredPdfInViewer(supabase, storagePath, filename)
         if (!ok) throw new Error('Could not open signed PDF')
       } else {
         const { data: signedData, error } = await supabase.storage.from('pod-files').createSignedUrl(storagePath, 120)

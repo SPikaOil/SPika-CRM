@@ -9,16 +9,19 @@ export function isMobileDevice() {
 }
 
 // Open a stored PDF in the phone's own viewer via a real, correctly-named URL.
-// The signed URL's path ends in "…/Real Name.pdf?token=…", so iOS shows the
-// real filename and native Share/Save works — unlike navigator.share of an
-// in-memory blob (which iMessage rejects with "Cannot Send Message") or a
-// blob: URL (which has no name → saves as "blob"). Same-tab navigation opens
-// it on screen exactly as the user wants; the back button returns to the CRM.
+// The `download` option makes Supabase serve Content-Disposition: attachment
+// with the given filename, so iOS treats it as a FILE: the native Share sheet
+// then shares the PDF itself (with the real name) instead of tagging the long
+// signed URL along as message text. Avoids navigator.share ("Cannot Send
+// Message") and blob: URLs ("blob" filename). Same-tab navigation opens it on
+// screen; the back button returns to the CRM.
 export async function openStoredPdfInViewer(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: any, storagePath: string,
+  supabase: any, storagePath: string, downloadName?: string,
 ): Promise<boolean> {
-  const { data, error } = await supabase.storage.from('pod-files').createSignedUrl(storagePath, 600)
+  const { data, error } = await supabase.storage
+    .from('pod-files')
+    .createSignedUrl(storagePath, 600, downloadName ? { download: downloadName } : undefined)
   if (error || !data?.signedUrl) return false
   window.location.href = data.signedUrl
   return true
@@ -34,7 +37,7 @@ export async function uploadAndOpenInViewer(
   const { error } = await supabase.storage.from('pod-files')
     .upload(path, blob, { upsert: true, contentType: 'application/pdf' })
   if (error) return false
-  return openStoredPdfInViewer(supabase, path)
+  return openStoredPdfInViewer(supabase, path, filename)
 }
 
 function anchorDownload(file: File, filename: string) {
