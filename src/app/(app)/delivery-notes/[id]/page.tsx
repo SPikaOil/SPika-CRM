@@ -105,56 +105,51 @@ export default function DeliveryNoteDetailPage({
     }
   }
 
+  // Single source of truth: render every document LIVE from the database.
+  //   docType DELIVERY NOTE + photo false → no prices, signature, no photo
+  //   docType INVOICE       + photo true  → prices, signature, delivery photo
+  async function buildDocBlob(docType: 'INVOICE' | 'DELIVERY NOTE', includePhoto: boolean): Promise<Blob> {
+    const delivery = (order as any).delivery
+    const React = await import('react')
+    const { pdf } = await import('@react-pdf/renderer')
+    const { DeliveryNotePDF } = await import('@/components/pdf/delivery-note-pdf')
+    const { data: companyData } = await supabase
+      .from('company_settings').select('*').eq('id', '00000000-0000-0000-0000-000000000001').single()
+    const signatureDataUrl: string | undefined = (order as any).signature_data_url ?? undefined
+    const tableBottlesReturned = delivery?.table_bottles_returned ?? 0
+    const tableBottlesNotes = delivery?.table_bottles_notes ?? ''
+    const signerName: string | undefined = delivery?.signer_name ?? undefined
+    let deliveryPhotoDataUrl: string | undefined
+    if (includePhoto && delivery?.pod_file_url) {
+      try {
+        const res = await fetch(`/api/image-proxy?url=${encodeURIComponent(delivery.pod_file_url)}`)
+        const json = await res.json()
+        if (json.dataUrl) {
+          const { downscaleDataUrl } = await import('@/lib/image-utils')
+          deliveryPhotoDataUrl = await downscaleDataUrl(json.dataUrl)
+        }
+      } catch { /* non-fatal */ }
+    }
+    return (pdf as any)(
+      React.createElement(DeliveryNotePDF as any, {
+        order,
+        signatureDataUrl,
+        tableBottlesReturned,
+        tableBottlesNotes,
+        signerName,
+        deliveryPhotoDataUrl,
+        showPrices: docType === 'INVOICE',
+        company: companyData ?? undefined,
+        documentType: docType,
+      })
+    ).toBlob()
+  }
+
   async function handleViewPDF() {
     if (!order) return
     setIsGeneratingPreview(true)
     try {
-      const delivery = (order as any).delivery
-      const React = await import('react')
-      const { pdf } = await import('@react-pdf/renderer')
-      const { DeliveryNotePDF } = await import('@/components/pdf/delivery-note-pdf')
-
-      const { data: companyData } = await supabase
-        .from('company_settings')
-        .select('*')
-        .eq('id', '00000000-0000-0000-0000-000000000001')
-        .single()
-      const company = companyData ?? undefined
-
-      const signatureDataUrl: string | undefined =
-        (order as any).signature_data_url ?? undefined
-      const tableBottlesReturned = delivery?.table_bottles_returned ?? 0
-      const tableBottlesNotes = delivery?.table_bottles_notes ?? ''
-      const signerName: string | undefined = delivery?.signer_name ?? undefined
-
-      let deliveryPhotoDataUrl: string | undefined
-      if (delivery?.pod_file_url) {
-        try {
-          const res = await fetch(
-            `/api/image-proxy?url=${encodeURIComponent(delivery.pod_file_url)}`
-          )
-          const json = await res.json()
-          if (json.dataUrl) {
-            const { downscaleDataUrl } = await import('@/lib/image-utils')
-            deliveryPhotoDataUrl = await downscaleDataUrl(json.dataUrl)
-          }
-        } catch {
-          /* non-fatal */
-        }
-      }
-
-      const blob = await (pdf as any)(
-        React.createElement(DeliveryNotePDF as any, {
-          order,
-          signatureDataUrl,
-          tableBottlesReturned,
-          tableBottlesNotes,
-          signerName,
-          deliveryPhotoDataUrl,
-          showPrices: false, // delivery notes never show prices
-          company,
-        })
-      ).toBlob()
+      const blob = await buildDocBlob('DELIVERY NOTE', false) // no prices, no photo
       const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[#/\\:*?"<>|]/g, '').trim()
       const customerName = (order.customer?.company_name ?? '').replace(/[#/\\:*?"<>|]/g, '').trim()
       const filename = customerName ? `${orderNum} - ${customerName} - Delivery Note.pdf` : `${orderNum} - Delivery Note.pdf`
@@ -176,54 +171,8 @@ export default function DeliveryNoteDetailPage({
   async function handleDownloadPDF() {
     if (!order) return
     setIsDownloading(true)
-
     try {
-      // Always regenerate without prices — embed signature and POD photo if available
-      const delivery = (order as any).delivery
-      const React = await import('react')
-      const { pdf } = await import('@react-pdf/renderer')
-      const { DeliveryNotePDF } = await import('@/components/pdf/delivery-note-pdf')
-
-      const { data: companyData } = await supabase
-        .from('company_settings')
-        .select('*')
-        .eq('id', '00000000-0000-0000-0000-000000000001')
-        .single()
-      const company = companyData ?? undefined
-
-      const signatureDataUrl: string | undefined =
-        (order as any).signature_data_url ?? undefined
-      const tableBottlesReturned = delivery?.table_bottles_returned ?? 0
-      const tableBottlesNotes = delivery?.table_bottles_notes ?? ''
-      const signerName: string | undefined = delivery?.signer_name ?? undefined
-
-      let deliveryPhotoDataUrl: string | undefined
-      if (delivery?.pod_file_url) {
-        try {
-          const res = await fetch(
-            `/api/image-proxy?url=${encodeURIComponent(delivery.pod_file_url)}`
-          )
-          const json = await res.json()
-          if (json.dataUrl) {
-            const { downscaleDataUrl } = await import('@/lib/image-utils')
-            deliveryPhotoDataUrl = await downscaleDataUrl(json.dataUrl)
-          }
-        } catch { /* non-fatal */ }
-      }
-
-      const blob = await (pdf as any)(
-        React.createElement(DeliveryNotePDF as any, {
-          order,
-          signatureDataUrl,
-          tableBottlesReturned,
-          tableBottlesNotes,
-          signerName,
-          deliveryPhotoDataUrl,
-          showPrices: false,
-          company,
-        })
-      ).toBlob()
-
+      const blob = await buildDocBlob('DELIVERY NOTE', false) // no prices, no photo
       const { isMobileDevice, triggerDownload } = await import('@/lib/download-pdf')
       const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[#/\\:*?"<>|]/g, '').trim()
       const customerName = (order.customer?.company_name ?? '').replace(/[#/\\:*?"<>|]/g, '').trim()
@@ -243,26 +192,17 @@ export default function DeliveryNoteDetailPage({
 
   async function handleDownloadSignedPDF() {
     if (!order) return
-    const signedUrl = (order as any).signed_pdf_url
-    if (!signedUrl) return
     setIsDownloadingSigned(true)
-
     try {
-      const match = signedUrl.match(/\/object\/(?:public\/)?pod-files\/(.+)$/)
-      const storagePath = match ? match[1] : signedUrl
+      // Signed Invoice = full invoice (prices) + signature + photo, regenerated
+      // LIVE from the database — never the old stored file (some were delivery notes)
+      const blob = await buildDocBlob('INVOICE', true)
       const { isMobileDevice, triggerDownload } = await import('@/lib/download-pdf')
-
-      const { data: signedData, error } = await supabase.storage.from('pod-files').createSignedUrl(storagePath, 120)
-      if (error || !signedData) throw error ?? new Error('Could not create signed URL')
-      const res = await fetch(signedData.signedUrl)
-      if (!res.ok) throw new Error('Could not fetch signed PDF')
-      const blob = await res.blob()
       const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[/\\:*?"<>|]/g, '').trim()
       const customerName = (order.customer?.company_name ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
       const filename = customerName
         ? `${orderNum} - ${customerName} - Signed Invoice.pdf`
         : `${orderNum} - Signed Invoice.pdf`
-
       if (isMobileDevice()) {
         showPdfInApp(blob, 'Signed Invoice', filename)
       } else {
