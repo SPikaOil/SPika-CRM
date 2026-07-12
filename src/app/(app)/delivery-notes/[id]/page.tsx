@@ -200,12 +200,17 @@ export default function DeliveryNoteDetailPage({
         })
       ).toBlob()
 
-      const { triggerDownload } = await import('@/lib/download-pdf')
+      const { isMobileDevice, uploadAndOpenInViewer, triggerDownload } = await import('@/lib/download-pdf')
       const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[#/\\:*?"<>|]/g, '').trim()
       const customerName = (order.customer?.company_name ?? '').replace(/[#/\\:*?"<>|]/g, '').trim()
       // Same naming convention as the orders page
       const filename = customerName ? `${orderNum} - ${customerName} - Delivery Note.pdf` : `${orderNum} - Delivery Note.pdf`
-      triggerDownload(blob, filename)
+      if (isMobileDevice()) {
+        const ok = await uploadAndOpenInViewer(supabase, blob, filename)
+        if (!ok) triggerDownload(blob, filename)
+      } else {
+        triggerDownload(blob, filename)
+      }
     } catch (err: any) {
       toast.error(`Download failed: ${err?.message ?? 'unknown error'}`, { duration: 8000 })
       console.error(err)
@@ -221,25 +226,27 @@ export default function DeliveryNoteDetailPage({
     setIsDownloadingSigned(true)
 
     try {
-      // Download the stored file itself — the frozen original with signature,
-      // delivery photo and prices — never a regenerated version
       const match = signedUrl.match(/\/object\/(?:public\/)?pod-files\/(.+)$/)
       const storagePath = match ? match[1] : signedUrl
-      const { data: signedData, error } = await supabase.storage.from('pod-files').createSignedUrl(storagePath, 120)
-      if (error || !signedData) throw error ?? new Error('Could not create signed URL')
-      const res = await fetch(signedData.signedUrl)
-      if (!res.ok) throw new Error('Could not fetch signed PDF')
-      const blob = await res.blob()
+      const { isMobileDevice, openStoredPdfInViewer, triggerDownload } = await import('@/lib/download-pdf')
 
-      const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[/\\:*?"<>|]/g, '').trim()
-      const customerName = (order.customer?.company_name ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
-      const ext = storagePath.includes('.') ? storagePath.split('.').pop() : 'pdf'
-      const filename = customerName
-        ? `${orderNum} - ${customerName} - Signed Invoice.${ext}`
-        : `${orderNum} - Signed Invoice.${ext}`
-
-      const { triggerDownload } = await import('@/lib/download-pdf')
-      triggerDownload(blob, filename)
+      if (isMobileDevice()) {
+        // Open on-screen in the iPhone viewer with the real filename
+        const ok = await openStoredPdfInViewer(supabase, storagePath)
+        if (!ok) throw new Error('Could not open signed PDF')
+      } else {
+        const { data: signedData, error } = await supabase.storage.from('pod-files').createSignedUrl(storagePath, 120)
+        if (error || !signedData) throw error ?? new Error('Could not create signed URL')
+        const res = await fetch(signedData.signedUrl)
+        if (!res.ok) throw new Error('Could not fetch signed PDF')
+        const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[/\\:*?"<>|]/g, '').trim()
+        const customerName = (order.customer?.company_name ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
+        const ext = storagePath.includes('.') ? storagePath.split('.').pop() : 'pdf'
+        const filename = customerName
+          ? `${orderNum} - ${customerName} - Signed Invoice.${ext}`
+          : `${orderNum} - Signed Invoice.${ext}`
+        triggerDownload(await res.blob(), filename)
+      }
     } catch (err: any) {
       toast.error(`Download failed: ${err?.message ?? 'unknown error'}`, { duration: 8000 })
     } finally {

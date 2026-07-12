@@ -1,4 +1,4 @@
-const CACHE_NAME = 'spika-crm-v3'
+const CACHE_NAME = 'spika-crm-v4'
 
 const STATIC_ASSETS = [
   '/manifest.json',

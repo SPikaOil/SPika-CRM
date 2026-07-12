@@ -142,12 +142,13 @@ export default function OrderDetailPage({
       const label = type === 'invoice' ? 'Invoice' : 'Delivery Note'
       const blob = await buildDeliveryPdfBlob(docType)
       if (isMobile) {
-        // Share sheet: preview via Quick Look, or save/send directly
+        // Open on-screen in the iPhone viewer with the real filename
         const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[/\\:*?"<>|]/g, '').trim()
         const customerName = (order.customer?.company_name ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
         const filename = customerName ? `${orderNum} - ${customerName} - ${label}.pdf` : `${orderNum} - ${label}.pdf`
-        const { triggerDownload } = await import('@/lib/download-pdf')
-        triggerDownload(blob, filename)
+        const { uploadAndOpenInViewer, triggerDownload } = await import('@/lib/download-pdf')
+        const ok = await uploadAndOpenInViewer(supabase, blob, filename)
+        if (!ok) triggerDownload(blob, filename)
       } else {
         setPdfTitle(label)
         setPdfBlobUrl(URL.createObjectURL(blob))
@@ -199,32 +200,32 @@ export default function OrderDetailPage({
         ? `${orderNum} - ${customerName} - Signed Invoice.pdf`
         : `${orderNum} - Signed Invoice.pdf`
 
-      let blob: Blob
-      const storagePath = signedPdfStoragePath()
-      if (storagePath) {
-        // Stored frozen original — signature + delivery photo + prices
+      const { isMobileDevice, openStoredPdfInViewer, triggerDownload } = await import('@/lib/download-pdf')
+
+      // Ensure a stored signed PDF exists (regenerate + backfill if missing —
+      // generation failed at delivery time on ~24% of orders)
+      let storagePath = signedPdfStoragePath()
+      if (!storagePath) {
+        const blob = await buildDeliveryPdfBlob('INVOICE')
+        const path = `signed-notes/${customerName ? `${orderNum} - ${customerName}` : orderNum}.pdf`
+        await supabase.storage.from('pod-files').upload(path, blob, { upsert: true, contentType: 'application/pdf' })
+        const { data: { publicUrl } } = supabase.storage.from('pod-files').getPublicUrl(path)
+        try { await updateOrder.mutateAsync({ id: order.id, values: { signed_pdf_url: publicUrl } as any }) } catch { /* non-fatal */ }
+        storagePath = path
+      }
+
+      if (isMobileDevice()) {
+        // Open on-screen in the iPhone viewer with the real filename; native
+        // Share/Save then works. Avoids navigator.share ("Cannot Send Message").
+        const ok = await openStoredPdfInViewer(supabase, storagePath)
+        if (!ok) throw new Error('Could not open signed PDF')
+      } else {
         const { data: signedData, error } = await supabase.storage.from('pod-files').createSignedUrl(storagePath, 120)
         if (error || !signedData) throw error ?? new Error('Could not create signed URL')
         const res = await fetch(signedData.signedUrl)
         if (!res.ok) throw new Error('Could not fetch signed PDF')
-        blob = await res.blob()
-      } else {
-        // No stored signed PDF (generation failed at delivery time on ~24% of
-        // orders). Regenerate now from the stored signature/photo and backfill
-        // it so the record exists from here on.
-        blob = await buildDeliveryPdfBlob('INVOICE')
-        try {
-          const path = `signed-notes/${customerName ? `${orderNum} - ${customerName}` : orderNum}.pdf`
-          await supabase.storage.from('pod-files').upload(path, blob, { upsert: true, contentType: 'application/pdf' })
-          const { data: { publicUrl } } = supabase.storage.from('pod-files').getPublicUrl(path)
-          await updateOrder.mutateAsync({ id: order.id, values: { signed_pdf_url: publicUrl } as any })
-        } catch (backfillErr) {
-          console.error('Signed PDF backfill failed (download still proceeds):', backfillErr)
-        }
+        triggerDownload(await res.blob(), filename)
       }
-
-      const { triggerDownload } = await import('@/lib/download-pdf')
-      triggerDownload(blob, filename)
     } catch (err: any) {
       toast.error(`Download failed: ${err?.message ?? 'unknown error'}`, { duration: 8000 })
     } finally {
@@ -244,8 +245,13 @@ export default function OrderDetailPage({
       const customerName = (order.customer?.company_name ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
       const filename = customerName ? `${orderNum} - ${customerName} - ${label}.pdf` : `${orderNum} - ${label}.pdf`
 
-      const { triggerDownload } = await import('@/lib/download-pdf')
-      triggerDownload(blob, filename)
+      const { isMobileDevice, uploadAndOpenInViewer, triggerDownload } = await import('@/lib/download-pdf')
+      if (isMobileDevice()) {
+        const ok = await uploadAndOpenInViewer(supabase, blob, filename)
+        if (!ok) triggerDownload(blob, filename) // fallback
+      } else {
+        triggerDownload(blob, filename)
+      }
     } catch (err: any) {
       // Show the real error — silent blanks made mobile issues undiagnosable
       toast.error(`Download failed: ${err?.message ?? 'unknown error'}`, { duration: 8000 })

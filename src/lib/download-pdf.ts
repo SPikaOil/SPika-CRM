@@ -4,6 +4,39 @@ function sanitize(str: string) {
   return str.replace(/[#/\\:*?"<>|]/g, '').trim()
 }
 
+export function isMobileDevice() {
+  return typeof navigator !== 'undefined' && /Android|iPad|iPhone|iPod/.test(navigator.userAgent)
+}
+
+// Open a stored PDF in the phone's own viewer via a real, correctly-named URL.
+// The signed URL's path ends in "…/Real Name.pdf?token=…", so iOS shows the
+// real filename and native Share/Save works — unlike navigator.share of an
+// in-memory blob (which iMessage rejects with "Cannot Send Message") or a
+// blob: URL (which has no name → saves as "blob"). Same-tab navigation opens
+// it on screen exactly as the user wants; the back button returns to the CRM.
+export async function openStoredPdfInViewer(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any, storagePath: string,
+): Promise<boolean> {
+  const { data, error } = await supabase.storage.from('pod-files').createSignedUrl(storagePath, 600)
+  if (error || !data?.signedUrl) return false
+  window.location.href = data.signedUrl
+  return true
+}
+
+// Upload an ephemeral generated PDF under a real name, then open it in the
+// viewer (used for Invoice / Delivery Note which aren't stored otherwise).
+export async function uploadAndOpenInViewer(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any, blob: Blob, filename: string,
+): Promise<boolean> {
+  const path = `generated/${filename}`
+  const { error } = await supabase.storage.from('pod-files')
+    .upload(path, blob, { upsert: true, contentType: 'application/pdf' })
+  if (error) return false
+  return openStoredPdfInViewer(supabase, path)
+}
+
 function anchorDownload(file: File, filename: string) {
   const url = URL.createObjectURL(file)
   const a = document.createElement('a')
