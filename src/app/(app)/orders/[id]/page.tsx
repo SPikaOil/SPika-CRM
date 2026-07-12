@@ -123,14 +123,12 @@ export default function OrderDetailPage({
   }
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Single source of truth for every document. All three buttons render LIVE
-  // from the database (order lines, signature_data_url, delivery photo) — no
-  // stored file is ever trusted, so a document can never be stale or the wrong
-  // type. Each caller declares exactly what goes in:
-  //   INVOICE        → prices + signature, NO photo   (docType INVOICE, photo false)
-  //   DELIVERY NOTE  → no prices + signature, NO photo (docType DELIVERY NOTE, photo false)
-  //   SIGNED INVOICE → prices + signature + photo      (docType INVOICE, photo true)
-  async function buildDeliveryPdfBlob(docType: 'INVOICE' | 'DELIVERY NOTE', includePhoto: boolean): Promise<Blob> {
+  // Live-render an Invoice or Delivery Note from the database. NEVER embeds a
+  // photo: the delivery photo is not stored in a queryable field — it exists
+  // only baked into the signed PDF captured at delivery time (pod_file_url is
+  // the SIGNATURE, not a photo). The Signed Invoice therefore serves that
+  // stored PDF; this function is only for the plain Invoice / Delivery Note.
+  async function buildDeliveryPdfBlob(docType: 'INVOICE' | 'DELIVERY NOTE'): Promise<Blob> {
     const delivery = (order as any).delivery
     const React = await import('react')
     const { pdf } = await import('@react-pdf/renderer')
@@ -140,18 +138,6 @@ export default function OrderDetailPage({
     const tableBottlesReturned = delivery?.table_bottles_returned ?? 0
     const tableBottlesNotes = delivery?.table_bottles_notes ?? ''
     const signerName: string | undefined = delivery?.signer_name ?? undefined
-    let deliveryPhotoDataUrl: string | undefined
-    if (includePhoto && delivery?.pod_file_url) {
-      try {
-        const res = await fetch(`/api/image-proxy?url=${encodeURIComponent(delivery.pod_file_url)}`)
-        const json = await res.json()
-        if (json.dataUrl) {
-          // Shrink the photo so the PDF stays small enough to share on iOS
-          const { downscaleDataUrl } = await import('@/lib/image-utils')
-          deliveryPhotoDataUrl = await downscaleDataUrl(json.dataUrl)
-        }
-      } catch { /* non-fatal */ }
-    }
     return (pdf as any)(
       React.createElement(DeliveryNotePDF as any, {
         order,
@@ -159,7 +145,7 @@ export default function OrderDetailPage({
         tableBottlesReturned,
         tableBottlesNotes,
         signerName,
-        deliveryPhotoDataUrl,
+        deliveryPhotoDataUrl: undefined,
         showPrices: docType === 'INVOICE' ? isAdmin : false,
         company: companyData ?? undefined,
         documentType: docType,
@@ -173,7 +159,7 @@ export default function OrderDetailPage({
     try {
       const docType = type === 'invoice' ? 'INVOICE' : 'DELIVERY NOTE'
       const label = type === 'invoice' ? 'Invoice' : 'Delivery Note'
-      const blob = await buildDeliveryPdfBlob(docType, false) // no photo on plain invoice / delivery note
+      const blob = await buildDeliveryPdfBlob(docType)
       const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[/\\:*?"<>|]/g, '').trim()
       const customerName = (order.customer?.company_name ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
       const filename = customerName ? `${orderNum} - ${customerName} - ${label}.pdf` : `${orderNum} - ${label}.pdf`
@@ -193,26 +179,42 @@ export default function OrderDetailPage({
     return match ? match[1] : signedUrl
   }
 
-  // The Signed Invoice = a full INVOICE (prices) + signature + delivery photo,
-  // regenerated LIVE from the database every time. We NEVER serve the old
-  // stored file — some were generated as delivery notes and would keep coming
-  // out wrong forever. We also refresh the stored copy so the customer e-mail
-  // and any re-use get the corrected version too.
+  // The Signed Invoice = the stored PDF captured at delivery time: a full
+  // INVOICE (prices) + the real signature + the real delivery photo (if one was
+  // taken). That photo lives ONLY inside this stored file — it is not in any
+  // queryable column — so we serve the stored file rather than regenerate.
+  // Only if the stored file is missing or broken (0 bytes) do we regenerate a
+  // fresh INVOICE (prices + signature, no photo, since the photo is unavailable)
+  // and back it up.
   async function buildSignedInvoiceBlob(): Promise<{ blob: Blob; filename: string }> {
     const orderNum = (order!.order_number ?? order!.id.slice(0, 8)).replace(/[/\\:*?"<>|]/g, '').trim()
     const customerName = (order!.customer?.company_name ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
     const filename = customerName
       ? `${orderNum} - ${customerName} - Signed Invoice.pdf`
       : `${orderNum} - Signed Invoice.pdf`
-    const blob = await buildDeliveryPdfBlob('INVOICE', true) // prices + signature + photo
-    // Refresh the stored copy (best-effort — never blocks the user)
+
+    // Try the stored PDF first (has the real photo)
+    const storagePath = signedPdfStoragePath()
+    if (storagePath) {
+      try {
+        const { data, error } = await supabase.storage.from('pod-files').createSignedUrl(storagePath, 120)
+        if (!error && data?.signedUrl) {
+          const res = await fetch(data.signedUrl)
+          if (res.ok) {
+            const blob = await res.blob()
+            if (blob.size > 1024) return { blob, filename } // valid stored file
+          }
+        }
+      } catch { /* fall through to regenerate */ }
+    }
+
+    // No usable stored file → regenerate a fresh invoice (no photo available) and back it up
+    const blob = await buildDeliveryPdfBlob('INVOICE')
     try {
       const path = `signed-notes/${customerName ? `${orderNum} - ${customerName}` : orderNum}.pdf`
       await supabase.storage.from('pod-files').upload(path, blob, { upsert: true, contentType: 'application/pdf' })
-      if (!signedPdfStoragePath()) {
-        const { data: { publicUrl } } = supabase.storage.from('pod-files').getPublicUrl(path)
-        try { await updateOrder.mutateAsync({ id: order!.id, values: { signed_pdf_url: publicUrl } as any }) } catch { /* non-fatal */ }
-      }
+      const { data: { publicUrl } } = supabase.storage.from('pod-files').getPublicUrl(path)
+      try { await updateOrder.mutateAsync({ id: order!.id, values: { signed_pdf_url: publicUrl } as any }) } catch { /* non-fatal */ }
     } catch { /* non-fatal */ }
     return { blob, filename }
   }
@@ -255,7 +257,7 @@ export default function OrderDetailPage({
     try {
       const docType = type === 'invoice' ? 'INVOICE' : 'DELIVERY NOTE'
       const label = type === 'invoice' ? 'Invoice' : 'Delivery Note'
-      const blob = await buildDeliveryPdfBlob(docType, false) // no photo on plain invoice / delivery note
+      const blob = await buildDeliveryPdfBlob(docType)
       const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[/\\:*?"<>|]/g, '').trim()
       const customerName = (order.customer?.company_name ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
       const filename = customerName ? `${orderNum} - ${customerName} - ${label}.pdf` : `${orderNum} - ${label}.pdf`
