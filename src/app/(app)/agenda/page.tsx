@@ -66,13 +66,14 @@ export default function AgendaPage() {
         type: 'delivery',
         title: order.customer?.company_name ?? 'Unknown customer',
         subtitle: `${order.order_number} · XCG ${Number(order.total).toFixed(2)}`,
-        href: `/orders/${order.id}`,
+        // Sales members work orders via the delivery-notes screen, not the admin order page
+        href: isAdmin ? `/orders/${order.id}` : `/delivery-notes/${order.id}`,
         badge: order.status.replace(/_/g, ' '),
       })
     }
 
-    // Tasks with due dates
-    for (const task of tasks ?? []) {
+    // Tasks with due dates — tasks are an admin concept
+    for (const task of (isAdmin ? tasks : []) ?? []) {
       if (!task.due_date || task.completed_at) continue
       if (!isDateInRange(task.due_date, days)) continue
       result.push({
@@ -146,17 +147,17 @@ export default function AgendaPage() {
         <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-3">
           <CalendarDays className="h-12 w-12 opacity-20" />
           <p className="font-medium">Nothing planned for the coming {range === 'week' ? 'week' : 'month'}</p>
-          <p className="text-sm text-center">
-            Set a planned date on an order, or add a due date to a task
-          </p>
-          <div className="flex gap-2 mt-1">
-            <Link href="/orders">
-              <Button variant="outline" size="sm">Go to Orders</Button>
-            </Link>
-            <Link href="/tasks">
-              <Button variant="outline" size="sm">Go to Tasks</Button>
-            </Link>
-          </div>
+          {isAdmin ? (
+            <>
+              <p className="text-sm text-center">Set a planned date on an order, or add a due date to a task</p>
+              <div className="flex gap-2 mt-1">
+                <Link href="/orders"><Button variant="outline" size="sm">Go to Orders</Button></Link>
+                <Link href="/tasks"><Button variant="outline" size="sm">Go to Tasks</Button></Link>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-center">Your planned deliveries will show up here</p>
+          )}
         </div>
       )}
 

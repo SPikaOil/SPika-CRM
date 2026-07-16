@@ -36,10 +36,10 @@ const adminMainItems = [
 ]
 
 const salesMainItems = [
-  { href: '/dashboard',       label: 'Home',       icon: LayoutDashboard },
-  { href: '/delivery-notes',  label: 'Notes',      icon: FileText },
-  { href: '/sales-documents', label: 'Sales Docs', icon: FolderOpen },
-  { href: '/agenda',          label: 'Agenda',     icon: CalendarDays },
+  { href: '/dashboard',       label: 'Home',      icon: LayoutDashboard },
+  { href: '/delivery-notes',  label: 'Notes',     icon: FileText },
+  { href: '/agenda',          label: 'Agenda',    icon: CalendarDays },
+  { href: '/handover',        label: 'Handover',  icon: PackageCheck },
 ]
 
 const adminMoreItems = [

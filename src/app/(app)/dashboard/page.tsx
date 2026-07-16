@@ -420,8 +420,10 @@ function currentMonthStr() {
 
 export default function DashboardPage() {
   const supabase = createClient()
-  const { isAdmin } = useAuth()
+  const { isAdmin, profile } = useAuth()
   const { data: users } = useUsers()
+  const [myDeliveries, setMyDeliveries] = useState<any[]>([])
+  const [myHandover, setMyHandover] = useState<{ sku: string; name: string; qty: number }[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [pendingOrders, setPendingOrders] = useState<Order[]>([])
@@ -651,6 +653,33 @@ export default function DashboardPage() {
     setWeekTasks(deduped)
   }
 
+  // Sales dashboard: my own deliveries to do + bottles I've picked up
+  async function loadSalesData() {
+    if (!profile?.id) return
+    const { data: orders } = await supabase
+      .from('orders')
+      .select('id, order_number, status, planned_date, customer:customers(company_name)')
+      .eq('assigned_to', profile.id)
+      .in('status', ['processing', 'out_for_delivery'])
+      .order('planned_date', { ascending: true, nullsFirst: false })
+    setMyDeliveries(orders ?? [])
+
+    const { data: batches } = await supabase
+      .from('handover_batches')
+      .select('items, signed_at')
+      .eq('member_id', profile.id)
+      .not('signed_at', 'is', null)
+    const totals: Record<string, { sku: string; name: string; qty: number }> = {}
+    for (const b of (batches ?? []) as any[]) {
+      for (const it of (b.items ?? [])) {
+        if (!totals[it.sku]) totals[it.sku] = { sku: it.sku, name: it.name, qty: 0 }
+        totals[it.sku].qty += it.qty
+      }
+    }
+    setMyHandover(Object.values(totals))
+    setIsLoading(false)
+  }
+
   async function loadStats() {
     await Promise.all([loadPendingOrders(), loadOverdueOrders(), loadAccessRequests(), loadClientOverview(), loadRefillData(), loadWeekTasks()])
     const [kpisRes, monthData] = await Promise.all([
@@ -674,8 +703,14 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
-    loadStats()
+    if (!profile) return // wait for auth to resolve so we load the right view
+    if (isAdmin) loadStats()
+    else loadSalesData()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, profile?.id])
 
+  useEffect(() => {
+    if (!isAdmin) return
     const channel = supabase
       .channel('dashboard-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'quotes' }, loadStats)
@@ -685,7 +720,7 @@ export default function DashboardPage() {
 
     return () => { supabase.removeChannel(channel) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [isAdmin])
 
   // Reload bottles + revenue when month changes
   useEffect(() => {
@@ -801,7 +836,74 @@ export default function DashboardPage() {
         />
       )}
 
-      {/* Client Overview */}
+      {/* ── Sales view: my deliveries this week + bottles I picked up ── */}
+      {!isAdmin && (
+        <>
+          {/* Bottles I've picked up (handover) */}
+          <section>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
+              <Package className="h-3.5 w-3.5" /> Bottles you picked up
+            </p>
+            <Card className="py-0">
+              <CardContent className="p-3">
+                {myHandover.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-2">No bottles handed over to you yet</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {myHandover.map(h => (
+                      <span key={h.sku} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-sm">
+                        <span className="font-bold text-red-700 dark:text-red-400">{h.qty}×</span>
+                        <span>{h.name.replace('SPika Oil - ', '').replace('SPika2Go - ', '')}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </section>
+
+          {/* My deliveries to do */}
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                <Truck className="h-3.5 w-3.5" /> Your deliveries
+              </p>
+              <Link href="/agenda" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
+                Agenda <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
+            <Card className="py-0">
+              <CardContent className="p-0 divide-y">
+                {isLoading && [0,1,2].map(i => (
+                  <div key={i} className="flex items-center gap-3 px-3 py-2"><Skeleton className="h-4 w-28" /><Skeleton className="h-4 w-20 ml-auto" /></div>
+                ))}
+                {!isLoading && myDeliveries.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-6">No deliveries assigned to you</p>
+                )}
+                {!isLoading && myDeliveries.map(o => {
+                  const planned = o.planned_date ? new Date(o.planned_date + 'T12:00:00') : null
+                  const label = planned ? planned.toLocaleDateString('en', { weekday: 'short', day: 'numeric', month: 'short' }) : 'No date'
+                  return (
+                    <Link key={o.id} href={`/delivery-notes/${o.id}`} className="flex items-center justify-between gap-3 px-3 py-2.5 hover:bg-muted/50 transition-colors">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{o.customer?.company_name ?? 'Unknown'}</p>
+                        <p className="text-xs text-muted-foreground font-mono">{o.order_number}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {o.status === 'out_for_delivery' && <Badge className="bg-blue-600 text-white text-xs px-1.5">On the way</Badge>}
+                        <span className="text-xs text-muted-foreground">{label}</span>
+                      </div>
+                    </Link>
+                  )
+                })}
+              </CardContent>
+            </Card>
+          </section>
+        </>
+      )}
+
+      {/* Client Overview — admin only */}
+      {isAdmin && (
       <section>
         <div className="flex items-center justify-between mb-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Client Overview</p>
@@ -846,6 +948,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </section>
+      )}
 
       {/* This week's tasks */}
       {isAdmin && (

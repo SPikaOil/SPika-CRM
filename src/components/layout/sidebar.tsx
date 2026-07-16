@@ -32,12 +32,12 @@ const allNavItems = [
   { href: '/delivery-notes',  label: 'Delivery Notes',   icon: FileText,        adminOnly: false },
   { href: '/orders',          label: 'Orders',           icon: ShoppingCart,    adminOnly: true  },
   { href: '/products',         label: 'Products',         icon: Package,         adminOnly: true  },
-  { href: '/sales-documents', label: 'Sales Docs',       icon: FolderOpen,      adminOnly: false },
+  { href: '/sales-documents', label: 'Sales Docs',       icon: FolderOpen,      adminOnly: true  },
   { href: '/tasks',           label: 'Tasks',            icon: ClipboardList,   adminOnly: true  },
   { href: '/agenda',          label: 'Agenda',           icon: CalendarDays,    adminOnly: false },
   { href: '/reports',         label: 'Reports',          icon: BarChart2,       adminOnly: true  },
   { href: '/stock',           label: 'Stock SPika',      icon: Droplets,        adminOnly: true  },
-  { href: '/handover',        label: 'Handover Btls',    icon: PackageCheck,    adminOnly: true  },
+  { href: '/handover',        label: 'Handover Btls',    icon: PackageCheck,    adminOnly: false },
   { href: '/store-locator',   label: 'Store Locator',    icon: MapPin,          adminOnly: true  },
 ]
 

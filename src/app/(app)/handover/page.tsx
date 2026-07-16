@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import SignaturePad from 'signature_pad'
 import { PackageCheck, Loader2, Plus, Minus, Check, Clock, X, Trash2, Eye } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
@@ -39,8 +38,7 @@ function todayStr() {
 }
 
 export default function HandoverPage() {
-  const { isAdmin, isLoading: authLoading, profile } = useAuth()
-  const router = useRouter()
+  const { isAdmin, profile } = useAuth()
   const supabase = createClient()
   const { data: users } = useUsers()
 
@@ -65,16 +63,15 @@ export default function HandoverPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sigPadRef = useRef<SignaturePad | null>(null)
 
-  useEffect(() => {
-    if (!authLoading && !isAdmin) router.replace('/dashboard')
-  }, [isAdmin, authLoading, router])
-
   async function loadBatches() {
-    const { data } = await supabase.from('handover_batches').select('*').order('created_at', { ascending: false })
+    let q = supabase.from('handover_batches').select('*').order('created_at', { ascending: false })
+    // Sales members only see their own handovers
+    if (!isAdmin && profile?.id) q = q.eq('member_id', profile.id)
+    const { data } = await q
     setBatches((data as Batch[]) ?? [])
     setLoading(false)
   }
-  useEffect(() => { loadBatches() /* eslint-disable-next-line */ }, [])
+  useEffect(() => { if (profile) loadBatches() /* eslint-disable-next-line */ }, [profile?.id, isAdmin])
 
   useEffect(() => {
     if (signBatch && canvasRef.current) {
@@ -180,7 +177,7 @@ export default function HandoverPage() {
     }
   }
 
-  if (authLoading || !isAdmin) return null
+  if (!profile) return null // wait for auth; both admin and sales may view this page
 
   const pending = batches.filter(b => !b.signed_at)
   const done = batches.filter(b => b.signed_at)
@@ -191,10 +188,13 @@ export default function HandoverPage() {
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <PackageCheck className="h-6 w-6 text-red-600" /> Handover Btls
         </h1>
-        <p className="text-muted-foreground text-sm">Bottles ready for pick-up, allocated to the sales team</p>
+        <p className="text-muted-foreground text-sm">
+          {isAdmin ? 'Bottles ready for pick-up, allocated to the sales team' : 'Bottles allocated to you — sign to confirm receipt'}
+        </p>
       </div>
 
-      {/* New batch */}
+      {/* New batch — admin only */}
+      {isAdmin && (
       <Card className="py-3 gap-2">
         <CardHeader><CardTitle className="text-sm">New handover</CardTitle></CardHeader>
         <CardContent className="space-y-3">
@@ -238,6 +238,7 @@ export default function HandoverPage() {
           </Button>
         </CardContent>
       </Card>
+      )}
 
       {/* Pending signature */}
       {loading ? <Skeleton className="h-20 rounded-xl" /> : (
@@ -260,7 +261,7 @@ export default function HandoverPage() {
                     </div>
                     <Badge className="bg-orange-500 text-white text-xs shrink-0"><Clock className="h-3 w-3 mr-1" />Pending</Badge>
                     <Button size="sm" className="bg-red-600 hover:bg-red-700 shrink-0" onClick={() => setSignBatch(b)}>Sign</Button>
-                    <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-red-600" onClick={() => setDeleteBatch(b)} title="Delete"><Trash2 className="h-4 w-4" /></Button>
+                    {isAdmin && <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-red-600" onClick={() => setDeleteBatch(b)} title="Delete"><Trash2 className="h-4 w-4" /></Button>}
                   </CardContent>
                 </Card>
               ))}
@@ -290,7 +291,7 @@ export default function HandoverPage() {
                     <Badge className="bg-green-600 text-white text-xs shrink-0"><Check className="h-3 w-3 mr-1" />
                       {b.signed_at ? new Date(b.signed_at).toLocaleDateString('en', { day: 'numeric', month: 'short' }) : 'Signed'}
                     </Badge>
-                    <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-red-600" onClick={() => setDeleteBatch(b)} title="Delete after reconciliation"><Trash2 className="h-4 w-4" /></Button>
+                    {isAdmin && <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-red-600" onClick={() => setDeleteBatch(b)} title="Delete after reconciliation"><Trash2 className="h-4 w-4" /></Button>}
                   </CardContent>
                 </Card>
               ))}
