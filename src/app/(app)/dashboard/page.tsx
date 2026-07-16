@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertCircle, CheckCircle, Clock, ShoppingBag, Truck, CreditCard, Copy, Check, X, Mail, ChevronDown, ChevronUp, Package, Pencil, UserPlus, Building2, ArrowRight, Droplets, ClipboardList } from 'lucide-react'
+import { AlertCircle, CheckCircle, Clock, ShoppingBag, Truck, CreditCard, Copy, Check, X, Mail, ChevronDown, ChevronUp, Package, Pencil, UserPlus, Building2, ArrowRight, Droplets, ClipboardList, CalendarDays } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
@@ -86,6 +86,21 @@ function StatCard({
     )
   }
   return <Card className="py-0">{inner}</Card>
+}
+
+// One delivery in the sales agenda — links to the delivery screen
+function DeliveryRow({ o }: { o: any }) {
+  return (
+    <Link href={`/delivery-notes/${o.id}`} className="flex items-center justify-between gap-3 px-3 py-2.5 hover:bg-muted/50 transition-colors">
+      <div className="min-w-0">
+        <p className="text-sm font-medium truncate">{o.customer?.company_name ?? 'Unknown'}</p>
+        <p className="text-xs text-muted-foreground font-mono">{o.order_number}</p>
+      </div>
+      {o.status === 'out_for_delivery'
+        ? <Badge className="bg-blue-600 text-white text-xs px-1.5 shrink-0">On the way</Badge>
+        : <Truck className="h-4 w-4 text-muted-foreground shrink-0" />}
+    </Link>
+  )
 }
 
 interface OverdueOrder extends Order {
@@ -743,11 +758,31 @@ export default function DashboardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [byWorker, users])
 
+  // Group the sales member's open deliveries by planned day (agenda overview)
+  const deliveryGroups = (() => {
+    const groups: Record<string, any[]> = {}
+    for (const o of myDeliveries) {
+      const key = o.planned_date || 'none'
+      ;(groups[key] ??= []).push(o)
+    }
+    const dated = Object.keys(groups).filter(k => k !== 'none').sort()
+    return { dated: dated.map(d => [d, groups[d]] as const), undated: groups['none'] ?? [] }
+  })()
+
   return (
     <div className="p-3 lg:p-6 space-y-3">
       <div>
-        <h1 className="text-xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground text-xs">Live overview — updates in real time</p>
+        {isAdmin ? (
+          <>
+            <h1 className="text-xl font-bold">Dashboard</h1>
+            <p className="text-muted-foreground text-xs">Live overview — updates in real time</p>
+          </>
+        ) : (
+          <>
+            <h1 className="text-xl font-bold">SPika Sales — {profile?.name ?? ''}</h1>
+            <p className="text-muted-foreground text-sm">Ready for some sales today? See your tasks below</p>
+          </>
+        )}
       </div>
 
       {/* Pending orders alert */}
@@ -862,42 +897,55 @@ export default function DashboardPage() {
             </Card>
           </section>
 
-          {/* My deliveries to do */}
+          {/* Week agenda — deliveries grouped by planned day */}
           <section>
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-                <Truck className="h-3.5 w-3.5" /> Your deliveries
-              </p>
-              <Link href="/agenda" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
-                Agenda <ArrowRight className="h-3 w-3" />
-              </Link>
-            </div>
-            <Card className="py-0">
-              <CardContent className="p-0 divide-y">
-                {isLoading && [0,1,2].map(i => (
-                  <div key={i} className="flex items-center gap-3 px-3 py-2"><Skeleton className="h-4 w-28" /><Skeleton className="h-4 w-20 ml-auto" /></div>
-                ))}
-                {!isLoading && myDeliveries.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-6">No deliveries assigned to you</p>
-                )}
-                {!isLoading && myDeliveries.map(o => {
-                  const planned = o.planned_date ? new Date(o.planned_date + 'T12:00:00') : null
-                  const label = planned ? planned.toLocaleDateString('en', { weekday: 'short', day: 'numeric', month: 'short' }) : 'No date'
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
+              <CalendarDays className="h-3.5 w-3.5" /> Your agenda
+            </p>
+
+            {isLoading && (
+              <Card className="py-0"><CardContent className="p-3 space-y-2">
+                {[0,1].map(i => <Skeleton key={i} className="h-8 w-full" />)}
+              </CardContent></Card>
+            )}
+
+            {!isLoading && myDeliveries.length === 0 && (
+              <Card className="py-0"><CardContent>
+                <p className="text-sm text-muted-foreground text-center py-6">No deliveries assigned to you</p>
+              </CardContent></Card>
+            )}
+
+            {!isLoading && (
+              <div className="space-y-3">
+                {deliveryGroups.dated.map(([day, list]) => {
+                  const d = new Date(day + 'T12:00:00')
+                  const today = new Date(); today.setHours(0,0,0,0)
+                  const isToday = d.toDateString() === today.toDateString()
+                  const isPast = d < today
                   return (
-                    <Link key={o.id} href={`/delivery-notes/${o.id}`} className="flex items-center justify-between gap-3 px-3 py-2.5 hover:bg-muted/50 transition-colors">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{o.customer?.company_name ?? 'Unknown'}</p>
-                        <p className="text-xs text-muted-foreground font-mono">{o.order_number}</p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {o.status === 'out_for_delivery' && <Badge className="bg-blue-600 text-white text-xs px-1.5">On the way</Badge>}
-                        <span className="text-xs text-muted-foreground">{label}</span>
-                      </div>
-                    </Link>
+                    <div key={day}>
+                      <p className={`text-xs font-semibold mb-1.5 flex items-center gap-1.5 ${isPast ? 'text-red-600' : isToday ? 'text-red-600' : 'text-foreground'}`}>
+                        {d.toLocaleDateString('en', { weekday: 'long', day: 'numeric', month: 'short' })}
+                        {isToday && <Badge className="bg-red-600 text-white text-[10px] px-1.5 py-0">Today</Badge>}
+                        {isPast && <Badge className="bg-red-100 text-red-700 text-[10px] px-1.5 py-0">Overdue</Badge>}
+                      </p>
+                      <Card className="py-0"><CardContent className="p-0 divide-y">
+                        {list.map(o => <DeliveryRow key={o.id} o={o} />)}
+                      </CardContent></Card>
+                    </div>
                   )
                 })}
-              </CardContent>
-            </Card>
+
+                {deliveryGroups.undated.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground mb-1.5">No date yet</p>
+                    <Card className="py-0"><CardContent className="p-0 divide-y">
+                      {deliveryGroups.undated.map(o => <DeliveryRow key={o.id} o={o} />)}
+                    </CardContent></Card>
+                  </div>
+                )}
+              </div>
+            )}
           </section>
         </>
       )}
