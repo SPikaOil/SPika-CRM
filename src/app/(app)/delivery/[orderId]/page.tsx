@@ -18,6 +18,7 @@ import {
 import SignaturePad from 'signature_pad'
 import { toast } from 'sonner'
 import { useOrder } from '@/hooks/use-orders'
+import { useCustomerSigners } from '@/hooks/use-customer-signers'
 import { createClient } from '@/lib/supabase/client'
 import { queuePodUpload, processQueue } from '@/lib/offline-queue'
 import { Button } from '@/components/ui/button'
@@ -40,6 +41,7 @@ export default function DeliveryPage({
 }) {
   const { orderId } = use(params)
   const { data: order, isLoading, refetch } = useOrder(orderId)
+  const { data: knownSigners } = useCustomerSigners((order as any)?.customer_id)
   const { isAdmin } = useAuth()
   const router = useRouter()
   const supabase = createClient()
@@ -61,8 +63,7 @@ export default function DeliveryPage({
   const [photoPreview, setPhotoPreview] = useState('')
   const [deliveryNotes, setDeliveryNotes] = useState('')
   const [uploading, setUploading] = useState(false)
-  const [signerFirstName, setSignerFirstName] = useState('')
-  const [signerLastName, setSignerLastName] = useState('')
+  const [signerName, setSignerName] = useState('')
 
   // Signature pad
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -204,8 +205,8 @@ export default function DeliveryPage({
   }
 
   async function handleCompleteDelivery() {
-    if (!signerFirstName.trim() || !signerLastName.trim()) {
-      toast.error('Please enter the signer\'s first and last name')
+    if (!signerName.trim()) {
+      toast.error('Please enter the name of the person signing')
       return
     }
     if (podMode === 'signature' && (!sigPadRef.current || sigPadRef.current.isEmpty())) {
@@ -246,7 +247,7 @@ export default function DeliveryPage({
         pod_type: podMode,
         delivered_at: new Date().toISOString(),
         notes: deliveryNotes,
-        signer_name: `${signerFirstName.trim()} ${signerLastName.trim()}`,
+        signer_name: signerName.trim(),
         gps_location: gps
           ? { lat: gps.latitude, lng: gps.longitude, accuracy: gps.accuracy }
           : null,
@@ -288,7 +289,7 @@ export default function DeliveryPage({
                 signatureDataUrl,
                 tableBottlesReturned: tablBottlesReturned,
                 tableBottlesNotes,
-                signerName: `${signerFirstName.trim()} ${signerLastName.trim()}`,
+                signerName: signerName.trim(),
                 deliveryPhotoDataUrl,
                 company,
                 documentType: 'INVOICE',
@@ -467,6 +468,27 @@ export default function DeliveryPage({
         )}
 
         {/* Step 2: Table Bottles */}
+        {/* Known contacts at this customer — shown after GPS so you arrive knowing their names */}
+        {(step === 'table_bottles' || step === 'pod') && knownSigners && knownSigners.length > 0 && (
+          <Card className="border-red-200 bg-red-50/50 dark:bg-red-950/20">
+            <CardContent className="py-3">
+              <p className="text-xs font-semibold text-red-700 dark:text-red-400 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+                <PenLine className="h-3.5 w-3.5" /> Usually signs here
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {knownSigners.slice(0, 6).map((s) => (
+                  <span key={s.name} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white dark:bg-background border text-xs">
+                    <span className="font-medium">{s.name}</span>
+                    {s.last && (
+                      <span className="text-muted-foreground">· {new Date(s.last).toLocaleDateString('en', { day: 'numeric', month: 'short' })}</span>
+                    )}
+                  </span>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {step === 'table_bottles' && (
           <Card>
             <CardHeader>
@@ -555,24 +577,36 @@ export default function DeliveryPage({
               </CardHeader>
               <CardContent className="space-y-4">
 
-                {/* Signer name */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1.5">
-                    <Label>First name <span className="text-red-500">*</span></Label>
-                    <Input
-                      placeholder="John"
-                      value={signerFirstName}
-                      onChange={(e) => setSignerFirstName(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Last name <span className="text-red-500">*</span></Label>
-                    <Input
-                      placeholder="Doe"
-                      value={signerLastName}
-                      onChange={(e) => setSignerLastName(e.target.value)}
-                    />
-                  </div>
+                {/* Signer name — pick a known contact for this customer or type a new one */}
+                <div className="space-y-1.5">
+                  <Label>Who is signing? <span className="text-red-500">*</span></Label>
+                  {knownSigners && knownSigners.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pb-1">
+                      {knownSigners.slice(0, 6).map((s) => (
+                        <button
+                          key={s.name}
+                          type="button"
+                          onClick={() => setSignerName(s.name)}
+                          className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                            signerName.trim().toLowerCase() === s.name.toLowerCase()
+                              ? 'bg-red-600 text-white border-red-600'
+                              : 'bg-background hover:bg-muted border-input'
+                          }`}
+                        >
+                          {s.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <Input
+                    placeholder="Type a name or pick above"
+                    list="known-signers"
+                    value={signerName}
+                    onChange={(e) => setSignerName(e.target.value)}
+                  />
+                  <datalist id="known-signers">
+                    {(knownSigners ?? []).map((s) => <option key={s.name} value={s.name} />)}
+                  </datalist>
                 </div>
 
                 <Separator />

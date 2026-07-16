@@ -10,6 +10,7 @@ import { useCustomer, useUpdateCustomer } from '@/hooks/use-customers'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { useCustomerOrders } from '@/hooks/use-orders'
+import { useCustomerSigners } from '@/hooks/use-customer-signers'
 import { useCreateTask } from '@/hooks/use-tasks'
 import { useAuth } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
@@ -42,6 +43,7 @@ export default function CustomerDetailPage({
   const { id } = use(params)
   const { data: customer, isLoading } = useCustomer(id)
   const { data: orders } = useCustomerOrders(id)
+  const { data: signers } = useCustomerSigners(id)
   const updateCustomer = useUpdateCustomer()
   const { isAdmin, profile } = useAuth()
   const [editing, setEditing] = useState(false)
@@ -281,6 +283,23 @@ export default function CustomerDetailPage({
               )}
             </CardContent>
           </Card>
+
+          {signers && signers.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle className="text-base">Contact people who sign</CardTitle></CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                {signers.map((s) => (
+                  <div key={s.name} className="flex items-center justify-between gap-3">
+                    <span className="font-medium">{s.name}</span>
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {s.count}× signed{s.last ? ` · last ${new Date(s.last).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
+                    </span>
+                  </div>
+                ))}
+                <p className="text-xs text-muted-foreground pt-1">Learned automatically from completed deliveries.</p>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader><CardTitle className="text-base">Delivery</CardTitle></CardHeader>

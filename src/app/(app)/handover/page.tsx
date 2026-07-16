@@ -160,6 +160,9 @@ export default function HandoverPage() {
           payload: {
             memberId: signBatch.member_id,
             batchNumber: signBatch.batch_number,
+            handoverDate: signBatch.handover_date
+              ? new Date(signBatch.handover_date + 'T12:00:00').toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })
+              : null,
             items: signBatch.items,
             signedAt: new Date(signedAt).toLocaleString('en', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
             notes: signBatch.notes,

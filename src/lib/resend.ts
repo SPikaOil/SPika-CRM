@@ -160,6 +160,7 @@ export function emailInvoiceReady(p: { orderNumber: string; customerName: string
 export function emailHandoverReceipt(p: {
   memberName: string
   batchNumber?: string | null
+  handoverDate?: string | null
   items: { name: string; qty: number }[]
   signedAt: string
   notes?: string
@@ -167,14 +168,21 @@ export function emailHandoverReceipt(p: {
   const itemRows = p.items
     .map(i => row(i.name, `${i.qty}×`))
     .join('')
+  // Plain one-line summary, e.g. "11 July 2026 — 120× 100ml · 60× 50ml"
+  const summary = [
+    p.handoverDate,
+    p.items.map(i => `${i.qty}× ${i.name.replace('SPika Oil - ', '').replace('SPika2Go - ', '')}`).join(' · '),
+  ].filter(Boolean).join(' — ')
   return layout(`
     <h2 style="margin:0 0 4px;font-size:20px;color:#111;">Bottles received for delivery</h2>
     <p style="margin:0 0 20px;color:#6b7280;font-size:14px;">
       Hi ${p.memberName}, you signed for receipt of the following bottles. You are responsible for these until delivery.
     </p>
     ${badge('Handover confirmed', '#16a34a')}
-    <table style="margin-top:16px;width:100%;border-collapse:collapse;">
+    <p style="margin:16px 0 4px;font-size:16px;font-weight:600;color:#111;">${summary}</p>
+    <table style="margin-top:12px;width:100%;border-collapse:collapse;">
       ${p.batchNumber ? row('Batch', p.batchNumber) : ''}
+      ${p.handoverDate ? row('Handover date', p.handoverDate) : ''}
       ${itemRows}
       ${row('Signed at', p.signedAt)}
     </table>
