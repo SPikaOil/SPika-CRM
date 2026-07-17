@@ -87,7 +87,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const navItems = [
     { href: '/portal/dashboard', label: 'Home', icon: LayoutDashboard },
     { href: '/portal/orders', label: 'Orders', icon: ClipboardList },
-    { href: '/portal/catalogue', label: 'Catalogue', icon: BookOpen },
+    { href: '/portal/catalogue', label: 'Your Products', icon: BookOpen },
     { href: '/portal/invoices', label: 'Invoices', icon: FileText },
     { href: '/portal/support', label: 'Support', icon: HeadphonesIcon },
     { href: '/portal/account', label: 'Account', icon: UserCircle },

@@ -85,7 +85,7 @@ export default function PortalCataloguePage() {
   return (
     <div className="space-y-3">
       <div>
-        <h1 className="text-xl font-bold">Catalogue</h1>
+        <h1 className="text-xl font-bold">Your Products</h1>
         <p className="text-muted-foreground text-xs">Your personal prices are shown below.</p>
       </div>
 
