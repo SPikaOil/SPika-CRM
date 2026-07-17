@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ShoppingBag, Loader2, Plus, Minus, CheckCircle2 } from 'lucide-react'
+import { ShoppingBag, Loader2, Plus, Minus, CheckCircle2, MessageCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/auth-context'
 import { SPIKA_PRODUCTS } from '@/lib/products'
@@ -154,6 +155,22 @@ export default function PortalCataloguePage() {
           )
         })}
       </div>
+
+      {/* Contracted-items note */}
+      <Card className="py-0 border-dashed">
+        <CardContent className="py-3 px-3 flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium">These are all the products contracted for your account.</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Want to add other products to your account? Get in touch and we'll set it up for you.</p>
+          </div>
+          <Link href="/portal/support" className="shrink-0">
+            <Button variant="outline" size="sm" className="gap-1.5">
+              <MessageCircle className="h-4 w-4" />
+              Contact us
+            </Button>
+          </Link>
+        </CardContent>
+      </Card>
 
       {/* Floating cart summary */}
       {cartItems.length > 0 && (
