@@ -85,7 +85,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   if (!isCustomer) return <>{children}</>
 
   const navItems = [
-    { href: '/portal/dashboard', label: 'Home', icon: LayoutDashboard },
+    { href: '/portal/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/portal/orders', label: 'Orders', icon: ClipboardList },
     { href: '/portal/catalogue', label: 'Your Products', icon: BookOpen },
     { href: '/portal/invoices', label: 'Invoices', icon: FileText },
@@ -131,12 +131,14 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  'flex-1 flex flex-col items-center gap-1 py-3 text-xs font-medium transition-colors',
+                  'flex-1 flex flex-col items-center gap-1 py-2.5 transition-colors',
                   active ? 'text-red-600' : 'text-muted-foreground'
                 )}
               >
-                <Icon className="h-5 w-5" />
-                {item.label}
+                <Icon className="h-5 w-5 shrink-0" />
+                <span className="text-[10px] font-medium leading-tight text-center h-6 flex items-center justify-center px-0.5">
+                  {item.label}
+                </span>
               </Link>
             )
           })}
