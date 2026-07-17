@@ -79,13 +79,12 @@ function button(text: string, href: string) {
 
 // ─── Email templates ───────────────────────────────────────────────
 
-export function emailOrderPlaced(p: { orderNumber: string; customerName: string; total: string; items: string }) {
+export function emailOrderPlaced(p: { customerName: string; total: string; items: string }) {
   return layout(`
-    <h2 style="margin:0 0 4px;font-size:20px;color:#111;">New order received</h2>
-    <p style="margin:0 0 20px;color:#6b7280;font-size:14px;">A customer placed a new order via the portal.</p>
+    <h2 style="margin:0 0 4px;font-size:20px;color:#111;">New order request</h2>
+    <p style="margin:0 0 20px;color:#6b7280;font-size:14px;">A customer placed an order request via the portal. Assign an order number and delivery date to process it.</p>
     ${badge('Pending Approval', '#f59e0b')}
     <table style="margin-top:16px;width:100%;border-collapse:collapse;">
-      ${row('Order #', p.orderNumber)}
       ${row('Customer', p.customerName)}
       ${row('Total', p.total)}
       ${row('Products', p.items)}

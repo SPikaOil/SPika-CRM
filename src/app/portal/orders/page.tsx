@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Package, Clock, Truck, CheckCircle2, XCircle, Loader2, ChevronRight } from 'lucide-react'
+import { Package, Clock, Truck, CheckCircle2, XCircle, Loader2, ChevronRight, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/auth-context'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Order, QuoteItem } from '@/types'
 
@@ -61,7 +62,12 @@ export default function PortalOrdersPage() {
       <div className="flex flex-col items-center justify-center py-20 gap-4 text-muted-foreground">
         <Package className="h-12 w-12 opacity-20" />
         <p className="font-medium">No orders yet</p>
-        <p className="text-sm">Place your first order using the button below</p>
+        <p className="text-sm">Place your first order to get started</p>
+        <Link href="/portal/new-order">
+          <Button className="bg-red-600 hover:bg-red-700 gap-2 mt-1">
+            <Plus className="h-4 w-4" /> New Order
+          </Button>
+        </Link>
       </div>
     )
   }
@@ -71,9 +77,16 @@ export default function PortalOrdersPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">My Orders</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">{orders.length} total orders</p>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">My Orders</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">{orders.length} total orders</p>
+        </div>
+        <Link href="/portal/new-order">
+          <Button className="bg-red-600 hover:bg-red-700 gap-2 shrink-0">
+            <Plus className="h-4 w-4" /> New Order
+          </Button>
+        </Link>
       </div>
 
       {pending.length > 0 && (
@@ -104,7 +117,7 @@ function OrderCard({ order, dimmed }: { order: Order; dimmed?: boolean }) {
       <CardContent className="pt-4 pb-4 space-y-3">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <p className="font-mono text-sm font-medium flex items-center gap-1">{order.order_number || 'Order'} <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" /></p>
+            <p className="font-mono text-sm font-medium flex items-center gap-1">{order.order_number || (order.status === 'pending_approval' ? 'Order request' : 'Order')} <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" /></p>
             <p className="text-xs text-muted-foreground mt-0.5">
               {new Date(order.created_at).toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })}
             </p>

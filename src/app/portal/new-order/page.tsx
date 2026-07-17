@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Loader2, ShoppingBag, CheckCircle2, FileSignature, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { getNextOrderNumber } from '@/lib/order-number'
 import { useAuth } from '@/contexts/auth-context'
 import { SPIKA_PRODUCTS } from '@/lib/products'
 import { Button } from '@/components/ui/button'
@@ -86,11 +85,11 @@ function NewOrderPageInner() {
 
     setSubmitting(true)
     try {
-      const orderNumber = await getNextOrderNumber()
-
+      // This is a REQUEST, not a real order yet — no order number and no
+      // delivery date. SPika admin assigns those when they process it.
       const { error } = await supabase.from('orders').insert({
         customer_id: profile.customer_id,
-        order_number: orderNumber,
+        order_number: null,
         items: activeItems,
         total,
         status: 'pending_approval',
@@ -101,14 +100,13 @@ function NewOrderPageInner() {
 
       if (error) throw error
 
-      // Notify admin of new order (fire-and-forget)
+      // Notify admin of the new order request (fire-and-forget)
       fetch('/api/notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'order_placed',
           payload: {
-            orderNumber,
             customerName: customer?.company_name ?? 'Unknown',
             total: `XCG ${total.toFixed(2)}`,
             items: activeItems.map(i => `${i.qty}× ${i.name}`).join(', '),

@@ -22,11 +22,11 @@ export async function POST(req: NextRequest) {
     switch (type) {
       // ── Admin: new order placed via portal ─────────────────────
       case 'order_placed': {
-        const { orderNumber, customerName, total, items } = payload
+        const { customerName, total, items } = payload
         await sendEmail({
           to: ADMIN_EMAIL,
-          subject: `New order: #${orderNumber} — ${customerName}`,
-          html: emailOrderPlaced({ orderNumber, customerName, total, items }),
+          subject: `New order request — ${customerName}`,
+          html: emailOrderPlaced({ customerName, total, items }),
         })
         break
       }

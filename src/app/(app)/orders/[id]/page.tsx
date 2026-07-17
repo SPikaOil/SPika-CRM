@@ -21,7 +21,7 @@ import { Separator } from '@/components/ui/separator'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Order, OrderCurrency, OrderEditLogEntry, OrderStatus, QuoteItem } from '@/types'
 import { SPIKA_PRODUCTS } from '@/lib/products'
-import { getNextCashOrderNumber } from '@/lib/order-number'
+import { getNextCashOrderNumber, getNextOrderNumber } from '@/lib/order-number'
 import { formatCurrency } from '@/lib/utils'
 
 const statusColors: Record<OrderStatus, string> = {
@@ -77,6 +77,8 @@ export default function OrderDetailPage({
   const [estimatedBottles, setEstimatedBottles] = useState<string>('')
   const [invoiceDate, setInvoiceDate] = useState<string>('')
   const [selectedWorker, setSelectedWorker] = useState<string>('')
+  const [approveOrderNum, setApproveOrderNum] = useState('')
+  const [approveDate, setApproveDate] = useState('')
   const [editingOrderNumber, setEditingOrderNumber] = useState(false)
   const [orderNumberDraft, setOrderNumberDraft] = useState('')
   const [poNumber, setPoNumber] = useState('')
@@ -91,6 +93,17 @@ export default function OrderDetailPage({
   const [pdfShareFile, setPdfShareFile] = useState<File | null>(null)
   const [isSharing, setIsSharing] = useState(false)
   const [isGeneratingPreview, setIsGeneratingPreview] = useState<'invoice' | 'note' | null>(null)
+
+  // When a portal request (pending, no order number yet) opens, suggest the
+  // next order number so the admin can accept or override it, and prefill any
+  // existing planned date.
+  useEffect(() => {
+    if (order?.status === 'pending_approval' && !order.order_number) {
+      getNextOrderNumber().then(setApproveOrderNum).catch(() => {})
+    }
+    if (order?.planned_date) setApproveDate(order.planned_date)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order?.id, order?.status])
 
   // Show a PDF inside the app (so the user SEES it first), with a Share button
   // that sends the actual named file — the only iOS-reliable way to preview
@@ -466,7 +479,17 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                 </div>
               </div>
             )}
-            <p className="text-sm text-orange-600/80">Assign a worker and approve, or reject this order.</p>
+            <p className="text-sm text-orange-600/80">Give it an order number and a delivery date, assign a worker, then approve.</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <p className="text-sm font-medium">Order number</p>
+                <Input value={approveOrderNum} onChange={(e) => setApproveOrderNum(e.target.value)} placeholder="Next number" />
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-sm font-medium">Delivery date</p>
+                <Input type="date" value={approveDate} onChange={(e) => setApproveDate(e.target.value)} min={new Date().toISOString().split('T')[0]} />
+              </div>
+            </div>
             <div className="space-y-1.5">
               <p className="text-sm font-medium">Assign to worker</p>
               <Select value={selectedWorker} onValueChange={(v) => setSelectedWorker(v ?? '')}>
@@ -485,13 +508,13 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
             <div className="flex gap-2">
               <Button
                 className="flex-1 bg-green-600 hover:bg-green-700 gap-2"
-                disabled={!selectedWorker || updateOrder.isPending}
+                disabled={!selectedWorker || !approveOrderNum.trim() || !approveDate || updateOrder.isPending}
                 onClick={() => updateOrder.mutate({
                   id: order.id,
-                  values: { status: 'processing', assigned_to: selectedWorker } as any,
+                  values: { status: 'processing', assigned_to: selectedWorker, order_number: approveOrderNum.trim(), planned_date: approveDate } as any,
                 }, {
                   onSuccess: () => {
-                    // Notify customer their order is confirmed
+                    // Notify customer their order is confirmed — including the delivery date
                     if (order.customer?.email) {
                       fetch('/api/notify', {
                         method: 'POST',
@@ -499,7 +522,8 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                         body: JSON.stringify({
                           type: 'order_confirmed',
                           payload: {
-                            orderNumber: order.order_number,
+                            orderNumber: approveOrderNum.trim(),
+                            plannedDate: new Date(approveDate + 'T12:00:00').toLocaleDateString('en', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
                             customerEmail: order.customer.email,
                             customerName: order.customer.company_name,
                             billingEmails: order.customer.billing_emails ?? [],
@@ -514,7 +538,7 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                       body: JSON.stringify({
                         type: 'order_out_for_delivery',
                         payload: {
-                          orderNumber: order.order_number,
+                          orderNumber: approveOrderNum.trim(),
                           customerName: order.customer?.company_name ?? '',
                           assignedTo: selectedWorker,
                         },
