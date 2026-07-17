@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Users, UserPlus, Trash2, Loader2, Crown, Mail, Building2, MapPin, Phone, FileSignature, AlertCircle, CheckCircle2, Pencil, X, Check } from 'lucide-react'
+import { Users, UserPlus, Trash2, Loader2, Crown, Mail, Building2, MapPin, Phone, FileSignature, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/auth-context'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -30,28 +30,8 @@ export default function PortalAccountPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isOwner, setIsOwner] = useState(false)
 
-  // Profile editing
-  const [editingProfile, setEditingProfile] = useState(false)
-  const [savingProfile, setSavingProfile] = useState(false)
-  const [profileDraft, setProfileDraft] = useState({
-    company_name: '',
-    contact_person: '',
-    phone: '',
-    whatsapp: '',
-    billing_street: '',
-    billing_city: '',
-    billing_zip: '',
-    billing_country: '',
-    delivery_street: '',
-    delivery_city: '',
-    delivery_zip: '',
-    delivery_country: '',
-    vat_number: '',
-    crib_number: '',
-    coc_number: '',
-  })
-
-  // Invite form
+  // Invite form (team access is the ONLY thing a customer can manage here —
+  // company details are read-only and only editable by SPika admins in the CRM)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteName, setInviteName] = useState('')
   const [inviting, setInviting] = useState(false)
@@ -69,73 +49,10 @@ export default function PortalAccountPage() {
       supabase.from('users').select('id, name, email, customer_role, created_at').eq('customer_id', profile.customer_id).order('created_at'),
       supabase.from('users').select('customer_role').eq('id', profile.id).single(),
     ])
-    const cust = custRes.data as Customer
-    setCustomer(cust)
+    setCustomer(custRes.data as Customer)
     setContacts((contactsRes.data ?? []) as Contact[])
     setIsOwner(selfRes.data?.customer_role === 'owner')
     setIsLoading(false)
-    if (cust) {
-      const b = cust.billing_address as any ?? {}
-      const d = cust.delivery_address as any ?? {}
-      setProfileDraft({
-        company_name: cust.company_name ?? '',
-        contact_person: cust.contact_person ?? '',
-        phone: cust.phone ?? '',
-        whatsapp: cust.whatsapp ?? '',
-        billing_street: b.street ?? '',
-        billing_city: b.city ?? '',
-        billing_zip: b.zip ?? '',
-        billing_country: b.country ?? '',
-        delivery_street: d.street ?? '',
-        delivery_city: d.city ?? '',
-        delivery_zip: d.zip ?? '',
-        delivery_country: d.country ?? '',
-        vat_number: cust.vat_number ?? '',
-        crib_number: cust.crib_number ?? '',
-        coc_number: cust.coc_number ?? '',
-      })
-    }
-  }
-
-  async function saveProfile() {
-    if (!profile?.customer_id) return
-    setSavingProfile(true)
-    try {
-      const { error } = await supabase.from('customers').update({
-        company_name: profileDraft.company_name.trim(),
-        contact_person: profileDraft.contact_person.trim(),
-        phone: profileDraft.phone.trim(),
-        whatsapp: profileDraft.whatsapp.trim(),
-        billing_address: {
-          street: profileDraft.billing_street.trim(),
-          city: profileDraft.billing_city.trim(),
-          zip: profileDraft.billing_zip.trim(),
-          country: profileDraft.billing_country.trim(),
-        },
-        delivery_address: profileDraft.delivery_street.trim() ? {
-          street: profileDraft.delivery_street.trim(),
-          city: profileDraft.delivery_city.trim(),
-          zip: profileDraft.delivery_zip.trim(),
-          country: profileDraft.delivery_country.trim(),
-        } : {
-          street: profileDraft.billing_street.trim(),
-          city: profileDraft.billing_city.trim(),
-          zip: profileDraft.billing_zip.trim(),
-          country: profileDraft.billing_country.trim(),
-        },
-        vat_number: profileDraft.vat_number.trim(),
-        crib_number: profileDraft.crib_number.trim(),
-        coc_number: profileDraft.coc_number.trim(),
-      }).eq('id', profile.customer_id)
-      if (error) throw error
-      toast.success('Profile saved!')
-      setEditingProfile(false)
-      loadData()
-    } catch (err: any) {
-      toast.error(err.message ?? 'Failed to save')
-    } finally {
-      setSavingProfile(false)
-    }
   }
 
   async function handleInvite(e: React.FormEvent) {
@@ -195,175 +112,71 @@ export default function PortalAccountPage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-bold">Account</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">Your company information and contacts.</p>
+        <p className="text-muted-foreground text-sm mt-0.5">Your company details, kept up to date by SPika Oil.</p>
       </div>
 
-      {/* Incomplete profile banner */}
-      {customer && isOwner && (!customer.contact_person || !customer.phone || !billingAddr?.street) && (
-        <div className="flex items-start gap-3 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
-          <AlertCircle className="h-5 w-5 text-orange-500 shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-orange-700 dark:text-orange-400">Complete your company profile</p>
-            <p className="text-xs text-orange-600/80 mt-0.5">Please fill in your contact details and address so we can process your orders correctly.</p>
-          </div>
-          <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white shrink-0" onClick={() => setEditingProfile(true)}>
-            Fill in
-          </Button>
-        </div>
-      )}
-
-      {/* Company info */}
+      {/* Company info — READ ONLY. Only SPika admins can change this in the CRM. */}
       {customer && (
         <Card>
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+          <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Building2 className="h-4 w-4" />
               Company Details
             </CardTitle>
-            {isOwner && !editingProfile && (
-              <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={() => setEditingProfile(true)}>
-                <Pencil className="h-3 w-3" /> Edit
-              </Button>
-            )}
           </CardHeader>
           <CardContent className="pb-4 text-sm">
-            {editingProfile ? (
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="col-span-2 space-y-1">
-                    <Label className="text-xs">Company Name *</Label>
-                    <Input value={profileDraft.company_name} onChange={e => setProfileDraft(p => ({ ...p, company_name: e.target.value }))} className="h-8" />
-                  </div>
-                  <div className="col-span-2 space-y-1">
-                    <Label className="text-xs">Contact Person *</Label>
-                    <Input value={profileDraft.contact_person} onChange={e => setProfileDraft(p => ({ ...p, contact_person: e.target.value }))} className="h-8" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Phone *</Label>
-                    <Input value={profileDraft.phone} onChange={e => setProfileDraft(p => ({ ...p, phone: e.target.value }))} className="h-8" placeholder="+5999-000-0000" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">WhatsApp</Label>
-                    <Input value={profileDraft.whatsapp} onChange={e => setProfileDraft(p => ({ ...p, whatsapp: e.target.value }))} className="h-8" placeholder="+5999-000-0000" />
-                  </div>
-                </div>
-                <Separator />
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Billing Address</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="col-span-2 space-y-1">
-                    <Label className="text-xs">Street *</Label>
-                    <Input value={profileDraft.billing_street} onChange={e => setProfileDraft(p => ({ ...p, billing_street: e.target.value }))} className="h-8" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">City *</Label>
-                    <Input value={profileDraft.billing_city} onChange={e => setProfileDraft(p => ({ ...p, billing_city: e.target.value }))} className="h-8" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Zip</Label>
-                    <Input value={profileDraft.billing_zip} onChange={e => setProfileDraft(p => ({ ...p, billing_zip: e.target.value }))} className="h-8" />
-                  </div>
-                  <div className="col-span-2 space-y-1">
-                    <Label className="text-xs">Country *</Label>
-                    <Input value={profileDraft.billing_country} onChange={e => setProfileDraft(p => ({ ...p, billing_country: e.target.value }))} className="h-8" placeholder="Curaçao" />
-                  </div>
-                </div>
-                <Separator />
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Delivery Address <span className="normal-case font-normal">(leave blank if same as billing)</span></p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="col-span-2 space-y-1">
-                    <Label className="text-xs">Street</Label>
-                    <Input value={profileDraft.delivery_street} onChange={e => setProfileDraft(p => ({ ...p, delivery_street: e.target.value }))} className="h-8" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">City</Label>
-                    <Input value={profileDraft.delivery_city} onChange={e => setProfileDraft(p => ({ ...p, delivery_city: e.target.value }))} className="h-8" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Zip</Label>
-                    <Input value={profileDraft.delivery_zip} onChange={e => setProfileDraft(p => ({ ...p, delivery_zip: e.target.value }))} className="h-8" />
-                  </div>
-                  <div className="col-span-2 space-y-1">
-                    <Label className="text-xs">Country</Label>
-                    <Input value={profileDraft.delivery_country} onChange={e => setProfileDraft(p => ({ ...p, delivery_country: e.target.value }))} className="h-8" />
-                  </div>
-                </div>
-                <Separator />
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Tax & Registration</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs">CRIB # (Curaçao)</Label>
-                    <Input value={profileDraft.crib_number} onChange={e => setProfileDraft(p => ({ ...p, crib_number: e.target.value }))} className="h-8" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">VAT # (international)</Label>
-                    <Input value={profileDraft.vat_number} onChange={e => setProfileDraft(p => ({ ...p, vat_number: e.target.value }))} className="h-8" />
-                  </div>
-                  <div className="col-span-2 space-y-1">
-                    <Label className="text-xs">CoC / KVK #</Label>
-                    <Input value={profileDraft.coc_number} onChange={e => setProfileDraft(p => ({ ...p, coc_number: e.target.value }))} className="h-8" />
-                  </div>
-                </div>
-                <div className="flex gap-2 pt-1">
-                  <Button className="flex-1 bg-red-600 hover:bg-red-700 gap-1" onClick={saveProfile} disabled={savingProfile || !profileDraft.company_name || !profileDraft.phone || !profileDraft.billing_street}>
-                    {savingProfile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                    Save
-                  </Button>
-                  <Button variant="outline" className="flex-1" onClick={() => setEditingProfile(false)} disabled={savingProfile}>
-                    <X className="h-4 w-4 mr-1" /> Cancel
-                  </Button>
-                </div>
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Company</span>
+                <span className="font-medium">{customer.company_name}</span>
               </div>
-            ) : (
-              <div className="space-y-2">
+              {customer.contact_person && (
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Company</span>
-                  <span className="font-medium">{customer.company_name}</span>
+                  <span className="text-muted-foreground">Contact</span>
+                  <span className="font-medium">{customer.contact_person}</span>
                 </div>
-                {customer.contact_person && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Contact</span>
-                    <span className="font-medium">{customer.contact_person}</span>
-                  </div>
-                )}
-                {customer.email && (
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground flex items-center gap-1"><Mail className="h-3.5 w-3.5" /> Email</span>
-                    <span className="font-medium truncate">{customer.email}</span>
-                  </div>
-                )}
-                {customer.phone && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground flex items-center gap-1"><Phone className="h-3.5 w-3.5" /> Phone</span>
-                    <span className="font-medium">{customer.phone}</span>
-                  </div>
-                )}
-                {billingAddr?.street && (
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> Billing</span>
-                    <span className="font-medium text-right">{billingAddr.street}, {billingAddr.city}</span>
-                  </div>
-                )}
-                {deliveryAddr?.street && deliveryAddr.street !== billingAddr?.street && (
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> Delivery</span>
-                    <span className="font-medium text-right">{deliveryAddr.street}, {deliveryAddr.city}</span>
-                  </div>
-                )}
+              )}
+              {customer.email && (
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground flex items-center gap-1"><Mail className="h-3.5 w-3.5" /> Email</span>
+                  <span className="font-medium truncate">{customer.email}</span>
+                </div>
+              )}
+              {customer.phone && (
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Category</span>
-                  <span className="font-medium capitalize">{customer.customer_category}</span>
+                  <span className="text-muted-foreground flex items-center gap-1"><Phone className="h-3.5 w-3.5" /> Phone</span>
+                  <span className="font-medium">{customer.phone}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Payment terms</span>
-                  <span className="font-medium">{(customer as any).payment_term_days ?? 7} days</span>
+              )}
+              {billingAddr?.street && (
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> Billing</span>
+                  <span className="font-medium text-right">{billingAddr.street}, {billingAddr.city}</span>
                 </div>
+              )}
+              {deliveryAddr?.street && deliveryAddr.street !== billingAddr?.street && (
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> Delivery</span>
+                  <span className="font-medium text-right">{deliveryAddr.street}, {deliveryAddr.city}</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Category</span>
+                <span className="font-medium capitalize">{customer.customer_category}</span>
               </div>
-            )}
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Payment terms</span>
+                <span className="font-medium">{(customer as any).payment_term_days ?? 7} days</span>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-3 pt-3 border-t">
+              Something not right? Contact SPika Oil and we'll update it for you.
+            </p>
           </CardContent>
         </Card>
       )}
 
-      {/* OB Form */}
+      {/* OB Form — a declaration the customer signs themselves (not editing company data) */}
       {customer?.ob_form_required && (
         <Card className={customer.ob_form_signed ? 'border-green-200' : 'border-orange-200'}>
           <CardHeader className="pb-2">
@@ -405,7 +218,8 @@ export default function PortalAccountPage() {
         </Card>
       )}
 
-      {/* Contacts */}
+      {/* Team Members — customers may invite/remove their own portal users.
+          These sync to the central users table, so SPika admins see them in the CRM. */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">

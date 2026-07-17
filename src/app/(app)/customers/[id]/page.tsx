@@ -11,6 +11,7 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { useCustomerOrders } from '@/hooks/use-orders'
 import { useCustomerSigners } from '@/hooks/use-customer-signers'
+import { useCustomerPortalUsers } from '@/hooks/use-customer-portal-users'
 import { useCreateTask } from '@/hooks/use-tasks'
 import { useAuth } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
@@ -44,6 +45,7 @@ export default function CustomerDetailPage({
   const { data: customer, isLoading } = useCustomer(id)
   const { data: orders } = useCustomerOrders(id)
   const { data: signers } = useCustomerSigners(id)
+  const { data: portalUsers } = useCustomerPortalUsers(id)
   const updateCustomer = useUpdateCustomer()
   const { isAdmin, profile } = useAuth()
   const [editing, setEditing] = useState(false)
@@ -297,6 +299,27 @@ export default function CustomerDetailPage({
                   </div>
                 ))}
                 <p className="text-xs text-muted-foreground pt-1">Learned automatically from completed deliveries.</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {portalUsers && portalUsers.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle className="text-base">Portal team members</CardTitle></CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                {portalUsers.map((u) => (
+                  <div key={u.id} className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <span className="font-medium">{u.name ?? '—'}</span>
+                      {u.customer_role === 'owner' && <Badge className="ml-2 bg-amber-100 text-amber-700 text-xs">Owner</Badge>}
+                      {u.email && <p className="text-xs text-muted-foreground truncate">{u.email}</p>}
+                    </div>
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {u.last_seen_at ? `seen ${new Date(u.last_seen_at).toLocaleDateString('en', { day: 'numeric', month: 'short' })}` : 'never logged in'}
+                    </span>
+                  </div>
+                ))}
+                <p className="text-xs text-muted-foreground pt-1">People with portal access — including anyone the customer invited themselves.</p>
               </CardContent>
             </Card>
           )}
