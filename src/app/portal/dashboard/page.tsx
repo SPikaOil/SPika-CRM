@@ -73,22 +73,22 @@ export default function PortalDashboardPage() {
   const paymentTermDays = customer?.payment_term_days ?? 7
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       {/* Greeting */}
       <div>
-        <h1 className="text-2xl font-bold">Welcome back</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">{customer?.company_name ?? ''}</p>
+        <h1 className="text-xl font-bold">Welcome back</h1>
+        <p className="text-muted-foreground text-xs">{customer?.company_name ?? ''}</p>
       </div>
 
       {/* On the way alert */}
       {onTheWay.length > 0 && (
-        <div className="flex items-center gap-3 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-900 rounded-xl px-4 py-3">
-          <Truck className="h-5 w-5 text-orange-600 shrink-0" />
+        <div className="flex items-center gap-2.5 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-900 rounded-lg px-3 py-2">
+          <Truck className="h-4 w-4 text-orange-600 shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-orange-700 dark:text-orange-400 text-sm">
               {onTheWay.length === 1 ? 'A delivery is on its way!' : `${onTheWay.length} deliveries on their way!`}
             </p>
-            <p className="text-xs text-orange-600/80 dark:text-orange-500 mt-0.5">Make sure someone is available to receive it.</p>
+            <p className="text-xs text-orange-600/80 dark:text-orange-500">Make sure someone is available to receive it.</p>
           </div>
           <Link href="/portal/orders">
             <ChevronRight className="h-4 w-4 text-orange-600" />
@@ -98,13 +98,13 @@ export default function PortalDashboardPage() {
 
       {/* Open invoices alert */}
       {openInvoices.length > 0 && (
-        <div className="flex items-center gap-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-xl px-4 py-3">
-          <AlertCircle className="h-5 w-5 text-red-600 shrink-0" />
+        <div className="flex items-center gap-2.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-lg px-3 py-2">
+          <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-red-700 dark:text-red-400 text-sm">
               {openInvoices.length} open invoice{openInvoices.length > 1 ? 's' : ''} — XCG {openInvoiceTotal.toFixed(2)}
             </p>
-            <p className="text-xs text-red-600/80 dark:text-red-500 mt-0.5">Payment due within {paymentTermDays} days of delivery.</p>
+            <p className="text-xs text-red-600/80 dark:text-red-500">Payment due within {paymentTermDays} days of delivery.</p>
           </div>
           <Link href="/portal/invoices">
             <ChevronRight className="h-4 w-4 text-red-600" />
@@ -113,37 +113,37 @@ export default function PortalDashboardPage() {
       )}
 
       {/* Stats row */}
-      <div className="grid grid-cols-3 gap-3">
-        <Card>
-          <CardContent className="pt-4 pb-4 text-center">
-            <p className="text-2xl font-bold text-red-600">{activeOrders.length}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Open orders</p>
+      <div className="grid grid-cols-3 gap-2">
+        <Card className="py-0">
+          <CardContent className="py-2.5 text-center">
+            <p className="text-xl font-bold text-red-600">{activeOrders.length}</p>
+            <p className="text-[11px] text-muted-foreground">Open orders</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4 text-center">
-            <p className="text-2xl font-bold">{orders.length}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Total orders</p>
+        <Card className="py-0">
+          <CardContent className="py-2.5 text-center">
+            <p className="text-xl font-bold">{orders.length}</p>
+            <p className="text-[11px] text-muted-foreground">Total orders</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4 text-center">
-            <p className="text-2xl font-bold text-orange-600">{openInvoices.length}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Open invoices</p>
+        <Card className="py-0">
+          <CardContent className="py-2.5 text-center">
+            <p className="text-xl font-bold text-orange-600">{openInvoices.length}</p>
+            <p className="text-[11px] text-muted-foreground">Open invoices</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Quick actions */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-2">
         <Link href="/portal/new-order">
-          <Button className="w-full h-12 bg-red-600 hover:bg-red-700 gap-2">
+          <Button className="w-full h-10 bg-red-600 hover:bg-red-700 gap-2">
             <ShoppingBag className="h-4 w-4" />
             New Order
           </Button>
         </Link>
         <Link href="/portal/invoices">
-          <Button variant="outline" className="w-full h-12 gap-2">
+          <Button variant="outline" className="w-full h-10 gap-2">
             <FileText className="h-4 w-4" />
             My Invoices
           </Button>
@@ -152,7 +152,7 @@ export default function PortalDashboardPage() {
 
       {/* Active orders */}
       {activeOrders.length > 0 && (
-        <section className="space-y-3">
+        <section className="space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Active Orders</p>
             <Link href="/portal/orders" className="text-xs text-red-600 hover:underline">View all</Link>
@@ -163,7 +163,7 @@ export default function PortalDashboardPage() {
 
       {/* Recent orders */}
       {recentOrders.length > 0 && (
-        <section className="space-y-3">
+        <section className="space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Recent Orders</p>
             <Link href="/portal/orders" className="text-xs text-red-600 hover:underline">View all</Link>
@@ -195,24 +195,24 @@ function MiniOrderCard({ order }: { order: Order }) {
 
   return (
     <Link href={`/portal/orders/${order.id}`}>
-      <Card className="hover:border-red-300 transition-colors cursor-pointer">
-        <CardContent className="pt-3 pb-3">
+      <Card className="py-0 hover:border-red-300 transition-colors cursor-pointer">
+        <CardContent className="py-2 px-3">
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <p className="font-mono text-sm font-semibold">{order.order_number}</p>
-                <Badge className={`${status.color} flex items-center gap-1 text-xs`}>
+                <p className="font-mono text-sm font-semibold">{order.order_number || 'Request'}</p>
+                <Badge className={`${status.color} flex items-center gap-1 text-[11px] px-1.5 py-0`}>
                   <Icon className="h-3 w-3" />
                   {status.label}
                 </Badge>
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="text-xs text-muted-foreground truncate">
                 {items.map(i => `${i.qty}× ${i.name}`).join(', ')}
               </p>
             </div>
-            <div className="text-right shrink-0">
+            <div className="text-right shrink-0 flex items-center gap-1">
               <p className="font-bold text-red-600 text-sm">XCG {Number(order.total).toFixed(2)}</p>
-              <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto mt-0.5" />
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
             </div>
           </div>
         </CardContent>

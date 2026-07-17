@@ -83,43 +83,41 @@ export default function PortalCataloguePage() {
   const displayProducts = SPIKA_PRODUCTS.filter(p => ORDERABLE_SKUS.includes(p.sku) && (!activeSet || activeSet.has(p.sku)))
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <div>
-        <h1 className="text-2xl font-bold">Catalogue</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">Your personal prices are shown below.</p>
+        <h1 className="text-xl font-bold">Catalogue</h1>
+        <p className="text-muted-foreground text-xs">Your personal prices are shown below.</p>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         {displayProducts.map(product => {
           const price = getPrice(product.sku)
           const qty = quantities[product.sku] ?? 0
           const meta = PRODUCT_META[product.sku]
 
           return (
-            <Card key={product.sku}>
-              <CardContent className="pt-4 pb-4 space-y-3">
+            <Card key={product.sku} className="py-0">
+              <CardContent className="py-2.5 px-3 space-y-2">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-semibold text-sm">{product.name}</p>
                       {qty > 0 && (
-                        <Badge className="bg-red-100 text-red-700 text-xs">
+                        <Badge className="bg-red-100 text-red-700 text-[11px] px-1.5 py-0">
                           {qty} selected
                         </Badge>
                       )}
                     </div>
                     {meta && (
-                      <p className="text-xs text-muted-foreground mt-0.5">{meta.description}</p>
+                      <p className="text-[11px] text-muted-foreground leading-snug">{meta.description}</p>
                     )}
                     {meta?.packaging && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        📦 {meta.packaging}
-                      </p>
+                      <p className="text-[11px] text-muted-foreground">📦 {meta.packaging}</p>
                     )}
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="font-bold text-red-600">XCG {price.toFixed(2)}</p>
-                    <p className="text-xs text-muted-foreground">per unit</p>
+                    <p className="font-bold text-red-600 text-sm">XCG {price.toFixed(2)}</p>
+                    <p className="text-[11px] text-muted-foreground">per unit</p>
                   </div>
                 </div>
 
@@ -128,7 +126,7 @@ export default function PortalCataloguePage() {
                   <button
                     onClick={() => setQty(product.sku, qty - 1)}
                     disabled={qty === 0}
-                    className="h-9 w-9 rounded-lg border flex items-center justify-center hover:bg-accent transition-colors disabled:opacity-30"
+                    className="h-8 w-8 rounded-lg border flex items-center justify-center hover:bg-accent transition-colors disabled:opacity-30"
                   >
                     <Minus className="h-4 w-4" />
                   </button>
@@ -137,11 +135,11 @@ export default function PortalCataloguePage() {
                     min="0"
                     value={qty}
                     onChange={e => setQty(product.sku, Number(e.target.value))}
-                    className="h-9 w-16 text-center"
+                    className="h-8 w-14 text-center"
                   />
                   <button
                     onClick={() => setQty(product.sku, qty + 1)}
-                    className="h-9 w-9 rounded-lg border flex items-center justify-center hover:bg-accent transition-colors"
+                    className="h-8 w-8 rounded-lg border flex items-center justify-center hover:bg-accent transition-colors"
                   >
                     <Plus className="h-4 w-4" />
                   </button>

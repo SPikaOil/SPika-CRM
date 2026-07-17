@@ -76,10 +76,10 @@ export default function PortalInvoicesPage() {
   const paymentTermDays = customer?.payment_term_days ?? 7
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <div>
-        <h1 className="text-2xl font-bold">My Invoices</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">{orders.length} invoice{orders.length !== 1 ? 's' : ''}</p>
+        <h1 className="text-xl font-bold">My Invoices</h1>
+        <p className="text-muted-foreground text-xs">{orders.length} invoice{orders.length !== 1 ? 's' : ''}</p>
       </div>
 
       {orders.length === 0 ? (
@@ -89,7 +89,7 @@ export default function PortalInvoicesPage() {
           <p className="text-sm">Invoices appear here after your orders are delivered.</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {orders.map(order => {
             const isPaid = order.status === 'paid'
             const invoiceDateRaw = (order as any).invoice_date ?? order.planned_date
@@ -100,49 +100,49 @@ export default function PortalInvoicesPage() {
             const items = (order.items as QuoteItem[]).filter(i => i.qty > 0)
 
             return (
-              <Card key={order.id} className={isOverdue ? 'border-red-300' : ''}>
-                <CardContent className="pt-4 pb-4 space-y-3">
+              <Card key={order.id} className={`py-0 ${isOverdue ? 'border-red-300' : ''}`}>
+                <CardContent className="py-2.5 px-3 space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-mono text-sm font-semibold">{order.order_number}</p>
                         {isPaid ? (
-                          <Badge className="bg-green-100 text-green-700 flex items-center gap-1 text-xs">
+                          <Badge className="bg-green-100 text-green-700 flex items-center gap-1 text-[11px] px-1.5 py-0">
                             <CheckCircle2 className="h-3 w-3" /> Paid
                           </Badge>
                         ) : isOverdue ? (
-                          <Badge className="bg-red-100 text-red-700 flex items-center gap-1 text-xs">
+                          <Badge className="bg-red-100 text-red-700 flex items-center gap-1 text-[11px] px-1.5 py-0">
                             <Clock className="h-3 w-3" /> Overdue
                           </Badge>
                         ) : (
-                          <Badge className="bg-yellow-100 text-yellow-700 flex items-center gap-1 text-xs">
+                          <Badge className="bg-yellow-100 text-yellow-700 flex items-center gap-1 text-[11px] px-1.5 py-0">
                             <Clock className="h-3 w-3" /> Open
                           </Badge>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {new Date(order.created_at).toLocaleDateString('nl', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      <p className="text-[11px] text-muted-foreground">
+                        {new Date(order.created_at).toLocaleDateString('nl', { day: 'numeric', month: 'short', year: 'numeric' })}
                       </p>
                     </div>
                     <p className="font-bold text-red-600 text-sm shrink-0">XCG {Number(order.total).toFixed(2)}</p>
                   </div>
 
-                  <div className="space-y-1">
+                  <div className="space-y-0.5">
                     {items.map((item, i) => (
                       <div key={i} className="flex justify-between text-xs text-muted-foreground">
-                        <span>{item.qty}× {item.name}</span>
-                        <span>XCG {item.line_total.toFixed(2)}</span>
+                        <span className="truncate">{item.qty}× {item.name}</span>
+                        <span className="shrink-0">XCG {item.line_total.toFixed(2)}</span>
                       </div>
                     ))}
                   </div>
 
                   {invoiceDue && !isPaid && (
-                    <p className={`text-xs ${isOverdue ? 'text-red-600 font-medium' : 'text-muted-foreground'}`}>
-                      {isOverdue ? 'Was due' : 'Due'}: {invoiceDue.toLocaleDateString('nl', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    <p className={`text-[11px] ${isOverdue ? 'text-red-600 font-medium' : 'text-muted-foreground'}`}>
+                      {isOverdue ? 'Was due' : 'Due'}: {invoiceDue.toLocaleDateString('nl', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </p>
                   )}
 
-                  <div className="flex items-center gap-2 pt-1">
+                  <div className="flex items-center gap-2 pt-0.5">
                     <Button
                       variant="outline"
                       size="sm"
