@@ -20,11 +20,11 @@ export default function StoreLocatorPage() {
 
   useEffect(() => {
     const supabase = createClient()
-    supabase
-      .from('store_locations')
-      .select('id, name, address, lat, lng, category, link_url')
-      .eq('active', true)
-      .then(({ data }) => setPins((data as Pin[]) ?? []))
+    // Pins come from the API so inactive customers' pins are filtered out server-side
+    fetch('/api/storelocator')
+      .then(r => r.json())
+      .then(d => setPins((d.pins as Pin[]) ?? []))
+      .catch(() => setPins([]))
     supabase
       .from('app_settings')
       .select('value')

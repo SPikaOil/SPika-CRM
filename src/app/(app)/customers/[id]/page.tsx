@@ -4,7 +4,7 @@ import { use, useMemo, useState } from 'react'
 import { formatTaxId } from '@/lib/tax-id'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Edit, Building2, Package, CheckCircle2, Clock, Truck, FileSignature, AlertTriangle, Download, Upload, Info, RefreshCw, CalendarClock, Trash2 } from 'lucide-react'
+import { ArrowLeft, Edit, Building2, Package, CheckCircle2, Clock, Truck, FileSignature, AlertTriangle, Download, Upload, Info, RefreshCw, CalendarClock, Trash2, Power } from 'lucide-react'
 import { useRef } from 'react'
 import { useCustomer, useUpdateCustomer } from '@/hooks/use-customers'
 import { createClient } from '@/lib/supabase/client'
@@ -245,6 +245,16 @@ export default function CustomerDetailPage({
             >
               <Edit className="h-4 w-4" />
               Edit
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className={`gap-1.5 ${customer.status === 'inactive' ? 'border-green-200 text-green-600 hover:bg-green-50' : 'text-muted-foreground'}`}
+              disabled={updateCustomer.isPending}
+              onClick={() => updateCustomer.mutate({ id: customer.id, values: { status: customer.status === 'inactive' ? 'active' : 'inactive' } as any })}
+            >
+              <Power className="h-4 w-4" />
+              {customer.status === 'inactive' ? 'Activate' : 'Deactivate'}
             </Button>
             <Button
               variant="outline"

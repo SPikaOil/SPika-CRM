@@ -35,8 +35,15 @@ export default function PortalCataloguePage() {
 
   useEffect(() => {
     if (!profile?.customer_id) { setIsLoading(false); return }
-    supabase.from('customers').select('*').eq('id', profile.customer_id).single()
+    const load = () => supabase.from('customers').select('*').eq('id', profile.customer_id!).single()
       .then(({ data }) => { setCustomer(data as Customer); setIsLoading(false) })
+    load()
+    // Live-update if SPika admin changes this customer's products/prices
+    const channel = supabase
+      .channel('portal-catalogue')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'customers', filter: `id=eq.${profile.customer_id}` }, load)
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
   }, [profile?.customer_id])
 
   function getPrice(sku: string): number {
@@ -69,7 +76,11 @@ export default function PortalCataloguePage() {
     </div>
   )
 
-  const displayProducts = SPIKA_PRODUCTS.filter(p => ORDERABLE_SKUS.includes(p.sku))
+  // Only the products this customer is set up to order (their active_products
+  // in customer settings). Legacy customers with no list fall back to all.
+  const activeList = (customer as any)?.active_products as string[] | null | undefined
+  const activeSet = activeList && activeList.length > 0 ? new Set(activeList) : null
+  const displayProducts = SPIKA_PRODUCTS.filter(p => ORDERABLE_SKUS.includes(p.sku) && (!activeSet || activeSet.has(p.sku)))
 
   return (
     <div className="space-y-5">
