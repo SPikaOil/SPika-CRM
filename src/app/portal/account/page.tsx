@@ -109,23 +109,23 @@ export default function PortalAccountPage() {
   const deliveryAddr = customer?.delivery_address as any
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <div>
-        <h1 className="text-2xl font-bold">Account</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">Your company details, kept up to date by SPika Oil.</p>
+        <h1 className="text-xl font-bold">Account</h1>
+        <p className="text-muted-foreground text-xs">Your company details, kept up to date by SPika Oil.</p>
       </div>
 
       {/* Company info — READ ONLY. Only SPika admins can change this in the CRM. */}
       {customer && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
+        <Card className="py-0">
+          <CardHeader className="pt-3 pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
               <Building2 className="h-4 w-4" />
               Company Details
             </CardTitle>
           </CardHeader>
-          <CardContent className="pb-4 text-sm">
-            <div className="space-y-2">
+          <CardContent className="pb-3 text-sm">
+            <div className="space-y-1.5">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Company</span>
                 <span className="font-medium">{customer.company_name}</span>
@@ -169,7 +169,7 @@ export default function PortalAccountPage() {
                 <span className="font-medium">{(customer as any).payment_term_days ?? 7} days</span>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-3 pt-3 border-t">
+            <p className="text-[11px] text-muted-foreground mt-2 pt-2 border-t">
               Something not right? Contact SPika Oil and we'll update it for you.
             </p>
           </CardContent>
@@ -178,14 +178,14 @@ export default function PortalAccountPage() {
 
       {/* OB Form — a declaration the customer signs themselves (not editing company data) */}
       {customer?.ob_form_required && (
-        <Card className={customer.ob_form_signed ? 'border-green-200' : 'border-orange-200'}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
+        <Card className={`py-0 ${customer.ob_form_signed ? 'border-green-200' : 'border-orange-200'}`}>
+          <CardHeader className="pt-3 pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
               <FileSignature className="h-4 w-4" />
               OB Form (Tax Declaration)
             </CardTitle>
           </CardHeader>
-          <CardContent className="pb-4">
+          <CardContent className="pb-3">
             {customer.ob_form_signed ? (
               <div className="flex items-center gap-2 text-green-700">
                 <CheckCircle2 className="h-4 w-4 shrink-0" />
@@ -220,18 +220,18 @@ export default function PortalAccountPage() {
 
       {/* Team Members — customers may invite/remove their own portal users.
           These sync to the central users table, so SPika admins see them in the CRM. */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
+      <Card className="py-0">
+        <CardHeader className="pt-3 pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
             <Users className="h-4 w-4" />
             Team Members
           </CardTitle>
         </CardHeader>
-        <CardContent className="pb-4 space-y-3">
+        <CardContent className="pb-3 space-y-2.5">
           {contacts.map(contact => (
-            <div key={contact.id} className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center shrink-0">
-                <span className="text-sm font-semibold text-muted-foreground">
+            <div key={contact.id} className="flex items-center gap-2.5">
+              <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
+                <span className="text-xs font-semibold text-muted-foreground">
                   {contact.name?.charAt(0)?.toUpperCase() ?? '?'}
                 </span>
               </div>
@@ -239,12 +239,12 @@ export default function PortalAccountPage() {
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-medium truncate">{contact.name}</p>
                   {contact.customer_role === 'owner' && (
-                    <Badge className="bg-amber-100 text-amber-700 text-xs flex items-center gap-1">
+                    <Badge className="bg-amber-100 text-amber-700 text-[11px] px-1.5 py-0 flex items-center gap-1">
                       <Crown className="h-3 w-3" /> Owner
                     </Badge>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground truncate">{contact.email}</p>
+                <p className="text-[11px] text-muted-foreground truncate">{contact.email}</p>
               </div>
               {isOwner && contact.id !== profile?.id && contact.customer_role !== 'owner' && (
                 <Button

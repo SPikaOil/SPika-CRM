@@ -69,24 +69,24 @@ export default function PortalSupportPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <div>
-        <h1 className="text-2xl font-bold">Support</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">We're here to help.</p>
+        <h1 className="text-xl font-bold">Support</h1>
+        <p className="text-muted-foreground text-xs">We're here to help.</p>
       </div>
 
       {/* Account manager */}
       {!isLoading && accountManager && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
+        <Card className="py-0">
+          <CardHeader className="pt-3 pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
               <User className="h-4 w-4" />
               Your Account Manager
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3 pb-4">
+          <CardContent className="space-y-2 pb-3">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center">
+              <div className="h-9 w-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
                 <span className="text-red-600 font-bold text-sm">
                   {accountManager.name?.charAt(0)?.toUpperCase() ?? 'S'}
                 </span>
@@ -123,56 +123,56 @@ export default function PortalSupportPage() {
       )}
 
       {/* General contact */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">General Contact</CardTitle>
+      <Card className="py-0">
+        <CardHeader className="pt-3 pb-2">
+          <CardTitle className="text-sm">General Contact</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3 pb-4">
+        <CardContent className="space-y-2 pb-3">
           <a
             href="https://wa.me/59996896969"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-3 p-3 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900 hover:bg-green-100 transition-colors"
+            className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900 hover:bg-green-100 transition-colors"
           >
-            <MessageCircle className="h-5 w-5 text-green-600 shrink-0" />
+            <MessageCircle className="h-4 w-4 text-green-600 shrink-0" />
             <div>
               <p className="font-medium text-green-700 dark:text-green-400 text-sm">WhatsApp</p>
-              <p className="text-xs text-green-600/80">+5999 689-6969 · Fastest response</p>
+              <p className="text-[11px] text-green-600/80">+5999 689-6969 · Fastest response</p>
             </div>
           </a>
           <a
             href="mailto:hello@spikaoil.nl"
-            className="flex items-center gap-3 p-3 rounded-lg border hover:bg-accent transition-colors"
+            className="flex items-center gap-2.5 px-3 py-2 rounded-lg border hover:bg-accent transition-colors"
           >
-            <Mail className="h-5 w-5 text-red-600 shrink-0" />
+            <Mail className="h-4 w-4 text-red-600 shrink-0" />
             <div>
               <p className="font-medium text-sm">Email</p>
-              <p className="text-xs text-muted-foreground">hello@spikaoil.nl</p>
+              <p className="text-[11px] text-muted-foreground">hello@spikaoil.nl</p>
             </div>
           </a>
           <a
             href="tel:+59996896969"
-            className="flex items-center gap-3 p-3 rounded-lg border hover:bg-accent transition-colors"
+            className="flex items-center gap-2.5 px-3 py-2 rounded-lg border hover:bg-accent transition-colors"
           >
-            <Phone className="h-5 w-5 text-blue-600 shrink-0" />
+            <Phone className="h-4 w-4 text-blue-600 shrink-0" />
             <div>
               <p className="font-medium text-sm">Phone</p>
-              <p className="text-xs text-muted-foreground">+5999 689-6969</p>
+              <p className="text-[11px] text-muted-foreground">+5999 689-6969</p>
             </div>
           </a>
         </CardContent>
       </Card>
 
       {/* FAQ */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Frequently Asked Questions</CardTitle>
+      <Card className="py-0">
+        <CardHeader className="pt-3 pb-1">
+          <CardTitle className="text-sm">Frequently Asked Questions</CardTitle>
         </CardHeader>
-        <CardContent className="pb-4 divide-y">
+        <CardContent className="pb-2 divide-y">
           {FAQ.map((item, i) => (
             <div key={i}>
               <button
-                className="w-full flex items-center justify-between gap-2 py-3 text-left"
+                className="w-full flex items-center justify-between gap-2 py-2.5 text-left"
                 onClick={() => setOpenFaq(openFaq === i ? null : i)}
               >
                 <p className="text-sm font-medium">{item.q}</p>
@@ -182,7 +182,7 @@ export default function PortalSupportPage() {
                 }
               </button>
               {openFaq === i && (
-                <p className="text-sm text-muted-foreground pb-3">{item.a}</p>
+                <p className="text-sm text-muted-foreground pb-2.5">{item.a}</p>
               )}
             </div>
           ))}
