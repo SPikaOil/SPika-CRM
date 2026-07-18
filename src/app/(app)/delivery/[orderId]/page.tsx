@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   ArrowLeft,
+  Calendar,
   Camera,
   CheckCircle,
   Loader2,
@@ -130,7 +131,19 @@ export default function DeliveryPage({
     })
   }
 
+  // Items that are actually being delivered (positive qty, no returns) — each
+  // needs a THT date before the delivery may start.
+  const deliveryItems = ((order?.items as any[]) ?? []).filter(i => (i.qty ?? 0) > 0 && !String(i.sku).includes('return'))
+  const missingTht = deliveryItems.some(i => !i.tht_date)
+
+  async function updateItemTht(sku: string, tht_date: string) {
+    const newItems = ((order?.items as any[]) ?? []).map(i => i.sku === sku ? { ...i, tht_date: tht_date || undefined } : i)
+    await supabase.from('orders').update({ items: newItems }).eq('id', orderId)
+    refetch()
+  }
+
   async function handleStartDelivery(simulate = false) {
+    if (missingTht) { toast.error('Fill in the THT for every product before starting'); return }
     setGpsLoading(true)
     setGpsError('')
     try {
@@ -205,6 +218,10 @@ export default function DeliveryPage({
   }
 
   async function handleCompleteDelivery() {
+    if (missingTht) {
+      toast.error('Fill in the THT for every product before completing')
+      return
+    }
     if (!signerName.trim()) {
       toast.error('Please enter the name of the person signing')
       return
@@ -435,6 +452,25 @@ export default function DeliveryPage({
                 </div>
               )}
 
+              {/* THT check — required before the delivery may start */}
+              <div className={`rounded-lg border p-3 space-y-2 ${missingTht ? 'border-red-300 bg-red-50 dark:bg-red-950/20' : 'border-green-200 bg-green-50/50 dark:bg-green-950/20'}`}>
+                <p className={`text-sm font-semibold flex items-center gap-1.5 ${missingTht ? 'text-red-700 dark:text-red-400' : 'text-green-700 dark:text-green-400'}`}>
+                  <Calendar className="h-4 w-4" />
+                  {missingTht ? 'Fill in the THT before starting' : 'THT confirmed'}
+                </p>
+                {deliveryItems.map((item: any) => (
+                  <div key={item.sku} className="flex items-center justify-between gap-2">
+                    <span className="text-sm truncate">{item.name}</span>
+                    <Input
+                      type="date"
+                      value={item.tht_date ?? ''}
+                      onChange={e => updateItemTht(item.sku, e.target.value)}
+                      className={`h-8 w-40 text-sm px-2 shrink-0 ${!item.tht_date ? 'border-red-400' : ''}`}
+                    />
+                  </div>
+                ))}
+              </div>
+
               {gpsError && (
                 <p className="text-sm text-destructive">{gpsError}</p>
               )}
@@ -442,7 +478,7 @@ export default function DeliveryPage({
               <Button
                 className="w-full h-14 text-lg bg-red-600 hover:bg-red-700 gap-2"
                 onClick={() => handleStartDelivery(false)}
-                disabled={gpsLoading}
+                disabled={gpsLoading || missingTht}
               >
                 {gpsLoading ? (
                   <><Loader2 className="h-5 w-5 animate-spin" /> Starting...</>
@@ -455,7 +491,7 @@ export default function DeliveryPage({
                 variant="outline"
                 className="w-full gap-2"
                 onClick={() => handleStartDelivery(true)}
-                disabled={gpsLoading}
+                disabled={gpsLoading || missingTht}
               >
                 <MapPin className="h-4 w-4 text-muted-foreground" />
                 Simulate GPS &amp; Start
