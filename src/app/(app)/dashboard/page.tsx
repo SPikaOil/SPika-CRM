@@ -785,13 +785,13 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Pending orders alert */}
+      {/* Portal order requests — awaiting approval */}
       {isAdmin && pendingOrders.length > 0 && (
         <div className="rounded-xl border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/20 overflow-hidden">
           <div className="flex items-center gap-2 px-3 py-2 border-b border-orange-200 dark:border-orange-800">
             <ShoppingBag className="h-4 w-4 text-orange-600 shrink-0" />
             <p className="flex-1 text-sm font-semibold text-orange-700 dark:text-orange-400">
-              {pendingOrders.length} order{pendingOrders.length > 1 ? 's' : ''} waiting for approval
+              {pendingOrders.length} new order request{pendingOrders.length > 1 ? 's' : ''} to approve
             </p>
             <Badge className="bg-orange-600 text-white text-xs px-1.5">{pendingOrders.length}</Badge>
           </div>
@@ -800,13 +800,18 @@ export default function DashboardPage() {
               <Link
                 key={order.id}
                 href={`/orders/${order.id}`}
-                className="flex items-center justify-between px-3 py-2 hover:bg-orange-100/50 dark:hover:bg-orange-900/20 transition-colors"
+                className="flex items-center justify-between gap-3 px-3 py-2 hover:bg-orange-100/50 dark:hover:bg-orange-900/20 transition-colors"
               >
-                <div>
-                  <p className="text-sm font-medium">{(order as any).customer?.company_name}</p>
-                  <p className="text-xs text-muted-foreground font-mono">{order.order_number}</p>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">{(order as any).customer?.company_name ?? 'Unknown'}</p>
+                  <p className="text-xs text-muted-foreground">
+                    New order request · {new Date(order.created_at).toLocaleDateString('en', { day: 'numeric', month: 'short' })}
+                  </p>
                 </div>
-                <p className="text-sm font-bold text-orange-700 dark:text-orange-400">XCG {Number(order.total).toFixed(2)}</p>
+                <div className="flex items-center gap-2 shrink-0">
+                  <p className="text-sm font-bold text-orange-700 dark:text-orange-400">XCG {Number(order.total).toFixed(2)}</p>
+                  <span className="text-xs font-medium text-orange-600 whitespace-nowrap">Review →</span>
+                </div>
               </Link>
             ))}
           </div>
