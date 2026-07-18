@@ -1182,6 +1182,25 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                       <p className="font-medium text-sm">{item.name}</p>
                       {isAdmin && <p className="text-xs text-muted-foreground">{item.sku} · {fmt(item.unit_price)} × {item.qty}</p>}
                       {!isAdmin && <p className="text-xs text-muted-foreground">{item.sku} · qty: {item.qty}</p>}
+                      {/* THT per item — printed on the invoice for traceability */}
+                      {isAdmin ? (
+                        item.qty > 0 && (
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <span className={`text-xs ${item.tht_date ? 'text-muted-foreground' : 'text-red-600 font-medium'}`}>THT</span>
+                            <Input
+                              type="date"
+                              value={item.tht_date ?? ''}
+                              onChange={e => {
+                                const newItems = items.map((it, idx) => idx === i ? { ...it, tht_date: e.target.value || undefined } : it)
+                                updateOrder.mutate({ id: order.id, values: { items: newItems } as any })
+                              }}
+                              className={`h-7 w-36 text-xs px-2 ${!item.tht_date ? 'border-red-300' : ''}`}
+                            />
+                          </div>
+                        )
+                      ) : (
+                        item.tht_date && <p className="text-xs text-muted-foreground mt-0.5">THT: {new Date(item.tht_date + 'T12:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                      )}
                     </div>
                     {isAdmin && <p className="font-semibold text-sm shrink-0">{fmt(item.line_total)}</p>}
                   </div>
