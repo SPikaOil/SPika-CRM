@@ -103,7 +103,7 @@ export function StoreLocatorSettingsCard() {
         {/* Live preview */}
         <div className="space-y-1">
           <Label className="text-xs">Preview — click the map to set the default center</Label>
-          <div className="h-56 rounded-lg overflow-hidden border">
+          <div className="h-56 rounded-lg overflow-hidden border relative z-0 isolate">
             <PreviewMap settings={s} onCenterPick={(lat, lng) => set('center', { lat, lng })} />
           </div>
           <p className="text-xs text-muted-foreground">Center: {s.center.lat.toFixed(4)}, {s.center.lng.toFixed(4)}</p>

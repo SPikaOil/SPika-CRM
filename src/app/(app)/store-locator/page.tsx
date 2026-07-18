@@ -193,7 +193,9 @@ export default function StoreLocatorAdminPage() {
 
           <div className="space-y-1">
             <Label className="text-xs">Click on the map to place the pin (drag to adjust)</Label>
-            <div className="h-64 rounded-lg overflow-hidden border">
+            {/* isolate: keep Leaflet's internal z-indexes (up to 1000) inside this
+                box so the map can't bleed over the More drawer / nav overlays */}
+            <div className="h-64 rounded-lg overflow-hidden border relative z-0 isolate">
               <PinPickerMap lat={form.lat} lng={form.lng} category={form.category} settings={settings} onPick={(lat, lng) => setForm(f => ({ ...f, lat, lng }))} />
             </div>
             {form.lat != null && (
