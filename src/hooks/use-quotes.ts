@@ -75,6 +75,36 @@ export function useCreateQuote() {
   })
 }
 
+export function useDeleteQuote() {
+  const supabase = createClient()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('quotes').delete().eq('id', id)
+      if (error) throw error
+      return id
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quotes'] })
+      toast.success('Quotation deleted')
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+}
+
+// Quotes that already produced an order — these move to the archive
+export function useConvertedQuoteIds() {
+  const supabase = createClient()
+  return useQuery({
+    queryKey: ['converted-quote-ids'],
+    queryFn: async () => {
+      const { data } = await supabase.from('orders').select('quote_id').not('quote_id', 'is', null)
+      return new Set((data ?? []).map((o: any) => o.quote_id as string))
+    },
+  })
+}
+
 export function useUpdateQuote() {
   const supabase = createClient()
   const queryClient = useQueryClient()
