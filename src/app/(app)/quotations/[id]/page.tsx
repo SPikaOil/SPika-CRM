@@ -4,7 +4,7 @@ import { use, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  ArrowLeft, Download, Send, CheckCircle, XCircle, FileText, Loader2,
+  ArrowLeft, Download, Send, FileText, Loader2,
   ShoppingCart, Clock, AlertTriangle,
 } from 'lucide-react'
 import { useQuote, useUpdateQuote } from '@/hooks/use-quotes'
@@ -229,7 +229,8 @@ export default function QuotationDetailPage({
               Download PDF
             </Button>
 
-            {(quote.status === 'draft') && (
+            {/* Send / resend the quote PDF by email — available unless declined */}
+            {quote.status !== 'declined' && (
               <Button
                 size="sm"
                 className="gap-1.5 bg-blue-600 hover:bg-blue-700"
@@ -238,44 +239,40 @@ export default function QuotationDetailPage({
                 title={!customer?.email ? 'Customer has no email address' : undefined}
               >
                 {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                Send to Customer
+                {quote.status === 'draft' ? 'Send to Customer' : 'Resend to Customer'}
               </Button>
             )}
 
-            {quote.status === 'sent' && (
-              <>
-                <Button
-                  size="sm"
-                  className="gap-1.5 bg-green-600 hover:bg-green-700"
-                  onClick={() => handleStatusChange('accepted')}
-                  disabled={updateQuote.isPending}
-                >
-                  <CheckCircle className="h-4 w-4" />
-                  Mark Accepted
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5 text-red-600 border-red-300 hover:bg-red-50"
-                  onClick={() => handleStatusChange('declined')}
-                  disabled={updateQuote.isPending}
-                >
-                  <XCircle className="h-4 w-4" />
-                  Mark Declined
-                </Button>
-              </>
-            )}
-
-            {(quote.status === 'accepted' || quote.status === 'sent' || isExpired) && (
+            {/* Convert into a real order (assign worker + delivery date) */}
+            {quote.status !== 'declined' && (
               <Button
                 size="sm"
                 className="gap-1.5 bg-red-600 hover:bg-red-700"
                 onClick={() => setShowConvertDialog(true)}
               >
                 <ShoppingCart className="h-4 w-4" />
-                Convert to Delivery Note
+                Convert to Order
               </Button>
             )}
+
+            {/* Status — admin can set it manually at any time (customer agreed
+                via WhatsApp/phone, correction, reopening a declined quote) */}
+            <div className="flex items-center gap-2 w-full pt-2 border-t mt-1">
+              <span className="text-sm text-muted-foreground">Status</span>
+              <Select
+                value={quote.status}
+                onValueChange={(v) => { if (v && v !== quote.status) handleStatusChange(v as QuoteStatus) }}
+              >
+                <SelectTrigger className="h-8 w-40 text-sm capitalize"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="draft">Draft</SelectItem>
+                  <SelectItem value="sent">Sent</SelectItem>
+                  <SelectItem value="accepted">Accepted</SelectItem>
+                  <SelectItem value="declined">Declined</SelectItem>
+                </SelectContent>
+              </Select>
+              {isExpired && <span className="text-xs text-orange-600">Expired {validUntilDisplay}</span>}
+            </div>
           </CardContent>
         </Card>
       )}
