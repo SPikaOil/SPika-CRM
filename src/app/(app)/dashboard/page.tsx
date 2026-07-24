@@ -314,7 +314,7 @@ function OverdueBanner({
       {/* Collapsed header — always visible */}
       <button
         onClick={() => setExpanded(v => !v)}
-        className="w-full flex items-center gap-3 px-3 py-2 hover:bg-red-100/40 dark:hover:bg-red-900/20 transition-colors"
+        className="w-full flex items-center gap-3 px-3 py-0.5 leading-tight hover:bg-red-100/40 dark:hover:bg-red-900/20 transition-colors"
       >
         <CreditCard className="h-4 w-4 text-red-600 shrink-0" />
         <div className="flex-1 text-left">
@@ -336,7 +336,7 @@ function OverdueBanner({
       {expanded && (
         <div className="divide-y divide-red-100 dark:divide-red-900 border-t border-red-200 dark:border-red-800">
           {orders.map((order) => (
-            <div key={order.id} className="flex items-center justify-between px-3 py-2 gap-3">
+            <div key={order.id} className="flex items-center justify-between px-3 py-0.5 gap-3 leading-tight">
               <Link href={`/orders/${order.id}`} className="flex-1 min-w-0 hover:opacity-70 transition-opacity">
                 <p className="text-sm font-medium">{(order.customer as any)?.company_name}</p>
                 <p className="text-xs text-muted-foreground font-mono">{order.order_number}</p>
@@ -373,7 +373,7 @@ function RefillBanner({ rows }: { rows: RefillRow[] }) {
     <div className="rounded-xl border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/20 overflow-hidden">
       <button
         onClick={() => setExpanded(v => !v)}
-        className="w-full flex items-center gap-3 px-3 py-2 hover:bg-green-100/40 dark:hover:bg-green-900/20 transition-colors"
+        className="w-full flex items-center gap-3 px-3 py-0.5 leading-tight hover:bg-green-100/40 dark:hover:bg-green-900/20 transition-colors"
       >
         <Droplets className="h-4 w-4 text-green-600 shrink-0" />
         <div className="flex-1 text-left">
@@ -381,7 +381,13 @@ function RefillBanner({ rows }: { rows: RefillRow[] }) {
             {rows.length} bottle refill{rows.length > 1 ? 's' : ''} coming up
           </p>
           <p className="text-xs text-green-600/80 dark:text-green-500">
-            {expanded ? 'Click to collapse' : 'Click to view · Added to agenda automatically'}
+            {expanded ? 'Click to collapse' : (
+              <>
+                Click to view
+                {/* Kept off mobile so the header stays one line (40px) */}
+                <span className="hidden sm:inline"> · Added to agenda automatically</span>
+              </>
+            )}
           </p>
         </div>
         <Badge className="bg-green-600 text-white text-sm px-2 shrink-0">{rows.length}</Badge>
@@ -407,7 +413,7 @@ function RefillBanner({ rows }: { rows: RefillRow[] }) {
               <Link
                 key={row.customer_id}
                 href={`/customers/${row.customer_id}`}
-                className="flex items-center justify-between px-3 py-2 gap-3 hover:bg-green-100/40 dark:hover:bg-green-900/20 transition-colors"
+                className="flex items-center justify-between px-3 py-0.5 gap-3 leading-tight hover:bg-green-100/40 dark:hover:bg-green-900/20 transition-colors"
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium">{row.company_name}</p>
@@ -441,7 +447,7 @@ function ConsignmentBanner({ orders }: { orders: Order[] }) {
     <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 overflow-hidden">
       <button
         onClick={() => setExpanded(v => !v)}
-        className="w-full flex items-center gap-3 px-3 py-2 hover:bg-blue-100/40 dark:hover:bg-blue-900/20 transition-colors"
+        className="w-full flex items-center gap-3 px-3 py-0.5 leading-tight hover:bg-blue-100/40 dark:hover:bg-blue-900/20 transition-colors"
       >
         <Package className="h-4 w-4 text-blue-600 shrink-0" />
         <div className="flex-1 text-left">
@@ -465,7 +471,7 @@ function ConsignmentBanner({ orders }: { orders: Order[] }) {
             <Link
               key={order.id}
               href={`/orders/${order.id}`}
-              className="flex items-center justify-between px-3 py-2 gap-3 hover:bg-blue-100/40 dark:hover:bg-blue-900/20 transition-colors"
+              className="flex items-center justify-between px-3 py-0.5 gap-3 leading-tight hover:bg-blue-100/40 dark:hover:bg-blue-900/20 transition-colors"
             >
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium">{(order.customer as any)?.company_name ?? 'Unknown'}</p>
@@ -1046,7 +1052,7 @@ export default function DashboardPage() {
                 <Link
                   key={o.id}
                   href={`/orders/${o.id}`}
-                  className="flex items-center gap-2.5 px-3 py-2 hover:bg-muted/50 transition-colors"
+                  className="flex items-center gap-2.5 px-3 py-0.5 leading-tight hover:bg-muted/50 transition-colors"
                 >
                   <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   <div className="flex-1 min-w-0">
@@ -1108,7 +1114,7 @@ export default function DashboardPage() {
                   <Link
                     key={task.id}
                     href="/tasks"
-                    className="flex items-center gap-3 px-3 py-2 hover:bg-muted/50 transition-colors"
+                    className="flex items-center gap-3 px-3 py-0.5 leading-tight hover:bg-muted/50 transition-colors"
                   >
                     <ClipboardList className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     <div className="flex-1 min-w-0">
