@@ -51,6 +51,7 @@ const customerSchema = z.object({
   coc_number: z.string(),
   crib_number: z.string(),
   is_international: z.boolean(),
+  is_consignment: z.boolean(),
   status: z.enum(['active', 'inactive']),
   display_as: z.string(),
   shops_sold_at: z.string(),
@@ -281,6 +282,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
     coc_number: '',
     crib_number: '',
     is_international: false,
+    is_consignment: false,
     status: 'active',
     display_as: '',
     shops_sold_at: '',
@@ -473,6 +475,24 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              {/* Consignment — goods stay SPika's until sold. Orders are stamped
+                  consignment and kept out of the payment chase, but still count
+                  as revenue. Admin can switch this off once the customer becomes
+                  a normal paying account. */}
+              <div className="flex items-center justify-between rounded-lg border p-3 border-amber-200 bg-amber-50/50 dark:bg-amber-950/10 dark:border-amber-900">
+                <div className="pr-3">
+                  <p className="text-sm font-medium">📦 Consignment Customer</p>
+                  <p className="text-xs text-muted-foreground">Goods stay SPika's until sold — orders aren't chased for payment, but still count as revenue. Switch off when they become a normal paying customer.</p>
+                </div>
+                <label className="flex items-center cursor-pointer shrink-0">
+                  <div className="relative">
+                    <input type="checkbox" className="sr-only peer" {...register('is_consignment')} />
+                    <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-amber-600 transition-colors" />
+                    <div className="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5" />
+                  </div>
+                </label>
               </div>
             </CardContent>
           </Card>

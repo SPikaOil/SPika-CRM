@@ -114,6 +114,9 @@ export interface Customer {
   payment_term_days: number
   spika_stands: SpikaStand[]
   status: CustomerStatus
+  // Consignment customer: goods stay SPika's until the customer sells them.
+  // Their orders are stamped as consignment and skip the payment chase.
+  is_consignment: boolean
   display_as: string | null
   shops_sold_at: string | null
   storelocator: boolean
@@ -175,6 +178,9 @@ export interface Order {
   order_number: string
   payment_type: PaymentType
   order_type: OrderType
+  // Stamped from the customer at creation (DB trigger). Consignment orders are
+  // kept out of the overdue/te-betalen chase but still count as revenue.
+  is_consignment: boolean
   currency: OrderCurrency
   items: QuoteItem[]
   total: number

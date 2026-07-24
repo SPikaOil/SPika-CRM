@@ -463,6 +463,9 @@ function OrderRow({
             {(order as any).order_type === 'free_bottle_service' && (
               <Badge className="text-xs bg-emerald-100 text-emerald-700">🎁 Free Bottles</Badge>
             )}
+            {(order as any).is_consignment && (
+              <Badge className="text-xs bg-amber-100 text-amber-700">📦 Consignment</Badge>
+            )}
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
             {order.assigned_user?.name ?? '—'} · {new Date(order.created_at).toLocaleDateString()}

@@ -409,6 +409,9 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
             {(order as any).payment_type === 'cash' && (
               <Badge className="text-xs bg-green-100 text-green-700">Cash</Badge>
             )}
+            {(order as any).is_consignment && (
+              <Badge className="text-xs bg-amber-100 text-amber-700">📦 Consignment</Badge>
+            )}
           </div>
           <p className="text-muted-foreground text-sm">{order.customer?.company_name}</p>
         </div>

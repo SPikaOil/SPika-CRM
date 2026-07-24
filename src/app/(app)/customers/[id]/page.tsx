@@ -232,6 +232,9 @@ export default function CustomerDetailPage({
             {customer.status === 'inactive' && (
               <Badge variant="outline" className="text-muted-foreground text-[10px] px-1.5 py-0">Inactive</Badge>
             )}
+            {(customer as any).is_consignment && (
+              <Badge className="bg-amber-100 text-amber-700 text-[10px] px-1.5 py-0">📦 Consignment</Badge>
+            )}
           </div>
           {customer.contact_person && (
             <p className="text-muted-foreground text-xs truncate">{customer.contact_person}</p>

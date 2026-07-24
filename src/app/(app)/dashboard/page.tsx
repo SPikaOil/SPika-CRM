@@ -427,6 +427,62 @@ function RefillBanner({ rows }: { rows: RefillRow[] }) {
   )
 }
 
+// ── Consignment orders collapsible banner ──────────────────────────────────
+// Same pattern as OverdueBanner/RefillBanner. Lists consignment orders that are
+// still out (not yet settled). Clicking a row opens the order, where the admin
+// marks it paid once the customer has sold + settled — then it drops off here.
+function ConsignmentBanner({ orders }: { orders: Order[] }) {
+  const [expanded, setExpanded] = useState(false)
+  if (orders.length === 0) return null
+
+  const totalValue = orders.reduce((s, o) => s + Number((o as any).total ?? 0), 0)
+
+  return (
+    <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 overflow-hidden">
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="w-full flex items-center gap-3 px-3 py-2 hover:bg-blue-100/40 dark:hover:bg-blue-900/20 transition-colors"
+      >
+        <Package className="h-4 w-4 text-blue-600 shrink-0" />
+        <div className="flex-1 text-left">
+          <p className="font-semibold text-blue-700 dark:text-blue-400">
+            {orders.length} consignment order{orders.length > 1 ? 's' : ''} out
+          </p>
+          <p className="text-xs text-blue-600/80 dark:text-blue-500">
+            {expanded ? 'Click to collapse' : `XCG ${totalValue.toFixed(2)} awaiting settlement`}
+          </p>
+        </div>
+        <Badge className="bg-blue-600 text-white text-sm px-2 shrink-0">{orders.length}</Badge>
+        {expanded
+          ? <ChevronUp className="h-4 w-4 text-blue-500 shrink-0" />
+          : <ChevronDown className="h-4 w-4 text-blue-500 shrink-0" />
+        }
+      </button>
+
+      {expanded && (
+        <div className="divide-y divide-blue-100 dark:divide-blue-900 border-t border-blue-200 dark:border-blue-800">
+          {orders.map((order) => (
+            <Link
+              key={order.id}
+              href={`/orders/${order.id}`}
+              className="flex items-center justify-between px-3 py-2 gap-3 hover:bg-blue-100/40 dark:hover:bg-blue-900/20 transition-colors"
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">{(order.customer as any)?.company_name ?? 'Unknown'}</p>
+                <p className="text-xs text-muted-foreground font-mono">{order.order_number}</p>
+                <p className="text-xs text-blue-600 mt-0.5 capitalize">
+                  {order.status?.replace(/_/g, ' ')} · {new Date(order.created_at).toLocaleDateString('en', { day: 'numeric', month: 'short' })}
+                </p>
+              </div>
+              <p className="text-sm font-bold text-blue-700 dark:text-blue-400 shrink-0">XCG {Number((order as any).total).toFixed(2)}</p>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────
 function currentMonthStr() {
   const d = new Date()
@@ -453,6 +509,7 @@ export default function DashboardPage() {
   const [toProcess, setToProcess] = useState<any[]>([])
   const [refillRows, setRefillRows] = useState<RefillRow[]>([])
   const [weekTasks, setWeekTasks] = useState<Task[]>([])
+  const [consignmentOrders, setConsignmentOrders] = useState<Order[]>([])
 
   async function loadPendingOrders() {
     const { data } = await supabase
@@ -475,6 +532,10 @@ export default function DashboardPage() {
 
     const overdue: OverdueOrder[] = ((data ?? []) as Order[])
       .filter((o) => (o as any).payment_type !== 'cash')
+      // Consignment orders aren't chased for payment — the customer only pays
+      // once they've sold the goods, settled manually by admin. They still count
+      // as revenue elsewhere; here they're just kept out of the overdue chase.
+      .filter((o) => !(o as any).is_consignment)
       .map((o) => {
         const termDays = (o.customer as any)?.payment_term_days ?? 7
         const due = new Date(o.created_at)
@@ -525,6 +586,20 @@ export default function DashboardPage() {
 
     setByWorker(byWorker)
     return { bottles: total, revenue }
+  }
+
+  // Consignment orders that are still out (delivered/awaiting settlement).
+  // They're deliberately kept out of the overdue chase, so this banner is the
+  // one place they surface — the admin settles them (marks paid) once the
+  // customer has sold the goods. Drops off automatically at status 'paid'.
+  async function loadConsignmentOrders() {
+    const { data } = await supabase
+      .from('orders')
+      .select('*, customer:customers(company_name)')
+      .eq('is_consignment', true)
+      .in('status', ['processing', 'out_for_delivery', 'delivered', 'invoice_ready', 'invoice_blocked'])
+      .order('created_at', { ascending: true })
+    setConsignmentOrders((data ?? []) as Order[])
   }
 
   async function loadAccessRequests() {
@@ -681,7 +756,7 @@ export default function DashboardPage() {
   }
 
   async function loadStats() {
-    await Promise.all([loadPendingOrders(), loadOverdueOrders(), loadAccessRequests(), loadClientOverview(), loadRefillData(), loadWeekTasks()])
+    await Promise.all([loadPendingOrders(), loadOverdueOrders(), loadAccessRequests(), loadClientOverview(), loadRefillData(), loadWeekTasks(), loadConsignmentOrders()])
     const [kpisRes, monthData] = await Promise.all([
       supabase
         .from('v_dashboard_kpis')
@@ -836,6 +911,9 @@ export default function DashboardPage() {
 
       {/* Upcoming bottle refills */}
       {isAdmin && <RefillBanner rows={refillRows} />}
+
+      {/* Consignment orders out — awaiting settlement */}
+      {isAdmin && <ConsignmentBanner orders={consignmentOrders} />}
 
       {/* Email template modal */}
       {templateOrder && (
