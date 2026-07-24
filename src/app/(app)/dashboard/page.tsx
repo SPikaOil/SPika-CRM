@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertCircle, CheckCircle, Clock, ShoppingBag, Truck, CreditCard, Copy, Check, X, Mail, ChevronDown, ChevronUp, Package, Pencil, UserPlus, Building2, ArrowRight, Droplets, ClipboardList, CalendarDays } from 'lucide-react'
+import { AlertCircle, CheckCircle, Clock, ShoppingBag, Truck, CreditCard, Copy, Check, X, Mail, ChevronDown, ChevronUp, Package, Pencil, UserPlus, Building2, ArrowRight, Droplets, ClipboardList, CalendarDays, PhoneCall } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
@@ -13,6 +13,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { useUsers } from '@/hooks/use-users'
 import { Order, Task } from '@/types'
 import { DEFAULT_TEMPLATES, TEMPLATE_LABELS, fillTemplate, type ReminderTemplate, type TemplateKey } from '@/lib/reminder-templates'
+import { computeOrderRhythm, assessQuiet } from '@/lib/order-rhythm'
 
 interface Stats {
   orders_out_for_delivery: number
@@ -36,6 +37,13 @@ interface RefillRow {
   company_name: string
   next_refill: Date
   daysUntil: number // negative = overdue
+}
+
+interface QuietRow {
+  customer_id: string
+  company_name: string
+  daysSinceLast: number
+  reason: string
 }
 
 function StatCard({
@@ -489,6 +497,57 @@ function ConsignmentBanner({ orders }: { orders: Order[] }) {
   )
 }
 
+// ── Quiet customers collapsible banner ─────────────────────────────────────
+// Customers overdue to reorder relative to their own rhythm (or 6 weeks silent
+// when they have too little history). This is the "call these people today"
+// list — the reorder-driver the whole rhythm feature is for.
+function QuietCustomersBanner({ rows }: { rows: QuietRow[] }) {
+  const [expanded, setExpanded] = useState(false)
+  if (rows.length === 0) return null
+
+  return (
+    <div className="rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/20 overflow-hidden">
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="w-full flex items-center gap-3 px-3 py-1 leading-tight hover:bg-violet-100/40 dark:hover:bg-violet-900/20 transition-colors"
+      >
+        <PhoneCall className="h-4 w-4 text-violet-600 shrink-0" />
+        <div className="flex-1 text-left">
+          <p className="font-semibold text-violet-700 dark:text-violet-400">
+            {rows.length} customer{rows.length > 1 ? 's' : ''} due to reorder
+          </p>
+          <p className="text-xs text-violet-600/80 dark:text-violet-500">
+            {expanded ? 'Click to collapse' : 'Gone quiet — nudge them to order'}
+          </p>
+        </div>
+        <Badge className="bg-violet-600 text-white text-sm px-2 shrink-0">{rows.length}</Badge>
+        {expanded
+          ? <ChevronUp className="h-4 w-4 text-violet-500 shrink-0" />
+          : <ChevronDown className="h-4 w-4 text-violet-500 shrink-0" />
+        }
+      </button>
+
+      {expanded && (
+        <div className="divide-y divide-violet-100 dark:divide-violet-900 border-t border-violet-200 dark:border-violet-800">
+          {rows.map((row) => (
+            <Link
+              key={row.customer_id}
+              href={`/customers/${row.customer_id}`}
+              className="flex items-center justify-between px-3 py-1 gap-3 leading-tight hover:bg-violet-100/40 dark:hover:bg-violet-900/20 transition-colors"
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">{row.company_name}</p>
+                <p className="text-xs text-muted-foreground">{row.reason}</p>
+              </div>
+              <span className="text-sm font-bold text-violet-700 dark:text-violet-400 shrink-0">{row.daysSinceLast}d</span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────
 function currentMonthStr() {
   const d = new Date()
@@ -516,6 +575,7 @@ export default function DashboardPage() {
   const [refillRows, setRefillRows] = useState<RefillRow[]>([])
   const [weekTasks, setWeekTasks] = useState<Task[]>([])
   const [consignmentOrders, setConsignmentOrders] = useState<Order[]>([])
+  const [quietCustomers, setQuietCustomers] = useState<QuietRow[]>([])
 
   async function loadPendingOrders() {
     const { data } = await supabase
@@ -606,6 +666,41 @@ export default function DashboardPage() {
       .in('status', ['processing', 'out_for_delivery', 'delivered', 'invoice_ready', 'invoice_blocked'])
       .order('created_at', { ascending: true })
     setConsignmentOrders((data ?? []) as Order[])
+  }
+
+  // Customers who have gone quiet relative to their own buying rhythm — the
+  // "call these people" list. Uses the shared order-rhythm logic so it matches
+  // the per-customer card exactly. Purely derived, no schema.
+  async function loadQuietCustomers() {
+    const { data } = await supabase
+      .from('orders')
+      .select('customer_id, created_at, invoice_date, status, customer:customers(company_name, status), delivery:deliveries(delivered_at)')
+
+    const byCustomer = new Map<string, { name: string; active: boolean; orders: any[] }>()
+    for (const o of (data ?? []) as any[]) {
+      if (!o.customer_id) continue
+      const cust = Array.isArray(o.customer) ? o.customer[0] : o.customer
+      if (!byCustomer.has(o.customer_id)) {
+        byCustomer.set(o.customer_id, {
+          name: cust?.company_name ?? 'Unknown',
+          active: cust?.status !== 'inactive',
+          orders: [],
+        })
+      }
+      byCustomer.get(o.customer_id)!.orders.push(o)
+    }
+
+    const rows: QuietRow[] = []
+    for (const [customer_id, c] of byCustomer) {
+      if (!c.active) continue
+      const rhythm = computeOrderRhythm(c.orders)
+      const q = assessQuiet(rhythm)
+      if (q.quiet && q.daysSinceLast != null) {
+        rows.push({ customer_id, company_name: c.name, daysSinceLast: q.daysSinceLast, reason: q.reason })
+      }
+    }
+    rows.sort((a, b) => b.daysSinceLast - a.daysSinceLast)
+    setQuietCustomers(rows)
   }
 
   async function loadAccessRequests() {
@@ -762,7 +857,7 @@ export default function DashboardPage() {
   }
 
   async function loadStats() {
-    await Promise.all([loadPendingOrders(), loadOverdueOrders(), loadAccessRequests(), loadClientOverview(), loadRefillData(), loadWeekTasks(), loadConsignmentOrders()])
+    await Promise.all([loadPendingOrders(), loadOverdueOrders(), loadAccessRequests(), loadClientOverview(), loadRefillData(), loadWeekTasks(), loadConsignmentOrders(), loadQuietCustomers()])
     const [kpisRes, monthData] = await Promise.all([
       supabase
         .from('v_dashboard_kpis')
@@ -920,6 +1015,9 @@ export default function DashboardPage() {
 
       {/* Consignment orders out — awaiting settlement */}
       {isAdmin && <ConsignmentBanner orders={consignmentOrders} />}
+
+      {/* Customers who have gone quiet — call them to reorder */}
+      {isAdmin && <QuietCustomersBanner rows={quietCustomers} />}
 
       {/* Email template modal */}
       {templateOrder && (

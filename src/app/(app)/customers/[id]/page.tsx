@@ -25,6 +25,106 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CustomerForm } from '../_components/customer-form'
 import { Customer, SPIKA_STAND_TYPES } from '@/types'
+import { computeOrderRhythm, type OrderRhythm } from '@/lib/order-rhythm'
+
+// ── Order rhythm card ──────────────────────────────────────────────────────
+// Shows when the customer last ordered, their cadence (only when the data
+// actually supports one), and a small timeline of order moments. Honest by
+// design: says "too little data" rather than inventing a precise average.
+function OrderRhythmCard({ rhythm }: { rhythm: OrderRhythm }) {
+  if (rhythm.orderMoments === 0) return null
+
+  const flagStyle = {
+    on_track: { pill: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300', seg: 'bg-green-400', label: 'On track' },
+    due_soon: { pill: 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300', seg: 'bg-amber-400', label: 'Due soon' },
+    overdue:  { pill: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300',        seg: 'bg-red-400',  label: 'Overdue' },
+  } as const
+  const fl = rhythm.flag ? flagStyle[rhythm.flag] : null
+
+  const fmt = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })
+  const daysAgo = rhythm.daysSinceLast === 0 ? 'today' : `${rhythm.daysSinceLast}d ago`
+
+  // Timeline domain: first order → today
+  const startMs = new Date(rhythm.firstOrderDate! + 'T00:00:00').getTime()
+  const todayMs = new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00').getTime()
+  const span = Math.max(1, todayMs - startMs)
+  const pct = (day: string) => ((new Date(day + 'T00:00:00').getTime() - startMs) / span) * 100
+  const lastPct = rhythm.lastOrderDate ? pct(rhythm.lastOrderDate) : 100
+
+  return (
+    <Card className="py-0">
+      <CardHeader className="pt-3 pb-2">
+        <CardTitle className="text-sm flex items-center gap-2">
+          <CalendarClock className="h-4 w-4 text-muted-foreground" /> Order rhythm
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 pb-4">
+        {/* Headline numbers */}
+        <div className="flex items-end justify-between gap-3 flex-wrap">
+          <div>
+            <p className="text-2xl font-bold leading-none">{daysAgo === 'today' ? 'Today' : `${rhythm.daysSinceLast}d`}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">since last order · {fmt(rhythm.lastOrderDate!)}</p>
+          </div>
+          <div className="text-right">
+            {rhythm.state === 'tracked' && rhythm.medianInterval != null && (
+              <p className="text-sm font-medium">usually every ~{Math.round(rhythm.medianInterval)}d</p>
+            )}
+            {rhythm.state === 'indicative' && rhythm.medianInterval != null && (
+              <p className="text-sm font-medium">≈ {Math.round(rhythm.medianInterval)}d apart <span className="text-xs text-muted-foreground font-normal">(few orders)</span></p>
+            )}
+            {rhythm.state === 'single' && (
+              <p className="text-sm text-muted-foreground">one order — no rhythm yet</p>
+            )}
+            <p className="text-xs text-muted-foreground">{rhythm.orderMoments} order moment{rhythm.orderMoments !== 1 ? 's' : ''}</p>
+          </div>
+        </div>
+
+        {/* Status pill — only when a cadence exists to compare against */}
+        {fl && (
+          <div className="flex items-center gap-2">
+            <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${fl.pill}`}>{fl.label}</span>
+            {rhythm.flag === 'overdue' && rhythm.medianInterval != null && (
+              <span className="text-xs text-muted-foreground">
+                {Math.max(0, Math.round(rhythm.daysSinceLast! - rhythm.medianInterval))}d past the usual gap
+              </span>
+            )}
+            {!rhythm.reliable && (
+              <span className="text-[10px] text-muted-foreground">· indicative</span>
+            )}
+          </div>
+        )}
+
+        {/* Timeline: dots per order moment, coloured gap to today */}
+        <div className="pt-1">
+          <div className="relative h-6">
+            {/* base line */}
+            <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-0.5 bg-muted rounded-full" />
+            {/* gap from last order to now */}
+            <div
+              className={`absolute top-1/2 -translate-y-1/2 h-0.5 rounded-full ${fl ? fl.seg : 'bg-muted-foreground/40'}`}
+              style={{ left: `${lastPct}%`, right: 0 }}
+            />
+            {/* order dots */}
+            {rhythm.orderDays.map((d) => (
+              <div
+                key={d}
+                title={fmt(d)}
+                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 h-2.5 w-2.5 rounded-full bg-foreground border-2 border-background"
+                style={{ left: `${pct(d)}%` }}
+              />
+            ))}
+            {/* today marker */}
+            <div className="absolute top-0 bottom-0 right-0 w-px bg-muted-foreground/50" title="Today" />
+          </div>
+          <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+            <span>{fmt(rhythm.firstOrderDate!)}</span>
+            <span>today</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
 
 const categoryColors: Record<string, string> = {
   wholesale:   'bg-blue-100 text-blue-700',
@@ -54,6 +154,7 @@ export default function CustomerDetailPage({
   const [bottleInterval, setBottleInterval] = useState<string>('')
   const [signerToRemove, setSignerToRemove] = useState<string | null>(null)
   const hideSigner = useHideCustomerSigner()
+  const orderRhythm = useMemo(() => computeOrderRhythm((orders ?? []) as any), [orders])
   const restoreSigner = useRestoreCustomerSigner()
   const { data: hiddenSigners } = useHiddenSigners(id)
   const router = useRouter()
@@ -193,7 +294,7 @@ export default function CustomerDetailPage({
 
   if (editing) {
     return (
-      <div className="p-4 lg:p-6 max-w-2xl mx-auto space-y-4 overflow-x-hidden">
+      <div className="p-4 lg:p-6 max-w-3xl mx-auto w-full space-y-4 overflow-x-hidden">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => setEditing(false)}>
             <ArrowLeft className="h-5 w-5" />
@@ -213,7 +314,7 @@ export default function CustomerDetailPage({
   const deliveryAddr = customer.delivery_address as any
 
   return (
-    <div className="p-3 lg:p-6 space-y-3 max-w-3xl mx-auto">
+    <div className="p-3 lg:p-6 space-y-3 max-w-5xl mx-auto w-full">
       {/* Header — action labels collapse to icons on mobile so nothing overflows */}
       <div className="flex items-start gap-2 min-w-0">
         <Button
@@ -683,7 +784,8 @@ export default function CustomerDetailPage({
             </div>
           ) : (
             <>
-              <div className="flex justify-between items-center">
+              <OrderRhythmCard rhythm={orderRhythm} />
+              <div className="flex justify-between items-center pt-1">
                 <p className="text-sm text-muted-foreground">{orders.length} order{orders.length !== 1 ? 's' : ''} total</p>
                 <Link href={`/quotes/new?customer=${id}`}>
                   <Button size="sm" className="bg-red-600 hover:bg-red-700">+ New</Button>
@@ -707,7 +809,7 @@ export default function CustomerDetailPage({
 
                 return (
                   <Link key={order.id} href={`/orders/${order.id}`}>
-                    <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg border bg-card hover:bg-accent transition-colors">
+                    <div className="flex items-center gap-2.5 px-3 py-1 leading-tight rounded-lg border bg-card hover:bg-accent transition-colors">
                       <div className="shrink-0">{statusIcon}</div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
