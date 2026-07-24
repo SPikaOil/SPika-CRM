@@ -60,6 +60,7 @@ export function PriceInput({ value, onChange, placeholder, className, disabled }
       placeholder={placeholder ?? '0.00'}
       onChange={handleChange}
       onBlur={handleBlur}
+      onFocus={(e) => e.target.select()}
       disabled={disabled}
       className={cn('text-right', className)}
     />

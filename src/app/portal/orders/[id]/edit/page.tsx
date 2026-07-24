@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { SPIKA_PRODUCTS } from '@/lib/products'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { QtyInput } from '@/components/ui/qty-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -207,11 +208,9 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
                       onClick={() => setQuantities(q => ({ ...q, [product.sku]: Math.max(0, (q[product.sku] ?? 0) - 1) }))}
                       className="h-8 w-8 rounded-lg border flex items-center justify-center text-lg font-bold hover:bg-accent transition-colors"
                     >−</button>
-                    <Input
-                      type="number"
-                      min="0"
+                    <QtyInput
                       value={qty}
-                      onChange={e => setQuantities(q => ({ ...q, [product.sku]: Math.max(0, Number(e.target.value)) }))}
+                      onChange={v => setQuantities(q => ({ ...q, [product.sku]: Math.max(0, v) }))}
                       className="h-8 w-16 text-center"
                     />
                     <button

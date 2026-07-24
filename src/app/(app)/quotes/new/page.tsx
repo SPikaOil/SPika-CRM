@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PriceInput } from '@/components/ui/price-input'
+import { QtyInput } from '@/components/ui/qty-input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -61,6 +62,7 @@ function NewDeliveryNoteInner() {
   const [assignedTo, setAssignedTo] = useState('')
   const [plannedDate, setPlannedDate] = useState('')
   const [orderNumber, setOrderNumber] = useState('')
+  const [poNumber, setPoNumber] = useState('')
   const [orderType, setOrderType] = useState<'normal' | 'free_bottle_service'>('normal')
   const [items, setItems] = useState<QuoteItem[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -172,6 +174,7 @@ function NewDeliveryNoteInner() {
         delivery_notes: '',
         order_number: finalOrderNumber,
         order_type: orderType,
+        po_number: poNumber.trim() || null,
       } as any)
       toast.success('Delivery note created and assigned!')
       router.push(`/orders/${order.id}`)
@@ -272,6 +275,16 @@ function NewDeliveryNoteInner() {
             </div>
 
             <div className="space-y-1.5">
+              <Label>PO Number <span className="text-muted-foreground text-xs font-normal">(optional — customer's purchase order reference)</span></Label>
+              <Input
+                value={poNumber}
+                onChange={(e) => setPoNumber(e.target.value)}
+                placeholder="e.g. PO-12345"
+                className="font-mono"
+              />
+            </div>
+
+            <div className="space-y-1.5">
               <Label>Assign to Worker *</Label>
               <Select value={assignedTo} onValueChange={(v) => v && setAssignedTo(v)}>
                 <SelectTrigger>
@@ -330,11 +343,9 @@ function NewDeliveryNoteInner() {
                   <div className="grid grid-cols-3 gap-2">
                     <div className="space-y-1">
                       <Label className="text-xs">Qty</Label>
-                      <Input
-                        type="number"
-                        min="0"
+                      <QtyInput
                         value={item.qty}
-                        onChange={(e) => updateQty(i, Number(e.target.value))}
+                        onChange={(v) => updateQty(i, v)}
                         className="h-8"
                       />
                     </div>

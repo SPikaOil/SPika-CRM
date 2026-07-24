@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PriceInput } from '@/components/ui/price-input'
+import { QtyInput } from '@/components/ui/qty-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -267,11 +268,9 @@ function NewQuotationInner() {
                   <div className="grid grid-cols-3 gap-2">
                     <div className="space-y-1">
                       <Label className="text-xs">Qty</Label>
-                      <Input
-                        type="number"
-                        min="0"
+                      <QtyInput
                         value={item.qty}
-                        onChange={(e) => updateQty(i, Number(e.target.value))}
+                        onChange={(v) => updateQty(i, v)}
                         className="h-8"
                       />
                     </div>
