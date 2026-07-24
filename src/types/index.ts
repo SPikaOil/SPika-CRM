@@ -117,6 +117,9 @@ export interface Customer {
   // Consignment customer: goods stay SPika's until the customer sells them.
   // Their orders are stamped as consignment and skip the payment chase.
   is_consignment: boolean
+  // Signer names an admin removed from the delivery-signer suggestions.
+  // Past deliveries keep their signer_name — this only hides the suggestion.
+  hidden_signers: string[]
   display_as: string | null
   shops_sold_at: string | null
   storelocator: boolean

@@ -10,16 +10,18 @@ import {
   CheckCircle,
   Loader2,
   MapPin,
+  Info,
   PenLine,
   Trash2,
   Upload,
   Wifi,
   WifiOff,
+  X,
 } from 'lucide-react'
 import SignaturePad from 'signature_pad'
 import { toast } from 'sonner'
 import { useOrder } from '@/hooks/use-orders'
-import { useCustomerSigners } from '@/hooks/use-customer-signers'
+import { useCustomerSigners, useHideCustomerSigner } from '@/hooks/use-customer-signers'
 import { createClient } from '@/lib/supabase/client'
 import { queuePodUpload, processQueue } from '@/lib/offline-queue'
 import { Button } from '@/components/ui/button'
@@ -46,6 +48,8 @@ export default function DeliveryPage({
   const { isAdmin } = useAuth()
   const router = useRouter()
   const supabase = createClient()
+  const hideSigner = useHideCustomerSigner()
+  const [signerToRemove, setSignerToRemove] = useState<string | null>(null)
 
   const [step, setStep] = useState<Step>('start')
   const [resumedFromOutForDelivery, setResumedFromOutForDelivery] = useState(false)
@@ -518,6 +522,18 @@ export default function DeliveryPage({
                     {s.last && (
                       <span className="text-muted-foreground">· {new Date(s.last).toLocaleDateString('en', { day: 'numeric', month: 'short' })}</span>
                     )}
+                    {/* Admin only — drop this person from the customer's signer list */}
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        title={`Remove ${s.name}`}
+                        aria-label={`Remove ${s.name}`}
+                        onClick={() => setSignerToRemove(s.name)}
+                        className="ml-0.5 text-muted-foreground hover:text-destructive transition-colors"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
                   </span>
                 ))}
               </div>
@@ -618,20 +634,39 @@ export default function DeliveryPage({
                   <Label>Who is signing? <span className="text-red-500">*</span></Label>
                   {knownSigners && knownSigners.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 pb-1">
-                      {knownSigners.slice(0, 6).map((s) => (
-                        <button
-                          key={s.name}
-                          type="button"
-                          onClick={() => setSignerName(s.name)}
-                          className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
-                            signerName.trim().toLowerCase() === s.name.toLowerCase()
-                              ? 'bg-red-600 text-white border-red-600'
-                              : 'bg-background hover:bg-muted border-input'
-                          }`}
-                        >
-                          {s.name}
-                        </button>
-                      ))}
+                      {knownSigners.slice(0, 6).map((s) => {
+                        const selected = signerName.trim().toLowerCase() === s.name.toLowerCase()
+                        return (
+                          <span
+                            key={s.name}
+                            className={`inline-flex items-center rounded-full text-xs border transition-colors ${
+                              selected ? 'bg-red-600 text-white border-red-600' : 'bg-background border-input'
+                            }`}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => setSignerName(s.name)}
+                              className={`px-2.5 py-1 rounded-full ${selected ? '' : 'hover:bg-muted'}`}
+                            >
+                              {s.name}
+                            </button>
+                            {/* Admin only — drop this person from the customer's signer list */}
+                            {isAdmin && (
+                              <button
+                                type="button"
+                                title={`Remove ${s.name}`}
+                                aria-label={`Remove ${s.name}`}
+                                onClick={() => setSignerToRemove(s.name)}
+                                className={`pl-0.5 pr-2 ${
+                                  selected ? 'text-white/80 hover:text-white' : 'text-muted-foreground hover:text-destructive'
+                                }`}
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            )}
+                          </span>
+                        )
+                      })}
                     </div>
                   )}
                   <Input
@@ -739,6 +774,54 @@ export default function DeliveryPage({
               </Link>
             </CardContent>
           </Card>
+        )}
+
+        {/* Remove signer confirmation — admin only */}
+        {signerToRemove && (
+          <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+            <Card className="w-full max-w-md">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <PenLine className="h-5 w-5 text-muted-foreground" />
+                  Remove {signerToRemove}?
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  {signerToRemove} will no longer be suggested as a signer for this customer.
+                </p>
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-muted">
+                  <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                  <p className="text-sm text-muted-foreground">
+                    Past deliveries are <span className="font-medium">not</span> changed — they keep their
+                    signature and signer name as proof of delivery.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1" onClick={() => setSignerToRemove(null)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    className="flex-1 bg-red-600 hover:bg-red-700"
+                    disabled={hideSigner.isPending}
+                    onClick={async () => {
+                      const customerId = (order as any)?.customer_id
+                      if (customerId) {
+                        await hideSigner.mutateAsync({ customerId, name: signerToRemove })
+                        // Clear the field if the removed person was selected
+                        if (signerName.trim().toLowerCase() === signerToRemove.trim().toLowerCase()) {
+                          setSignerName('')
+                        }
+                      }
+                      setSignerToRemove(null)
+                    }}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         )}
       </div>
     </div>

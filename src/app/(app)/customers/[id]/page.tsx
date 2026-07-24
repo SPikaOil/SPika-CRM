@@ -4,13 +4,13 @@ import { use, useMemo, useState } from 'react'
 import { formatTaxId } from '@/lib/tax-id'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Edit, Building2, Package, CheckCircle2, Clock, Truck, FileSignature, AlertTriangle, Download, Upload, Info, RefreshCw, CalendarClock, Trash2, Power } from 'lucide-react'
+import { ArrowLeft, Edit, Building2, Package, CheckCircle2, Clock, Truck, FileSignature, AlertTriangle, Download, Upload, Info, RefreshCw, CalendarClock, Trash2, Power, X } from 'lucide-react'
 import { useRef } from 'react'
 import { useCustomer, useUpdateCustomer } from '@/hooks/use-customers'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { useCustomerOrders } from '@/hooks/use-orders'
-import { useCustomerSigners } from '@/hooks/use-customer-signers'
+import { useCustomerSigners, useHideCustomerSigner } from '@/hooks/use-customer-signers'
 import { useCustomerPortalUsers } from '@/hooks/use-customer-portal-users'
 import { useCreateTask } from '@/hooks/use-tasks'
 import { useAuth } from '@/contexts/auth-context'
@@ -52,6 +52,8 @@ export default function CustomerDetailPage({
   const [isUploading, setIsUploading] = useState(false)
   const [isOpeningOB, setIsOpeningOB] = useState(false)
   const [bottleInterval, setBottleInterval] = useState<string>('')
+  const [signerToRemove, setSignerToRemove] = useState<string | null>(null)
+  const hideSigner = useHideCustomerSigner()
   const router = useRouter()
   const supabase = createClient()
   const obFileRef = useRef<HTMLInputElement>(null)
@@ -310,12 +312,29 @@ export default function CustomerDetailPage({
                 {signers.map((s) => (
                   <div key={s.name} className="flex items-center justify-between gap-3">
                     <span className="font-medium">{s.name}</span>
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      {s.count}× signed{s.last ? ` · last ${new Date(s.last).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
-                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs text-muted-foreground">
+                        {s.count}× signed{s.last ? ` · last ${new Date(s.last).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
+                      </span>
+                      {/* Admin only — removes the name from this list, past deliveries stay intact */}
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          title={`Remove ${s.name} from this list`}
+                          aria-label={`Remove ${s.name} from this list`}
+                          onClick={() => setSignerToRemove(s.name)}
+                          className="text-muted-foreground hover:text-destructive transition-colors"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
-                <p className="text-xs text-muted-foreground pt-1">Learned automatically from completed deliveries.</p>
+                <p className="text-xs text-muted-foreground pt-1">
+                  Learned automatically from completed deliveries.
+                  {isAdmin && ' Remove someone with the ✕ — past deliveries keep their signature.'}
+                </p>
               </CardContent>
             </Card>
           )}
@@ -682,6 +701,48 @@ export default function CustomerDetailPage({
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Remove signer confirmation — admin only */}
+      {signerToRemove && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <FileSignature className="h-5 w-5 text-muted-foreground" />
+                Remove {signerToRemove}?
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                {signerToRemove} will no longer be suggested as a signer for{' '}
+                <span className="font-medium">{customer.company_name}</span>, here and during delivery.
+              </p>
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-muted">
+                <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                <p className="text-sm text-muted-foreground">
+                  Past deliveries are <span className="font-medium">not</span> changed — they keep their
+                  signature and signer name as proof of delivery.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => setSignerToRemove(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-red-600 hover:bg-red-700"
+                  disabled={hideSigner.isPending}
+                  onClick={async () => {
+                    await hideSigner.mutateAsync({ customerId: id, name: signerToRemove })
+                    setSignerToRemove(null)
+                  }}
+                >
+                  Remove
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Delete confirmation modal */}
       {showDeleteModal && (
