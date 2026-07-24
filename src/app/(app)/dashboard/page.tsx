@@ -450,7 +450,7 @@ export default function DashboardPage() {
   const [workerBottles, setWorkerBottles] = useState<WorkerBottles[]>([])
   const [byWorker, setByWorker] = useState<Record<string, number>>({})
   const [pendingAccessRequests, setPendingAccessRequests] = useState(0)
-  const [clientRows, setClientRows] = useState<ClientRow[]>([])
+  const [toProcess, setToProcess] = useState<any[]>([])
   const [refillRows, setRefillRows] = useState<RefillRow[]>([])
   const [weekTasks, setWeekTasks] = useState<Task[]>([])
 
@@ -535,33 +535,18 @@ export default function DashboardPage() {
     setPendingAccessRequests(count ?? 0)
   }
 
+  // Orders that still need work: created and assigned, but not yet delivered.
+  // Deliberately excludes pending_approval (own banner) and the invoice/payment
+  // stages (covered by the overdue-payments banner) so nothing is shown twice.
   async function loadClientOverview() {
     const { data } = await supabase
       .from('orders')
-      .select('customer_id, created_at, status, customer:customers(company_name)')
-      .order('created_at', { ascending: false })
-      .limit(500)
+      .select('id, order_number, status, planned_date, total, customer:customers(company_name)')
+      .in('status', ['processing', 'out_for_delivery'])
+      .order('planned_date', { ascending: true, nullsFirst: false })
+      .limit(20)
 
-    if (!data) return
-
-    const map = new Map<string, ClientRow>()
-    for (const o of data) {
-      const cid = o.customer_id
-      if (!cid) continue
-      const name = (o.customer as any)?.company_name ?? 'Unknown'
-      if (!map.has(cid)) {
-        map.set(cid, { customer_id: cid, company_name: name, last_order_at: o.created_at, open_count: 0 })
-      }
-      if (OPEN_STATUSES.includes(o.status)) {
-        map.get(cid)!.open_count++
-      }
-    }
-
-    const rows = Array.from(map.values())
-      .sort((a, b) => new Date(b.last_order_at).getTime() - new Date(a.last_order_at).getTime())
-      .slice(0, 8)
-
-    setClientRows(rows)
+    setToProcess((data ?? []) as any[])
   }
 
   async function loadRefillData() {
@@ -955,46 +940,50 @@ export default function DashboardPage() {
         </>
       )}
 
-      {/* Client Overview — admin only */}
+      {/* Client Overview — orders still to be processed (admin only) */}
       {isAdmin && (
       <section>
         <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Client Overview</p>
-          <Link href="/customers" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
-            All clients <ArrowRight className="h-3 w-3" />
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Client Overview · to process</p>
+          <Link href="/orders" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
+            All orders <ArrowRight className="h-3 w-3" />
           </Link>
         </div>
         <Card className="py-0">
           <CardContent className="p-0 divide-y">
-            {isLoading && [0,1,2,3].map(i => (
+            {isLoading && [0,1,2].map(i => (
               <div key={i} className="flex items-center gap-3 px-3 py-2">
                 <Skeleton className="h-4 w-28" />
                 <Skeleton className="h-4 w-20 ml-auto" />
               </div>
             ))}
-            {!isLoading && clientRows.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-6">No orders yet</p>
+            {!isLoading && toProcess.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-5">Nothing waiting — all orders are processed</p>
             )}
-            {!isLoading && clientRows.map(row => {
-              const lastOrder = new Date(row.last_order_at)
-              const today = new Date()
-              const daysDiff = Math.floor((today.getTime() - lastOrder.getTime()) / 86400000)
-              const lastLabel = daysDiff === 0 ? 'Today' : daysDiff === 1 ? 'Yesterday' : `${daysDiff}d ago`
-
+            {!isLoading && toProcess.map(o => {
+              const planned = o.planned_date ? new Date(o.planned_date + 'T12:00:00') : null
+              const today = new Date(); today.setHours(0, 0, 0, 0)
+              const isLate = planned ? planned < today : false
               return (
                 <Link
-                  key={row.customer_id}
-                  href={`/customers/${row.customer_id}`}
-                  className="flex items-center gap-3 px-3 py-2 hover:bg-muted/50 transition-colors group"
+                  key={o.id}
+                  href={`/orders/${o.id}`}
+                  className="flex items-center gap-2.5 px-3 py-2 hover:bg-muted/50 transition-colors"
                 >
                   <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  <p className="text-sm font-medium flex-1 truncate">{row.company_name}</p>
-                  {row.open_count > 0 && (
-                    <Badge className="bg-orange-500 text-white text-xs px-1.5 py-0 shrink-0">
-                      {row.open_count} open
-                    </Badge>
-                  )}
-                  <p className="text-xs text-muted-foreground shrink-0">{lastLabel}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{o.customer?.company_name ?? 'Unknown'}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {o.order_number || 'Order'}
+                      {planned && ` · ${planned.toLocaleDateString('en', { day: 'numeric', month: 'short' })}`}
+                      {!planned && ' · no date'}
+                    </p>
+                  </div>
+                  {o.status === 'out_for_delivery'
+                    ? <Badge className="bg-blue-600 text-white text-[10px] px-1.5 py-0 shrink-0">On the way</Badge>
+                    : isLate
+                      ? <Badge className="bg-red-100 text-red-700 text-[10px] px-1.5 py-0 shrink-0">Late</Badge>
+                      : <Badge className="bg-orange-500 text-white text-[10px] px-1.5 py-0 shrink-0">To do</Badge>}
                 </Link>
               )
             })}

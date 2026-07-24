@@ -209,57 +209,61 @@ export default function CustomerDetailPage({
   const deliveryAddr = customer.delivery_address as any
 
   return (
-    <div className="p-4 lg:p-6 space-y-4 max-w-3xl mx-auto">
-      {/* Header */}
-      <div className="flex items-start gap-3">
+    <div className="p-3 lg:p-6 space-y-3 max-w-3xl mx-auto">
+      {/* Header — action labels collapse to icons on mobile so nothing overflows */}
+      <div className="flex items-start gap-2 min-w-0">
         <Button
           variant="ghost"
           size="icon"
           onClick={() => router.back()}
-          className="mt-0.5"
+          className="shrink-0 h-8 w-8"
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-2xl font-bold">{customer.company_name}</h1>
+            <h1 className="text-xl font-bold truncate">{customer.company_name}</h1>
             {(customer as any).customer_number && (
-              <span className="font-mono text-sm text-muted-foreground">{(customer as any).customer_number}</span>
+              <span className="font-mono text-xs text-muted-foreground">{(customer as any).customer_number}</span>
             )}
-            <Badge className={`capitalize ${categoryColors[customer.customer_category]}`}>
+            <Badge className={`capitalize text-[10px] px-1.5 py-0 ${categoryColors[customer.customer_category]}`}>
               {customer.customer_category}
             </Badge>
             {customer.status === 'inactive' && (
-              <Badge variant="outline" className="text-muted-foreground">Inactive</Badge>
+              <Badge variant="outline" className="text-muted-foreground text-[10px] px-1.5 py-0">Inactive</Badge>
             )}
           </div>
-          <p className="text-muted-foreground text-sm mt-0.5">{customer.contact_person}</p>
+          {customer.contact_person && (
+            <p className="text-muted-foreground text-xs truncate">{customer.contact_person}</p>
+          )}
         </div>
         {isAdmin && (
-          <div className="flex gap-2">
+          <div className="flex gap-1.5 shrink-0">
             <Button
               variant="outline"
               size="sm"
-              className="gap-1.5"
+              className="gap-1.5 h-8 px-2"
               onClick={() => setEditing(true)}
             >
               <Edit className="h-4 w-4" />
-              Edit
+              <span className="hidden sm:inline">Edit</span>
             </Button>
             <Button
               variant="outline"
               size="sm"
-              className={`gap-1.5 ${customer.status === 'inactive' ? 'border-green-200 text-green-600 hover:bg-green-50' : 'text-muted-foreground'}`}
+              className={`gap-1.5 h-8 px-2 ${customer.status === 'inactive' ? 'border-green-200 text-green-600 hover:bg-green-50' : 'text-muted-foreground'}`}
               disabled={updateCustomer.isPending}
+              title={customer.status === 'inactive' ? 'Activate customer' : 'Deactivate customer'}
               onClick={() => updateCustomer.mutate({ id: customer.id, values: { status: customer.status === 'inactive' ? 'active' : 'inactive' } as any })}
             >
               <Power className="h-4 w-4" />
-              {customer.status === 'inactive' ? 'Activate' : 'Deactivate'}
+              <span className="hidden sm:inline">{customer.status === 'inactive' ? 'Activate' : 'Deactivate'}</span>
             </Button>
             <Button
               variant="outline"
               size="sm"
-              className="gap-1.5 border-red-200 text-red-500 hover:bg-red-50"
+              className="h-8 px-2 border-red-200 text-red-500 hover:bg-red-50"
+              title="Delete customer"
               onClick={() => { setDeletePassword(''); setShowDeleteModal(true) }}
             >
               <Trash2 className="h-4 w-4" />
@@ -276,10 +280,10 @@ export default function CustomerDetailPage({
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="details" className="space-y-4">
-          <Card>
-            <CardHeader><CardTitle className="text-base">Contact</CardTitle></CardHeader>
-            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+        <TabsContent value="details" className="space-y-2.5 mt-3">
+          <Card className="py-0">
+            <CardHeader className="pt-3 pb-2"><CardTitle className="text-sm">Contact</CardTitle></CardHeader>
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 pb-3">
               {customer.phone && <Row label="Phone" value={customer.phone} />}
               {customer.whatsapp && <Row label="WhatsApp" value={customer.whatsapp} />}
               {customer.email && <Row label="Email" value={customer.email} />}
@@ -297,8 +301,8 @@ export default function CustomerDetailPage({
           </Card>
 
           {signers && signers.length > 0 && (
-            <Card>
-              <CardHeader><CardTitle className="text-base">Contact people who sign</CardTitle></CardHeader>
+            <Card className="py-0">
+              <CardHeader className="pt-3 pb-2"><CardTitle className="text-sm">Contact people who sign</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
                 {signers.map((s) => (
                   <div key={s.name} className="flex items-center justify-between gap-3">
@@ -314,8 +318,8 @@ export default function CustomerDetailPage({
           )}
 
           {portalUsers && portalUsers.length > 0 && (
-            <Card>
-              <CardHeader><CardTitle className="text-base">Portal team members</CardTitle></CardHeader>
+            <Card className="py-0">
+              <CardHeader className="pt-3 pb-2"><CardTitle className="text-sm">Portal team members</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
                 {portalUsers.map((u) => (
                   <div key={u.id} className="flex items-center justify-between gap-3">
@@ -334,9 +338,9 @@ export default function CustomerDetailPage({
             </Card>
           )}
 
-          <Card>
-            <CardHeader><CardTitle className="text-base">Delivery</CardTitle></CardHeader>
-            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+          <Card className="py-0">
+            <CardHeader className="pt-3 pb-2"><CardTitle className="text-sm">Delivery</CardTitle></CardHeader>
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 pb-3">
               {customer.delivery_time_window && (
                 <Row label="Time Window" value={customer.delivery_time_window} />
               )}
@@ -380,7 +384,7 @@ export default function CustomerDetailPage({
           {customer.track_table_bottles && isAdmin && (
             <Card className={daysUntilRefresh !== null && daysUntilRefresh <= 7 ? 'border-orange-300' : ''}>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
+                <CardTitle className="text-sm flex items-center gap-2">
                   <RefreshCw className="h-4 w-4 text-blue-500" />
                   Table Bottle Refresh Schedule
                   {daysUntilRefresh !== null && (
@@ -397,7 +401,7 @@ export default function CustomerDetailPage({
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 pb-3">
                   {(customer as any).table_count != null && (
                     <div className="sm:col-span-2">
                       <p className="text-muted-foreground mb-1">Tables at Customer</p>
@@ -492,7 +496,7 @@ export default function CustomerDetailPage({
           {customer.ob_form_required && (
             <Card className={customer.ob_form_signed ? 'border-green-200' : 'border-red-300 bg-red-50 dark:bg-red-950/20'}>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
+                <CardTitle className="text-sm flex items-center gap-2">
                   <FileSignature className={`h-4 w-4 ${customer.ob_form_signed ? 'text-green-600' : 'text-red-600'}`} />
                   OB Declaratie Formulier 2026
                   {customer.ob_form_signed
@@ -550,9 +554,9 @@ export default function CustomerDetailPage({
           )}
 
           {(billingAddr?.street || deliveryAddr?.street) && (
-            <Card>
-              <CardHeader><CardTitle className="text-base">Addresses</CardTitle></CardHeader>
-              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+            <Card className="py-0">
+              <CardHeader className="pt-3 pb-2"><CardTitle className="text-sm">Addresses</CardTitle></CardHeader>
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 pb-3">
                 {billingAddr?.street && (
                   <div>
                     <p className="font-medium text-muted-foreground mb-1">Billing</p>
@@ -575,9 +579,9 @@ export default function CustomerDetailPage({
 
           {/* Business / Tax Details */}
           {(customer.vat_number || customer.crib_number || customer.coc_number || customer.is_international) && (
-            <Card>
-              <CardHeader><CardTitle className="text-base">Business Details</CardTitle></CardHeader>
-              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+            <Card className="py-0">
+              <CardHeader className="pt-3 pb-2"><CardTitle className="text-sm">Business Details</CardTitle></CardHeader>
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 pb-3">
                 {(() => {
                   const taxId = formatTaxId(
                     billingAddr?.country ?? '',
@@ -598,9 +602,9 @@ export default function CustomerDetailPage({
           )}
 
           {(customer.internal_notes || customer.quickbooks_customer_id) && (
-            <Card>
-              <CardHeader><CardTitle className="text-base">Internal</CardTitle></CardHeader>
-              <CardContent className="space-y-3 text-sm">
+            <Card className="py-0">
+              <CardHeader className="pt-3 pb-2"><CardTitle className="text-sm">Internal</CardTitle></CardHeader>
+              <CardContent className="space-y-1 pb-3">
                 {customer.quickbooks_customer_id && (
                   <Row label="QuickBooks ID" value={customer.quickbooks_customer_id} />
                 )}
@@ -615,7 +619,7 @@ export default function CustomerDetailPage({
           )}
         </TabsContent>
 
-        <TabsContent value="orders" className="space-y-3 mt-3">
+        <TabsContent value="orders" className="space-y-1.5 mt-3">
           {!orders || orders.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
               <Package className="h-10 w-10 opacity-20" />
@@ -651,30 +655,22 @@ export default function CustomerDetailPage({
 
                 return (
                   <Link key={order.id} href={`/orders/${order.id}`}>
-                    <div className="flex items-start gap-3 p-4 rounded-xl border bg-card hover:bg-accent transition-colors">
-                      <div className="mt-0.5">{statusIcon}</div>
+                    <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg border bg-card hover:bg-accent transition-colors">
+                      <div className="shrink-0">{statusIcon}</div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <p className="font-medium text-sm">{order.order_number || 'Order'}</p>
-                          <Badge variant="secondary" className={`text-xs capitalize ${statusColor}`}>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-sm truncate">{order.order_number || 'Order'}</p>
+                          <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 capitalize shrink-0 ${statusColor}`}>
                             {order.status?.replace(/_/g, ' ')}
                           </Badge>
                         </div>
-                        {activeItems.length > 0 && (
-                          <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                            {activeItems.map(i => `${i.qty}× ${i.name}`).join(', ')}
-                          </p>
-                        )}
-                        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                          {order.planned_date && (
-                            <span>{new Date(order.planned_date).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                          )}
-                          {(order as any).assigned_user?.name && (
-                            <span>→ {(order as any).assigned_user.name}</span>
-                          )}
-                          <span className="ml-auto font-medium text-foreground">XCG {Number(order.total ?? 0).toFixed(2)}</span>
-                        </div>
+                        <p className="text-[11px] text-muted-foreground truncate">
+                          {order.planned_date && new Date(order.planned_date).toLocaleDateString('en', { day: 'numeric', month: 'short' })}
+                          {(order as any).assigned_user?.name && ` · ${(order as any).assigned_user.name}`}
+                          {activeItems.length > 0 && ` · ${activeItems.map(i => `${i.qty}× ${i.name.replace('SPika Oil - ', '').replace('SPika2Go - ', '')}`).join(', ')}`}
+                        </p>
                       </div>
+                      <span className="text-sm font-medium shrink-0">XCG {Number(order.total ?? 0).toFixed(2)}</span>
                     </div>
                   </Link>
                 )
@@ -750,10 +746,16 @@ function Row({
   value: string
   className?: string
 }) {
+  // One line per field (label left, value right) — keeps the cards thin on mobile
   return (
-    <div className={className}>
-      <p className="text-muted-foreground">{label}</p>
-      <p className="font-medium capitalize">{value}</p>
+    <div className={`flex items-baseline justify-between gap-3 ${className ?? ''}`}>
+      <span className="text-[11px] text-muted-foreground shrink-0">{label}</span>
+      <span
+        title={value}
+        className={`text-sm font-medium text-right truncate ${value?.includes('@') ? '' : 'capitalize'}`}
+      >
+        {value}
+      </span>
     </div>
   )
 }
