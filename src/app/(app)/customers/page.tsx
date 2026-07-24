@@ -341,7 +341,7 @@ export default function CustomersPage() {
             <Link
               key={customer.id}
               href={`/customers/${customer.id}`}
-              className="flex items-center gap-3 px-3 py-2 rounded-xl border bg-card hover:bg-accent transition-colors"
+              className="flex items-center gap-3 px-3 py-1 leading-tight rounded-xl border bg-card hover:bg-accent transition-colors"
             >
               <div className="flex-shrink-0 h-8 w-8 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center">
                 <span className="text-red-700 dark:text-red-300 font-semibold text-sm">

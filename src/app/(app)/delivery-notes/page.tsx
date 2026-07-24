@@ -206,7 +206,7 @@ function DeliveryNoteRow({
   return (
     <Link
       href={`/delivery-notes/${order.id}`}
-      className={`block px-3 py-2 rounded-xl border bg-card hover:bg-accent transition-colors ${
+      className={`block px-3 py-1 leading-tight rounded-xl border bg-card hover:bg-accent transition-colors ${
         dimmed ? 'opacity-60' : ''
       }`}
     >

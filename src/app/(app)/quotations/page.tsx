@@ -108,7 +108,7 @@ function QuotationsPageInner() {
   }
 
   return (
-    <div className="p-3 lg:p-6 space-y-3 max-w-3xl mx-auto">
+    <div className="p-3 lg:p-6 space-y-3 max-w-7xl mx-auto w-full">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">Quotations</h1>
         <Link href="/quotations/new">

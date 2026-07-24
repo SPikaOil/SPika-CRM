@@ -239,7 +239,7 @@ export default function TasksPage() {
           {pending.map((task) => (
             <div
               key={task.id}
-              className="flex items-start gap-3 p-4 rounded-xl border bg-card"
+              className="flex items-start gap-3 px-3 py-1.5 leading-tight rounded-xl border bg-card"
             >
               <button
                 onClick={() => completeTask.mutate({ id: task.id, completed: true, task })}
@@ -295,7 +295,7 @@ export default function TasksPage() {
             {completed.map((task) => (
               <div
                 key={task.id}
-                className="flex items-start gap-3 p-4 rounded-xl border bg-card opacity-60"
+                className="flex items-start gap-3 px-3 py-1.5 leading-tight rounded-xl border bg-card opacity-60"
               >
                 <button
                   onClick={() => completeTask.mutate({ id: task.id, completed: false })}

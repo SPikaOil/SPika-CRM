@@ -227,7 +227,7 @@ export default function TeamPage() {
   const formerUsers = users.filter(u => u.is_active === false)
 
   return (
-    <div className="p-4 lg:p-6 max-w-2xl mx-auto space-y-4">
+    <div className="p-4 lg:p-6 max-w-7xl mx-auto w-full space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">

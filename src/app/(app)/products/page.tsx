@@ -445,7 +445,7 @@ export default function ProductsPage() {
   const [tab, setTab] = useState<'products' | 'categories'>('products')
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-4">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto w-full space-y-4">
       <div className="flex items-center gap-3">
         <Package className="h-6 w-6 text-red-600" />
         <div>

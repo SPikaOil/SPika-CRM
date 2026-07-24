@@ -162,7 +162,7 @@ export default function SalesDocumentsPage() {
   }
 
   return (
-    <div className="p-4 lg:p-6 space-y-4 max-w-3xl mx-auto">
+    <div className="p-4 lg:p-6 space-y-4 max-w-7xl mx-auto w-full">
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
