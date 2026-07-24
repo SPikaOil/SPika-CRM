@@ -50,6 +50,23 @@ export function useCustomerSigners(customerId?: string | null) {
   })
 }
 
+// The names an admin removed for this customer, so they can be restored.
+export function useHiddenSigners(customerId?: string | null) {
+  const supabase = createClient()
+  return useQuery({
+    queryKey: ['hidden-signers', customerId],
+    enabled: !!customerId,
+    queryFn: async (): Promise<string[]> => {
+      const { data } = await supabase
+        .from('customers')
+        .select('hidden_signers')
+        .eq('id', customerId!)
+        .single()
+      return (((data as any)?.hidden_signers ?? []) as string[])
+    },
+  })
+}
+
 // Admin-only: drop a person from the signer suggestions for this customer.
 // Adds the name to customers.hidden_signers — past deliveries keep their
 // signer_name and signature, so delivery history stays provable.
@@ -77,8 +94,45 @@ export function useHideCustomerSigner() {
     },
     onSuccess: (_data, { customerId }) => {
       queryClient.invalidateQueries({ queryKey: ['customer-signers', customerId] })
+      queryClient.invalidateQueries({ queryKey: ['hidden-signers', customerId] })
       queryClient.invalidateQueries({ queryKey: ['customers', customerId] })
       toast.success('Signer removed from this customer')
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+}
+
+// Admin-only: put a removed person back in the signer suggestions. They
+// reappear with their real delivery count, since the list is rebuilt from the
+// delivery records that were never touched.
+export function useRestoreCustomerSigner() {
+  const supabase = createClient()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ customerId, name }: { customerId: string; name: string }) => {
+      const { data: customer, error: readError } = await supabase
+        .from('customers')
+        .select('hidden_signers')
+        .eq('id', customerId)
+        .single()
+      if (readError) throw readError
+
+      const current = (((customer as any)?.hidden_signers ?? []) as string[])
+      const next = current.filter(n => norm(n) !== norm(name))
+      if (next.length === current.length) return
+
+      const { error } = await supabase
+        .from('customers')
+        .update({ hidden_signers: next })
+        .eq('id', customerId)
+      if (error) throw error
+    },
+    onSuccess: (_data, { customerId }) => {
+      queryClient.invalidateQueries({ queryKey: ['customer-signers', customerId] })
+      queryClient.invalidateQueries({ queryKey: ['hidden-signers', customerId] })
+      queryClient.invalidateQueries({ queryKey: ['customers', customerId] })
+      toast.success('Signer restored')
     },
     onError: (err: Error) => toast.error(err.message),
   })

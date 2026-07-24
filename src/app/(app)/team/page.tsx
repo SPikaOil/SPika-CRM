@@ -27,7 +27,7 @@ const roleConfig: Record<string, { label: string; color: string; icon: React.Ele
 }
 
 export default function TeamPage() {
-  const { isAdmin, profile } = useAuth()
+  const { isAdmin, isLoading: authLoading, profile } = useAuth()
   const router = useRouter()
   const supabase = createClient()
 
@@ -97,9 +97,12 @@ export default function TeamPage() {
   }
 
   useEffect(() => {
+    // Wait for the role to resolve — isAdmin is false while the profile loads,
+    // which otherwise bounces admins straight back to the dashboard.
+    if (authLoading) return
     if (!isAdmin) { router.replace('/dashboard'); return }
     loadUsers()
-  }, [isAdmin])
+  }, [isAdmin, authLoading])
 
   async function loadUsers() {
     const res = await fetch('/api/admin/users')

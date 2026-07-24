@@ -4,13 +4,13 @@ import { use, useMemo, useState } from 'react'
 import { formatTaxId } from '@/lib/tax-id'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Edit, Building2, Package, CheckCircle2, Clock, Truck, FileSignature, AlertTriangle, Download, Upload, Info, RefreshCw, CalendarClock, Trash2, Power, X } from 'lucide-react'
+import { ArrowLeft, Edit, Building2, Package, CheckCircle2, Clock, Truck, FileSignature, AlertTriangle, Download, Upload, Info, RefreshCw, CalendarClock, Trash2, Power, X, RotateCcw } from 'lucide-react'
 import { useRef } from 'react'
 import { useCustomer, useUpdateCustomer } from '@/hooks/use-customers'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { useCustomerOrders } from '@/hooks/use-orders'
-import { useCustomerSigners, useHideCustomerSigner } from '@/hooks/use-customer-signers'
+import { useCustomerSigners, useHideCustomerSigner, useHiddenSigners, useRestoreCustomerSigner } from '@/hooks/use-customer-signers'
 import { useCustomerPortalUsers } from '@/hooks/use-customer-portal-users'
 import { useCreateTask } from '@/hooks/use-tasks'
 import { useAuth } from '@/contexts/auth-context'
@@ -54,6 +54,8 @@ export default function CustomerDetailPage({
   const [bottleInterval, setBottleInterval] = useState<string>('')
   const [signerToRemove, setSignerToRemove] = useState<string | null>(null)
   const hideSigner = useHideCustomerSigner()
+  const restoreSigner = useRestoreCustomerSigner()
+  const { data: hiddenSigners } = useHiddenSigners(id)
   const router = useRouter()
   const supabase = createClient()
   const obFileRef = useRef<HTMLInputElement>(null)
@@ -305,11 +307,13 @@ export default function CustomerDetailPage({
             </CardContent>
           </Card>
 
-          {signers && signers.length > 0 && (
+          {/* Also render when the only entries left are removed ones, so an
+              admin can always get back to the restore list */}
+          {((signers && signers.length > 0) || (isAdmin && hiddenSigners && hiddenSigners.length > 0)) && (
             <Card className="py-0">
               <CardHeader className="pt-3 pb-2"><CardTitle className="text-sm">Contact people who sign</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
-                {signers.map((s) => (
+                {(signers ?? []).map((s) => (
                   <div key={s.name} className="flex items-center justify-between gap-3">
                     <span className="font-medium">{s.name}</span>
                     <div className="flex items-center gap-2 shrink-0">
@@ -331,10 +335,36 @@ export default function CustomerDetailPage({
                     </div>
                   </div>
                 ))}
+                {signers && signers.length === 0 && (
+                  <p className="text-xs text-muted-foreground">Everyone has been removed from this list.</p>
+                )}
                 <p className="text-xs text-muted-foreground pt-1">
                   Learned automatically from completed deliveries.
                   {isAdmin && ' Remove someone with the ✕ — past deliveries keep their signature.'}
                 </p>
+
+                {/* Removed people — admin only, so they can be put back */}
+                {isAdmin && hiddenSigners && hiddenSigners.length > 0 && (
+                  <div className="pt-2 border-t space-y-1.5">
+                    <p className="text-xs font-medium text-muted-foreground">Removed</p>
+                    {hiddenSigners.map((name) => (
+                      <div key={name} className="flex items-center justify-between gap-3">
+                        <span className="text-muted-foreground line-through">{name}</span>
+                        <button
+                          type="button"
+                          title={`Restore ${name}`}
+                          aria-label={`Restore ${name}`}
+                          disabled={restoreSigner.isPending}
+                          onClick={() => restoreSigner.mutate({ customerId: id, name })}
+                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          Restore
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
