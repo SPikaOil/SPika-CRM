@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
-  sendEmail, ADMIN_EMAIL,
-  emailOrderPlaced, emailOrderConfirmed, emailOutForDelivery,
+  sendEmail, ADMIN_EMAIL, FROM,
+  emailOrderPlaced, emailOrderReceived, emailOrderConfirmed, emailOutForDelivery,
   emailOrderDelivered, emailInvoiceReady, emailOBFormSigned,
   emailNewCustomer, emailTaskAssigned, emailQuoteSent, emailTaskCompleted,
   emailHandoverReceipt,
@@ -22,12 +22,22 @@ export async function POST(req: NextRequest) {
     switch (type) {
       // ── Admin: new order placed via portal ─────────────────────
       case 'order_placed': {
-        const { customerName, total, items } = payload
+        const { customerName, customerEmail, billingEmails, total, items } = payload
         await sendEmail({
           to: ADMIN_EMAIL,
           subject: `New order request — ${customerName}`,
           html: emailOrderPlaced({ customerName, total, items }),
         })
+        // Acknowledge to the customer as well, so they are not left guessing
+        // until an admin gets round to approving.
+        const placedRecipients = [customerEmail, ...(billingEmails ?? [])].filter(Boolean)
+        if (placedRecipients.length > 0) {
+          await sendEmail({
+            to: placedRecipients,
+            subject: 'We received your order',
+            html: emailOrderReceived({ customerName, total, items }),
+          })
+        }
         break
       }
 
@@ -182,4 +192,21 @@ export async function POST(req: NextRequest) {
     console.error('[notify]', err)
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
+}
+
+// GET /api/notify — health check. Answers "is email actually configured?"
+// without sending anything, so the Emails screen can warn instead of leaving
+// you to discover months later that nothing ever went out.
+export async function GET() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const configured = Boolean(process.env.SMTP_USER && process.env.SMTP_PASS)
+  return NextResponse.json({
+    configured,
+    host: process.env.SMTP_HOST ?? 'smtp.strato.nl',
+    from: FROM,
+    adminEmail: ADMIN_EMAIL,
+  })
 }

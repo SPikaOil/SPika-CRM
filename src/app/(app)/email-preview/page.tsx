@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Mail, Smartphone, Monitor, User, Building2, AlertTriangle } from 'lucide-react'
+import { Mail, Smartphone, Monitor, User, Building2, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
 import * as T from '@/lib/email-templates'
@@ -25,7 +25,7 @@ interface Preview {
 const PREVIEWS: Preview[] = [
   {
     key: 'access_request', name: 'New access request', subject: 'New access request from Restaurant Zeezicht',
-    audience: 'admin', when: 'A company submits the request form on the portal', branded: false,
+    audience: 'admin', when: 'A company submits the request form on the portal', branded: true,
     html: T.emailAccessRequestAdmin({
       companyName: 'Restaurant Zeezicht', name: 'Maria Willems', email: 'maria@zeezicht.cw',
       phone: '+5999 555 0142', country: 'Curaçao', message: 'We would like to stock SPika at both locations.', appUrl: APP,
@@ -33,7 +33,7 @@ const PREVIEWS: Preview[] = [
   },
   {
     key: 'account_approved', name: 'Account approved', subject: 'Your SPika B2B account is ready!',
-    audience: 'customer', when: 'You approve their request', branded: false,
+    audience: 'customer', when: 'You approve their request', branded: true,
     html: T.emailAccountApproved({ name: 'Maria Willems', companyName: 'Restaurant Zeezicht', appUrl: APP }),
   },
   {
@@ -45,6 +45,11 @@ const PREVIEWS: Preview[] = [
     key: 'order_placed', name: 'Order placed', subject: 'New order placed',
     audience: 'admin', when: 'A customer places an order in the portal', branded: true,
     html: T.emailOrderPlaced({ customerName: 'Restaurant Zeezicht', total: 'XCG 652.10', items: '15× SPika Oil 100ml, 35× SPika Oil 50ml' }),
+  },
+  {
+    key: 'order_received', name: 'Order received (customer)', subject: 'We received your order',
+    audience: 'customer', when: 'Immediately when they place an order — their receipt', branded: true,
+    html: T.emailOrderReceived({ customerName: 'Restaurant Zeezicht', total: 'XCG 652.10', items: '15× SPika Oil 100ml, 35× SPika Oil 50ml' }),
   },
   {
     key: 'order_confirmed', name: 'Order confirmed', subject: 'Your order #729132 is confirmed!',
@@ -121,13 +126,19 @@ const AUDIENCE = {
 export default function EmailPreviewPage() {
   const { isAdmin, isLoading: authLoading } = useAuth()
   const router = useRouter()
-  const [active, setActive] = useState(PREVIEWS[4].key)   // order confirmed
+  const [active, setActive] = useState('order_confirmed')
   const [wide, setWide] = useState(true)
   const [filter, setFilter] = useState<'all' | Audience>('all')
+  const [status, setStatus] = useState<{ configured: boolean; from?: string; adminEmail?: string } | null>(null)
 
   useEffect(() => {
     if (!authLoading && !isAdmin) router.replace('/dashboard')
   }, [isAdmin, authLoading, router])
+
+  // Is sending actually configured? Without this the app fails silently.
+  useEffect(() => {
+    fetch('/api/notify').then(r => r.json()).then(setStatus).catch(() => {})
+  }, [])
 
   if (authLoading || !isAdmin) return null
 
@@ -154,6 +165,27 @@ export default function EmailPreviewPage() {
           </Button>
         </div>
       </div>
+
+      {/* Sending status — the app used to skip sending in silence */}
+      {status && (
+        status.configured ? (
+          <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 dark:bg-green-950/20 px-3 py-1.5 leading-tight">
+            <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+            <p className="text-xs text-green-700 dark:text-green-400">
+              Sending is active — messages go out as <span className="font-medium">{status.from}</span>.
+              Yours arrive at <span className="font-medium">{status.adminEmail}</span>.
+            </p>
+          </div>
+        ) : (
+          <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/20 px-3 py-2">
+            <AlertTriangle className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />
+            <p className="text-xs text-red-700 dark:text-red-400">
+              <span className="font-semibold">Nothing is being sent.</span> SMTP_USER and SMTP_PASS are
+              not set, so every message below is skipped — no error, no warning.
+            </p>
+          </div>
+        )
+      )}
 
       {/* Audience filter */}
       <div className="flex gap-1.5 flex-wrap">

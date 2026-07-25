@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertCircle, CheckCircle, Clock, ShoppingBag, Truck, CreditCard, Copy, Check, X, Mail, ChevronDown, ChevronUp, Package, Pencil, UserPlus, Building2, ArrowRight, Droplets, ClipboardList, CalendarDays, PhoneCall, Sprout } from 'lucide-react'
+import { AlertCircle, CheckCircle, Clock, ShoppingBag, Truck, CreditCard, Copy, Check, X, Mail, ChevronDown, ChevronUp, Package, Pencil, UserPlus, Building2, ArrowRight, Droplets, ClipboardList, CalendarDays, PhoneCall, Sprout, MessageCircle } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
@@ -1443,23 +1443,51 @@ function EmailTemplateModal({
           </div>
         </div>
 
-        <div className="px-5 py-4 border-t flex gap-2 shrink-0">
-          {customer?.email && (
-            <a
-              href={`mailto:${customer.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`}
-              className="flex-1"
-            >
-              <Button variant="outline" className="w-full gap-2 text-sm">
-                <Mail className="h-4 w-4" />
-                Open in Mail
+        {/* The customer's "preferred contact" was stored and shown but never
+            acted on. It now decides which button leads: WhatsApp customers get
+            WhatsApp first, the rest get mail. */}
+        {(() => {
+          const prefersWhatsapp = (customer as any)?.preferred_communication === 'whatsapp'
+          const waNumber = ((customer as any)?.whatsapp || (customer as any)?.phone || '').replace(/\D/g, '')
+          const waHref = `https://wa.me/${waNumber}?text=${encodeURIComponent(`${subject}\n\n${body}`)}`
+          const mailHref = `mailto:${customer?.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+
+          const whatsappBtn = waNumber ? (
+            <a key="wa" href={waHref} target="_blank" rel="noopener noreferrer" className="flex-1">
+              <Button variant={prefersWhatsapp ? 'default' : 'outline'}
+                className={`w-full gap-2 text-sm ${prefersWhatsapp ? 'bg-green-600 hover:bg-green-700' : ''}`}>
+                <MessageCircle className="h-4 w-4" />
+                WhatsApp
               </Button>
             </a>
-          )}
-          <Button className="flex-1 bg-red-600 hover:bg-red-700 gap-2 text-sm" onClick={handleCopy}>
-            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-            {copied ? 'Copied!' : 'Copy Email'}
-          </Button>
-        </div>
+          ) : null
+
+          const mailBtn = customer?.email ? (
+            <a key="mail" href={mailHref} className="flex-1">
+              <Button variant={prefersWhatsapp ? 'outline' : 'default'}
+                className={`w-full gap-2 text-sm ${prefersWhatsapp ? '' : 'bg-red-600 hover:bg-red-700'}`}>
+                <Mail className="h-4 w-4" />
+                Email
+              </Button>
+            </a>
+          ) : null
+
+          return (
+            <div className="px-5 py-3 border-t space-y-2 shrink-0">
+              {customer && (
+                <p className="text-[11px] text-muted-foreground">
+                  Prefers <span className="font-medium text-foreground">{(customer as any).preferred_communication ?? 'email'}</span>
+                </p>
+              )}
+              <div className="flex gap-2">
+                {prefersWhatsapp ? <>{whatsappBtn}{mailBtn}</> : <>{mailBtn}{whatsappBtn}</>}
+                <Button variant="outline" className="gap-2 text-sm shrink-0" onClick={handleCopy} title="Copy the message">
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+          )
+        })()}
       </div>
     </div>
   )

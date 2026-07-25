@@ -101,7 +101,9 @@ function NewOrderPageInner() {
 
       if (error) throw error
 
-      // Notify admin of the new order request (fire-and-forget)
+      // Notify the admin AND acknowledge to the customer (fire-and-forget).
+      // customerEmail is what turns this into a receipt for the customer too —
+      // without it they heard nothing until an admin approved, possibly a day later.
       fetch('/api/notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -109,6 +111,8 @@ function NewOrderPageInner() {
           type: 'order_placed',
           payload: {
             customerName: customer?.company_name ?? 'Unknown',
+            customerEmail: customer?.email ?? null,
+            billingEmails: customer?.billing_emails ?? [],
             total: `XCG ${total.toFixed(2)}`,
             items: activeItems.map(i => `${i.qty}× ${i.name}`).join(', '),
           },

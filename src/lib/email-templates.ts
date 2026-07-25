@@ -271,32 +271,51 @@ export function emailOrderModifiedConfirmation(p: { orderNumber: string; custome
 // they are sent today so the preview shows the truth, not an idealised version.
 
 export function emailAccountApproved(p: { name: string; companyName: string; appUrl: string }) {
-  return `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 16px;">
-  <h1 style="color:#dc2626;">🔥 SPika Oil</h1>
-  <h2>Your account is approved!</h2>
-  <p>Hi ${p.name},</p>
-  <p>Great news — your SPika B2B account for <strong>${p.companyName}</strong> has been approved and is ready to use.</p>
-  <p>Your pricing and account details have been set up. You can now log in and start placing orders.</p>
-  <a href="${p.appUrl}/portal" style="display:inline-block;background:#dc2626;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;margin-top:16px;">Log in to Portal →</a>
-  <p style="margin-top:24px;color:#666;font-size:14px;">Questions? hello@spikaoil.nl or WhatsApp +5999 689-6969.</p>
-</div>`
+  return layout(`
+    <h2 style="margin:0 0 4px;font-size:20px;color:#111;">Your account is approved!</h2>
+    <p style="margin:0 0 20px;color:#6b7280;font-size:14px;">
+      Hi ${p.name}, your SPika B2B account for <strong style="color:#111;">${p.companyName}</strong> has been
+      approved. Your pricing and account details are set up, so you can log in and start placing orders.
+    </p>
+    ${badge('Account active', '#16a34a')}
+    ${button('Log in to the portal', p.appUrl + '/portal')}
+    <p style="margin-top:20px;color:#6b7280;font-size:13px;">
+      Questions? hello@spikaoil.nl or WhatsApp +5999 689-6969.
+    </p>
+  `)
 }
 
 export function emailAccessRequestAdmin(p: {
   companyName: string; name: string; email: string
   phone?: string | null; country?: string | null; message?: string | null; appUrl: string
 }) {
-  return `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 16px;">
-  <h1 style="color:#dc2626;">🔥 SPika Oil</h1>
-  <h2>New access request</h2>
-  <p><strong>${p.companyName}</strong></p>
-  <table style="width:100%;border-collapse:collapse;font-size:14px;">
-    <tr><td style="padding:4px 0;color:#6b7280;">Contact</td><td style="padding:4px 0;">${p.name}</td></tr>
-    <tr><td style="padding:4px 0;color:#6b7280;">Email</td><td style="padding:4px 0;">${p.email}</td></tr>
-    ${p.phone ? `<tr><td style="padding:4px 0;color:#6b7280;">Phone</td><td style="padding:4px 0;">${p.phone}</td></tr>` : ''}
-    ${p.country ? `<tr><td style="padding:4px 0;color:#6b7280;">Country</td><td style="padding:4px 0;">${p.country}</td></tr>` : ''}
-  </table>
-  ${p.message ? `<p style="margin-top:16px;color:#374151;">"${p.message}"</p>` : ''}
-  <p style="margin-top:24px;"><a href="${p.appUrl}/portal-management" style="background:#dc2626;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;">Review request</a></p>
-</div>`
+  return layout(`
+    <h2 style="margin:0 0 4px;font-size:20px;color:#111;">New access request</h2>
+    <p style="margin:0 0 20px;color:#6b7280;font-size:14px;">A company applied for B2B portal access.</p>
+    ${badge('Awaiting review', '#f59e0b')}
+    <table style="margin-top:16px;width:100%;border-collapse:collapse;">
+      ${row('Company', p.companyName)}
+      ${row('Contact', p.name)}
+      ${row('Email', p.email)}
+      ${p.phone ? row('Phone', p.phone) : ''}
+      ${p.country ? row('Country', p.country) : ''}
+    </table>
+    ${p.message ? `<p style="margin-top:16px;padding:12px;background:#f9fafb;border-radius:8px;color:#374151;font-size:13px;font-style:italic;">"${p.message}"</p>` : ''}
+    ${button('Review request', p.appUrl + '/portal-management')}
+  `)
+}
+
+// Sent to the CUSTOMER the moment they place an order in the portal. Without
+// this they heard nothing until an admin approved, which could be a day later.
+export function emailOrderReceived(p: { customerName: string; total: string; items: string }) {
+  return layout(`
+    <h2 style="margin:0 0 4px;font-size:20px;color:#111;">We received your order</h2>
+    <p style="margin:0 0 20px;color:#6b7280;font-size:14px;">Hi ${p.customerName}, thanks for your order. We'll confirm it shortly and let you know the delivery date.</p>
+    ${badge('Awaiting confirmation', '#6b7280')}
+    <table style="margin-top:16px;width:100%;border-collapse:collapse;">
+      ${row('Items', p.items)}
+      ${row('Total', p.total)}
+    </table>
+    ${button('View My Orders', APP_URL + '/portal')}
+  `)
 }
