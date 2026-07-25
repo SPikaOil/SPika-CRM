@@ -71,8 +71,22 @@ export const SPIKA_STAND_TYPES: { value: SpikaStand['type']; label: string; capa
   { value: '24-single', label: '24 btls (one side)',             capacity: 24 },
 ]
 
+export interface ContactLogEntry {
+  id: string
+  contacted_at: string        // date of the touchpoint (YYYY-MM-DD)
+  contacted_by: string        // who we spoke to (person at the customer)
+  channel: string             // whatsapp | phone | visit | email | other
+  note: string
+  logged_by?: string          // our user id who recorded it
+  created_at: string          // when the entry was recorded
+}
+
 export interface Customer {
   id: string
+  // A lead is a potential customer we haven't sold to yet. Convert = is_lead → false.
+  is_lead: boolean
+  // Touchpoints (who/when/note) — available on every customer, not only leads.
+  contact_log: ContactLogEntry[]
   // 'S-0001' — auto-assigned by DB trigger (migration 039); null pre-migration
   customer_number?: string | null
   company_name: string

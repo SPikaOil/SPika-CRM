@@ -22,6 +22,7 @@ import {
   Droplets,
   PackageCheck,
   MapPin,
+  Sprout,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
@@ -43,6 +44,7 @@ const salesMainItems = [
 ]
 
 const adminMoreItems = [
+  { href: '/leads',               label: 'Leads',       icon: Sprout },
   { href: '/agenda',              label: 'Agenda',      icon: CalendarDays },
   { href: '/quotations',          label: 'Quotations',  icon: ReceiptText },
   { href: '/products',            label: 'Products',    icon: Package },

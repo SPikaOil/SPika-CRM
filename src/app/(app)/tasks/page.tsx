@@ -239,27 +239,27 @@ export default function TasksPage() {
           {pending.map((task) => (
             <div
               key={task.id}
-              className="flex items-start gap-3 px-3 py-1.5 leading-tight rounded-xl border bg-card"
+              className="flex items-start gap-3 px-3 py-0.5 leading-tight rounded-xl border bg-card"
             >
               <button
                 onClick={() => completeTask.mutate({ id: task.id, completed: true, task })}
                 className="mt-0.5 shrink-0 text-muted-foreground hover:text-green-600 transition-colors"
               >
-                <Circle className="h-5 w-5" />
+                <Circle className="h-4 w-4" />
               </button>
               <div className="flex-1 min-w-0">
-                <div className="flex flex-wrap items-center gap-2 mb-0.5">
+                <div className="flex flex-wrap items-center gap-2">
                   <p className="font-medium text-sm">{task.title}</p>
-                  <Badge variant="secondary" className={`text-xs ${FREQUENCY_COLORS[task.frequency]}`}>
+                  <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 ${FREQUENCY_COLORS[task.frequency]}`}>
                     {task.frequency === 'weekly' && <RefreshCw className="h-2.5 w-2.5 mr-1" />}
                     {task.frequency === 'monthly' && <RefreshCw className="h-2.5 w-2.5 mr-1" />}
                     {FREQUENCY_LABELS[task.frequency]}
                   </Badge>
                 </div>
                 {task.description && (
-                  <p className="text-sm text-muted-foreground">{task.description}</p>
+                  <p className="text-[11px] text-muted-foreground truncate">{task.description}</p>
                 )}
-                <div className="flex flex-wrap gap-3 mt-1.5 text-xs text-muted-foreground">
+                <div className="flex flex-wrap gap-3 text-[11px] text-muted-foreground">
                   {(task.customer as any)?.company_name && (
                     <span className="font-medium text-foreground">{(task.customer as any).company_name}</span>
                   )}
@@ -295,7 +295,7 @@ export default function TasksPage() {
             {completed.map((task) => (
               <div
                 key={task.id}
-                className="flex items-start gap-3 px-3 py-1.5 leading-tight rounded-xl border bg-card opacity-60"
+                className="flex items-start gap-3 px-3 py-0.5 leading-tight rounded-xl border bg-card opacity-60"
               >
                 <button
                   onClick={() => completeTask.mutate({ id: task.id, completed: false })}

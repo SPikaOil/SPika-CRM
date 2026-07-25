@@ -1,17 +1,22 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
-import { Customer } from '@/types'
+import { Customer, ContactLogEntry } from '@/types'
 import { toast } from 'sonner'
 
-export function useCustomers(search?: string, category?: string) {
+// By default this returns real customers only — leads are excluded at the
+// source, so the customer list, order dropdowns and duplicate checks stay clean
+// without touching each caller. Pass { leadsOnly: true } for the Leads page.
+export function useCustomers(search?: string, category?: string, opts?: { leadsOnly?: boolean }) {
   const supabase = createClient()
+  const leadsOnly = opts?.leadsOnly ?? false
 
   return useQuery({
-    queryKey: ['customers', search, category],
+    queryKey: ['customers', search, category, leadsOnly ? 'leads' : 'customers'],
     queryFn: async () => {
       let query = supabase
         .from('customers')
         .select('*')
+        .eq('is_lead', leadsOnly)
         .order('company_name')
 
       if (search) {
@@ -95,6 +100,68 @@ export function useUpdateCustomer() {
       queryClient.invalidateQueries({ queryKey: ['customers'] })
       queryClient.invalidateQueries({ queryKey: ['customers', id] })
       toast.success('Customer updated')
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+}
+
+// Append a touchpoint to a customer's contact log. Read-modify-write on the
+// jsonb column — fine here: single admin, ~26 customers, no concurrent writers.
+export function useAddContactLog() {
+  const supabase = createClient()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ customerId, entry }: { customerId: string; entry: Omit<ContactLogEntry, 'id' | 'created_at'> }) => {
+      const { data: current, error: readError } = await supabase
+        .from('customers')
+        .select('contact_log')
+        .eq('id', customerId)
+        .single()
+      if (readError) throw readError
+
+      const log = (((current as any)?.contact_log ?? []) as ContactLogEntry[])
+      const full: ContactLogEntry = {
+        ...entry,
+        id: (globalThis.crypto?.randomUUID?.() ?? String(Date.now())),
+        created_at: new Date().toISOString(),
+      }
+      const { error } = await supabase
+        .from('customers')
+        .update({ contact_log: [full, ...log] })
+        .eq('id', customerId)
+      if (error) throw error
+    },
+    onSuccess: (_d, { customerId }) => {
+      queryClient.invalidateQueries({ queryKey: ['customers', customerId] })
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
+      toast.success('Contact logged')
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+}
+
+export function useDeleteContactLog() {
+  const supabase = createClient()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ customerId, entryId }: { customerId: string; entryId: string }) => {
+      const { data: current, error: readError } = await supabase
+        .from('customers')
+        .select('contact_log')
+        .eq('id', customerId)
+        .single()
+      if (readError) throw readError
+
+      const log = (((current as any)?.contact_log ?? []) as ContactLogEntry[]).filter(e => e.id !== entryId)
+      const { error } = await supabase.from('customers').update({ contact_log: log }).eq('id', customerId)
+      if (error) throw error
+    },
+    onSuccess: (_d, { customerId }) => {
+      queryClient.invalidateQueries({ queryKey: ['customers', customerId] })
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
+      toast.success('Contact removed')
     },
     onError: (err: Error) => toast.error(err.message),
   })

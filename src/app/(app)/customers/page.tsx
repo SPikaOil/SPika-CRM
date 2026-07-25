@@ -341,41 +341,41 @@ export default function CustomersPage() {
             <Link
               key={customer.id}
               href={`/customers/${customer.id}`}
-              className="flex items-center gap-3 px-3 py-1 leading-tight rounded-xl border bg-card hover:bg-accent transition-colors"
+              className="flex items-center gap-3 px-3 py-0.5 leading-tight rounded-xl border bg-card hover:bg-accent transition-colors"
             >
-              <div className="flex-shrink-0 h-8 w-8 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center">
-                <span className="text-red-700 dark:text-red-300 font-semibold text-sm">
+              <div className="flex-shrink-0 h-6 w-6 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center">
+                <span className="text-red-700 dark:text-red-300 font-semibold text-xs">
                   {customer.company_name.charAt(0).toUpperCase()}
                 </span>
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 min-w-0">
-                  <p className="font-medium truncate leading-tight">{customer.company_name}</p>
+                  <p className="text-sm font-medium truncate leading-tight">{customer.company_name}</p>
                   {(customer as any).customer_number && (
-                    <span className="font-mono text-xs text-muted-foreground shrink-0">
+                    <span className="font-mono text-[10px] text-muted-foreground shrink-0">
                       {(customer as any).customer_number}
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <Badge
                     variant="secondary"
-                    className={`text-xs capitalize ${categoryColors[customer.customer_category]}`}
+                    className={`text-[10px] px-1.5 py-0 capitalize ${categoryColors[customer.customer_category]}`}
                   >
                     {customer.customer_category}
                   </Badge>
                   {customerCountryCode(customer) && (
-                    <Badge variant="outline" className="text-xs px-1 py-0 text-muted-foreground shrink-0">
+                    <Badge variant="outline" className="text-[10px] px-1 py-0 text-muted-foreground shrink-0">
                       {customerCountryCode(customer)}
                     </Badge>
                   )}
                   {customer.status === 'inactive' && (
-                    <Badge variant="outline" className="text-xs text-muted-foreground">
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground">
                       Inactive
                     </Badge>
                   )}
                   {(customer.contact_person || customer.phone) && (
-                    <span className="text-xs text-muted-foreground truncate">
+                    <span className="text-[11px] text-muted-foreground truncate">
                       {customer.contact_person}{customer.phone ? ` · ${customer.phone}` : ''}
                     </span>
                   )}

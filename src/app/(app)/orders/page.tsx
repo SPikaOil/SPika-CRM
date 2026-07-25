@@ -188,7 +188,7 @@ function OrdersPageInner() {
           <h1 className="text-2xl font-bold">Orders</h1>
           <p className="text-muted-foreground text-sm">{filteredActive.length} active orders</p>
         </div>
-        <Link href="/quotes/new">
+        <Link href="/orders/new">
           <Button className="bg-red-600 hover:bg-red-700 gap-2">
             <Plus className="h-4 w-4" />
             New Order
@@ -301,7 +301,7 @@ function OrdersPageInner() {
           {showDeleted && (
             <div className="space-y-2 mt-2">
               {deletedOrders.map(order => (
-                <Link key={order.id} href={`/orders/${order.id}`} className="block px-3 py-1 leading-tight rounded-xl border bg-card opacity-60 hover:opacity-80 transition-opacity">
+                <Link key={order.id} href={`/orders/${order.id}`} className="block px-3 py-0.5 leading-tight rounded-xl border bg-card opacity-60 hover:opacity-80 transition-opacity">
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <div className="flex items-center gap-2">
@@ -447,7 +447,7 @@ function OrderRow({
   return (
     <Link
       href={`/orders/${order.id}`}
-      className={`block px-3 py-1 leading-tight rounded-xl border bg-card hover:bg-accent transition-colors ${dimmed ? 'opacity-60' : ''}`}
+      className={`block px-3 py-0.5 leading-tight rounded-xl border bg-card hover:bg-accent transition-colors ${dimmed ? 'opacity-60' : ''}`}
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex-1 min-w-0">

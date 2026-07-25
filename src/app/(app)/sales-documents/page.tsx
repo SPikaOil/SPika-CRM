@@ -483,7 +483,7 @@ function FolderRow({
   const isRenaming = renamingFolder?.id === folder.id
 
   return (
-    <div className="flex items-center gap-3 p-3 rounded-xl border bg-card hover:bg-accent transition-colors group">
+    <div className="flex items-center gap-3 px-3 py-0.5 leading-tight rounded-xl border bg-card hover:bg-accent transition-colors group">
       <button className="flex items-center gap-3 flex-1 min-w-0 text-left" onClick={onOpen}>
         <Folder className="h-5 w-5 text-yellow-500 shrink-0" />
         {isRenaming ? (
@@ -529,7 +529,7 @@ function DocRow({ doc, isAdmin, hasFolders, onDelete, onMove }: {
   onMove: () => void
 }) {
   return (
-    <div className="flex items-center gap-3 p-3 rounded-xl border bg-card hover:bg-accent transition-colors group">
+    <div className="flex items-center gap-3 px-3 py-0.5 leading-tight rounded-xl border bg-card hover:bg-accent transition-colors group">
       {fileIcon(doc.file_name)}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">{doc.name}</p>

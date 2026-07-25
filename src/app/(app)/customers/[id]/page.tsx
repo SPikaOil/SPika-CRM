@@ -4,7 +4,7 @@ import { use, useMemo, useState } from 'react'
 import { formatTaxId } from '@/lib/tax-id'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Edit, Building2, Package, CheckCircle2, Clock, Truck, FileSignature, AlertTriangle, Download, Upload, Info, RefreshCw, CalendarClock, Trash2, Power, X, RotateCcw } from 'lucide-react'
+import { ArrowLeft, Edit, Building2, Package, CheckCircle2, Clock, Truck, FileSignature, AlertTriangle, Download, Upload, Info, RefreshCw, CalendarClock, Trash2, Power, X, RotateCcw, UserCheck } from 'lucide-react'
 import { useRef } from 'react'
 import { useCustomer, useUpdateCustomer } from '@/hooks/use-customers'
 import { createClient } from '@/lib/supabase/client'
@@ -24,6 +24,7 @@ import { Separator } from '@/components/ui/separator'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CustomerForm } from '../_components/customer-form'
+import { ContactLog } from '../_components/contact-log'
 import { Customer, SPIKA_STAND_TYPES } from '@/types'
 import { computeOrderRhythm, type OrderRhythm } from '@/lib/order-rhythm'
 
@@ -340,6 +341,9 @@ export default function CustomerDetailPage({
             {(customer as any).is_consignment && (
               <Badge className="bg-amber-100 text-amber-700 text-[10px] px-1.5 py-0">📦 Consignment</Badge>
             )}
+            {(customer as any).is_lead && (
+              <Badge className="bg-teal-100 text-teal-700 dark:bg-teal-900 dark:text-teal-300 text-[10px] px-1.5 py-0">🌱 Lead</Badge>
+            )}
           </div>
           {customer.contact_person && (
             <p className="text-muted-foreground text-xs truncate">{customer.contact_person}</p>
@@ -347,6 +351,18 @@ export default function CustomerDetailPage({
         </div>
         {isAdmin && (
           <div className="flex gap-1.5 shrink-0">
+            {(customer as any).is_lead && (
+              <Button
+                size="sm"
+                className="gap-1.5 h-8 px-2 bg-teal-600 hover:bg-teal-700 text-white"
+                disabled={updateCustomer.isPending}
+                title="Convert this lead into an active customer"
+                onClick={() => updateCustomer.mutate({ id: customer.id, values: { is_lead: false } as any })}
+              >
+                <UserCheck className="h-4 w-4" />
+                <span className="hidden sm:inline">Convert</span>
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -389,6 +405,7 @@ export default function CustomerDetailPage({
         </TabsList>
 
         <TabsContent value="details" className="space-y-2.5 mt-3">
+          <ContactLog customerId={id} log={(customer as any).contact_log ?? []} />
           <Card className="py-0">
             <CardHeader className="pt-3 pb-2"><CardTitle className="text-sm">Contact</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 pb-3">
@@ -778,7 +795,7 @@ export default function CustomerDetailPage({
               <Package className="h-10 w-10 opacity-20" />
               <p className="font-medium">No orders yet</p>
               <p className="text-sm">Orders will appear here once created</p>
-              <Link href={`/quotes/new?customer=${id}`}>
+              <Link href={`/orders/new?customer=${id}`}>
                 <Button size="sm" className="bg-red-600 hover:bg-red-700 mt-1">New Delivery Note</Button>
               </Link>
             </div>
@@ -787,7 +804,7 @@ export default function CustomerDetailPage({
               <OrderRhythmCard rhythm={orderRhythm} />
               <div className="flex justify-between items-center pt-1">
                 <p className="text-sm text-muted-foreground">{orders.length} order{orders.length !== 1 ? 's' : ''} total</p>
-                <Link href={`/quotes/new?customer=${id}`}>
+                <Link href={`/orders/new?customer=${id}`}>
                   <Button size="sm" className="bg-red-600 hover:bg-red-700">+ New</Button>
                 </Link>
               </div>
@@ -809,7 +826,7 @@ export default function CustomerDetailPage({
 
                 return (
                   <Link key={order.id} href={`/orders/${order.id}`}>
-                    <div className="flex items-center gap-2.5 px-3 py-1 leading-tight rounded-lg border bg-card hover:bg-accent transition-colors">
+                    <div className="flex items-center gap-2.5 px-3 py-0.5 leading-tight rounded-lg border bg-card hover:bg-accent transition-colors">
                       <div className="shrink-0">{statusIcon}</div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">

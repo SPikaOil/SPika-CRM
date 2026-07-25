@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { AlertCircle } from 'lucide-react'
 import { CustomerForm } from '../_components/customer-form'
 import { useCreateCustomer } from '@/hooks/use-customers'
@@ -17,7 +17,17 @@ interface PossibleDuplicate {
 }
 
 export default function NewCustomerPage() {
+  return (
+    <Suspense fallback={null}>
+      <NewCustomerInner />
+    </Suspense>
+  )
+}
+
+function NewCustomerInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const isLead = searchParams.get('lead') === '1'
   const createCustomer = useCreateCustomer()
   const [duplicates, setDuplicates] = useState<PossibleDuplicate[]>([])
   const [pendingValues, setPendingValues] = useState<Partial<Customer> | null>(null)
@@ -52,10 +62,12 @@ export default function NewCustomerPage() {
   return (
     <div className="p-4 lg:p-6 max-w-2xl mx-auto w-full space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">New Customer</h1>
-        <p className="text-muted-foreground text-sm">Fill in the customer details</p>
+        <h1 className="text-2xl font-bold">{isLead ? 'New Lead' : 'New Customer'}</h1>
+        <p className="text-muted-foreground text-sm">
+          {isLead ? 'A potential customer — log your contact and convert them when they buy' : 'Fill in the customer details'}
+        </p>
       </div>
-      <CustomerForm onSubmit={onSubmit} isLoading={createCustomer.isPending} />
+      <CustomerForm onSubmit={onSubmit} isLoading={createCustomer.isPending} defaultValues={isLead ? { is_lead: true } as any : undefined} />
 
       {/* Possible duplicate warning */}
       <Dialog open={pendingValues !== null} onOpenChange={(open) => { if (!open) setPendingValues(null) }}>

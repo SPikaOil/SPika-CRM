@@ -124,7 +124,7 @@ function ExportsPageInner() {
             const customer = order?.customer ?? (exp as any).customer
             return (
               <Link key={exp.id} href={`/exports/${exp.id}`}>
-                <div className="flex items-center gap-3 p-4 rounded-xl border bg-card hover:bg-accent transition-colors">
+                <div className="flex items-center gap-3 px-3 py-0.5 leading-tight rounded-xl border bg-card hover:bg-accent transition-colors">
                   <PackageCheck className="h-5 w-5 text-muted-foreground shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2 flex-wrap">

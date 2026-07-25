@@ -52,6 +52,7 @@ const customerSchema = z.object({
   crib_number: z.string(),
   is_international: z.boolean(),
   is_consignment: z.boolean(),
+  is_lead: z.boolean(),
   status: z.enum(['active', 'inactive']),
   display_as: z.string(),
   shops_sold_at: z.string(),
@@ -283,6 +284,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
     crib_number: '',
     is_international: false,
     is_consignment: false,
+    is_lead: false,
     status: 'active',
     display_as: '',
     shops_sold_at: '',
@@ -475,6 +477,22 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              {/* Lead — a potential customer we haven't sold to yet. Kept out of
+                  the main customer list; convert with one click when they buy. */}
+              <div className="flex items-center justify-between rounded-lg border p-3 border-teal-200 bg-teal-50/50 dark:bg-teal-950/10 dark:border-teal-900">
+                <div className="pr-3">
+                  <p className="text-sm font-medium">🌱 This is a lead</p>
+                  <p className="text-xs text-muted-foreground">A potential customer, not yet buying. Kept separate from your customer list until you convert them.</p>
+                </div>
+                <label className="flex items-center cursor-pointer shrink-0">
+                  <div className="relative">
+                    <input type="checkbox" className="sr-only peer" {...register('is_lead')} />
+                    <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-teal-600 transition-colors" />
+                    <div className="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5" />
+                  </div>
+                </label>
               </div>
 
               {/* Consignment — goods stay SPika's until sold. Orders are stamped

@@ -42,8 +42,8 @@ export async function POST(req: NextRequest) {
       .gte('created_at', start)
       .lt('created_at', end)
       .is('deleted_at', null),
-    admin.from('customers').select('id').eq('status', 'active'),
-    admin.from('customers').select('id, company_name, customer_category').gte('created_at', start).lt('created_at', end),
+    admin.from('customers').select('id').eq('status', 'active').eq('is_lead', false),
+    admin.from('customers').select('id, company_name, customer_category').eq('is_lead', false).gte('created_at', start).lt('created_at', end),
     admin.from('access_requests').select('id, status, company_name, created_at').gte('created_at', start).lt('created_at', end),
   ])
 

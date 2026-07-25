@@ -177,7 +177,7 @@ export default function AgendaPage() {
           <div className="space-y-2 mb-4">
             {dayEvents.map((event, i) => (
               <Link key={i} href={event.href}>
-                <div className="flex items-center gap-3 px-3 py-1 leading-tight rounded-xl border bg-card hover:bg-accent transition-colors">
+                <div className="flex items-center gap-3 px-3 py-0.5 leading-tight rounded-xl border bg-card hover:bg-accent transition-colors">
                   {/* Icon */}
                   <div className={`shrink-0 h-9 w-9 rounded-lg flex items-center justify-center ${
                     event.type === 'delivery'

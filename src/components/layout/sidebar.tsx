@@ -20,6 +20,7 @@ import {
   Droplets,
   PackageCheck,
   MapPin,
+  Sprout,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
@@ -28,6 +29,7 @@ import { UserMenu } from './user-menu'
 const allNavItems = [
   { href: '/dashboard',       label: 'Dashboard',       icon: LayoutDashboard, adminOnly: false },
   { href: '/customers',       label: 'Customers',        icon: Users,           adminOnly: true  },
+  { href: '/leads',           label: 'Leads',            icon: Sprout,          adminOnly: true  },
   { href: '/quotations',      label: 'Quotations',       icon: ReceiptText,     adminOnly: true  },
   { href: '/delivery-notes',  label: 'Delivery Notes',   icon: FileText,        adminOnly: false },
   { href: '/orders',          label: 'Orders',           icon: ShoppingCart,    adminOnly: true  },

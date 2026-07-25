@@ -77,7 +77,7 @@ export default function DeliveryNotesPage() {
                 <Link
                   key={order.id}
                   href={`/orders/${order.id}`}
-                  className="flex items-center gap-4 p-4 rounded-xl border bg-card hover:bg-accent transition-colors"
+                  className="flex items-center gap-4 px-3 py-0.5 leading-tight rounded-xl border bg-card hover:bg-accent transition-colors"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -113,7 +113,7 @@ export default function DeliveryNotesPage() {
                 <Link
                   key={order.id}
                   href={`/orders/${order.id}`}
-                  className="flex items-center gap-4 p-4 rounded-xl border bg-card hover:bg-accent transition-colors opacity-70"
+                  className="flex items-center gap-4 px-3 py-0.5 leading-tight rounded-xl border bg-card hover:bg-accent transition-colors opacity-70"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">

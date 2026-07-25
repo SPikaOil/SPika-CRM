@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertCircle, CheckCircle, Clock, ShoppingBag, Truck, CreditCard, Copy, Check, X, Mail, ChevronDown, ChevronUp, Package, Pencil, UserPlus, Building2, ArrowRight, Droplets, ClipboardList, CalendarDays, PhoneCall } from 'lucide-react'
+import { AlertCircle, CheckCircle, Clock, ShoppingBag, Truck, CreditCard, Copy, Check, X, Mail, ChevronDown, ChevronUp, Package, Pencil, UserPlus, Building2, ArrowRight, Droplets, ClipboardList, CalendarDays, PhoneCall, Sprout } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
@@ -44,6 +44,13 @@ interface QuietRow {
   company_name: string
   daysSinceLast: number
   reason: string
+}
+
+interface LeadRow {
+  customer_id: string
+  company_name: string
+  contact_person: string | null
+  daysSinceContact: number | null // null = never contacted
 }
 
 function StatCard({
@@ -509,7 +516,7 @@ function QuietCustomersBanner({ rows }: { rows: QuietRow[] }) {
     <div className="rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/20 overflow-hidden">
       <button
         onClick={() => setExpanded(v => !v)}
-        className="w-full flex items-center gap-3 px-3 py-1 leading-tight hover:bg-violet-100/40 dark:hover:bg-violet-900/20 transition-colors"
+        className="w-full flex items-center gap-3 px-3 py-0.5 leading-tight hover:bg-violet-100/40 dark:hover:bg-violet-900/20 transition-colors"
       >
         <PhoneCall className="h-4 w-4 text-violet-600 shrink-0" />
         <div className="flex-1 text-left">
@@ -533,13 +540,67 @@ function QuietCustomersBanner({ rows }: { rows: QuietRow[] }) {
             <Link
               key={row.customer_id}
               href={`/customers/${row.customer_id}`}
-              className="flex items-center justify-between px-3 py-1 gap-3 leading-tight hover:bg-violet-100/40 dark:hover:bg-violet-900/20 transition-colors"
+              className="flex items-center justify-between px-3 py-0.5 gap-3 leading-tight hover:bg-violet-100/40 dark:hover:bg-violet-900/20 transition-colors"
             >
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium">{row.company_name}</p>
                 <p className="text-xs text-muted-foreground">{row.reason}</p>
               </div>
               <span className="text-sm font-bold text-violet-700 dark:text-violet-400 shrink-0">{row.daysSinceLast}d</span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Open leads collapsible banner ──────────────────────────────────────────
+// Potential customers not yet converted. Nudges you to keep chasing prospects,
+// with the neglected ones (never contacted / longest silence) at the top.
+function LeadsBanner({ rows }: { rows: LeadRow[] }) {
+  const [expanded, setExpanded] = useState(false)
+  if (rows.length === 0) return null
+
+  return (
+    <div className="rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/20 overflow-hidden">
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="w-full flex items-center gap-3 px-3 py-0.5 leading-tight hover:bg-teal-100/40 dark:hover:bg-teal-900/20 transition-colors"
+      >
+        <Sprout className="h-4 w-4 text-teal-600 shrink-0" />
+        <div className="flex-1 text-left">
+          <p className="font-semibold text-teal-700 dark:text-teal-400">
+            {rows.length} open lead{rows.length > 1 ? 's' : ''}
+          </p>
+          <p className="text-xs text-teal-600/80 dark:text-teal-500">
+            {expanded ? 'Click to collapse' : 'Potential customers — follow up'}
+          </p>
+        </div>
+        <Badge className="bg-teal-600 text-white text-sm px-2 shrink-0">{rows.length}</Badge>
+        {expanded
+          ? <ChevronUp className="h-4 w-4 text-teal-500 shrink-0" />
+          : <ChevronDown className="h-4 w-4 text-teal-500 shrink-0" />
+        }
+      </button>
+
+      {expanded && (
+        <div className="divide-y divide-teal-100 dark:divide-teal-900 border-t border-teal-200 dark:border-teal-800">
+          {rows.map((row) => (
+            <Link
+              key={row.customer_id}
+              href={`/customers/${row.customer_id}`}
+              className="flex items-center justify-between px-3 py-0.5 gap-3 leading-tight hover:bg-teal-100/40 dark:hover:bg-teal-900/20 transition-colors"
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">{row.company_name}</p>
+                {row.contact_person && <p className="text-xs text-muted-foreground">{row.contact_person}</p>}
+              </div>
+              <span className={`text-xs font-medium shrink-0 ${row.daysSinceContact == null ? 'text-amber-600' : 'text-teal-700 dark:text-teal-400'}`}>
+                {row.daysSinceContact == null
+                  ? 'no contact yet'
+                  : row.daysSinceContact === 0 ? 'contacted today' : `${row.daysSinceContact}d ago`}
+              </span>
             </Link>
           ))}
         </div>
@@ -576,6 +637,7 @@ export default function DashboardPage() {
   const [weekTasks, setWeekTasks] = useState<Task[]>([])
   const [consignmentOrders, setConsignmentOrders] = useState<Order[]>([])
   const [quietCustomers, setQuietCustomers] = useState<QuietRow[]>([])
+  const [openLeads, setOpenLeads] = useState<LeadRow[]>([])
 
   async function loadPendingOrders() {
     const { data } = await supabase
@@ -701,6 +763,37 @@ export default function DashboardPage() {
     }
     rows.sort((a, b) => b.daysSinceLast - a.daysSinceLast)
     setQuietCustomers(rows)
+  }
+
+  // Open leads (potential customers not yet converted). Sorted so the ones
+  // needing attention float up: never-contacted first, then longest since last
+  // contact. The nudge to actually chase prospects.
+  async function loadOpenLeads() {
+    const { data } = await supabase
+      .from('customers')
+      .select('id, company_name, contact_person, contact_log')
+      .eq('is_lead', true)
+      .order('company_name')
+
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const rows: LeadRow[] = ((data ?? []) as any[]).map((c) => {
+      const log = (c.contact_log ?? []) as { contacted_at?: string }[]
+      const last = log.length
+        ? [...log].sort((a, b) => (b.contacted_at ?? '').localeCompare(a.contacted_at ?? ''))[0]?.contacted_at
+        : null
+      const daysSinceContact = last
+        ? Math.max(0, Math.floor((today.getTime() - new Date(last + 'T00:00:00').getTime()) / 86400000))
+        : null
+      return { customer_id: c.id, company_name: c.company_name, contact_person: c.contact_person ?? null, daysSinceContact }
+    })
+    // never-contacted first, then oldest contact first
+    rows.sort((a, b) => {
+      if (a.daysSinceContact == null && b.daysSinceContact == null) return 0
+      if (a.daysSinceContact == null) return -1
+      if (b.daysSinceContact == null) return 1
+      return b.daysSinceContact - a.daysSinceContact
+    })
+    setOpenLeads(rows)
   }
 
   async function loadAccessRequests() {
@@ -857,7 +950,7 @@ export default function DashboardPage() {
   }
 
   async function loadStats() {
-    await Promise.all([loadPendingOrders(), loadOverdueOrders(), loadAccessRequests(), loadClientOverview(), loadRefillData(), loadWeekTasks(), loadConsignmentOrders(), loadQuietCustomers()])
+    await Promise.all([loadPendingOrders(), loadOverdueOrders(), loadAccessRequests(), loadClientOverview(), loadRefillData(), loadWeekTasks(), loadConsignmentOrders(), loadQuietCustomers(), loadOpenLeads()])
     const [kpisRes, monthData] = await Promise.all([
       supabase
         .from('v_dashboard_kpis')
@@ -982,7 +1075,7 @@ export default function DashboardPage() {
       {/* Pending access requests */}
       {isAdmin && pendingAccessRequests > 0 && (
         <Link href="/portal-management">
-          <div className="flex items-center gap-3 px-3 py-2 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 hover:bg-blue-100/60 dark:hover:bg-blue-900/20 transition-colors">
+          <div className="flex items-center gap-3 px-3 py-0.5 leading-tight rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 hover:bg-blue-100/60 dark:hover:bg-blue-900/20 transition-colors">
             <UserPlus className="h-4 w-4 text-blue-600 shrink-0" />
             <p className="flex-1 text-sm font-semibold text-blue-700 dark:text-blue-400">
               {pendingAccessRequests} reseller request{pendingAccessRequests > 1 ? 's' : ''} awaiting approval
@@ -994,7 +1087,7 @@ export default function DashboardPage() {
 
       {/* Missing POD alert */}
       {!isLoading && stats && stats.deliveries_missing_pod > 0 && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900">
+        <div className="flex items-center gap-2 px-3 py-0.5 leading-tight rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900">
           <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
           <p className="text-sm font-semibold text-red-700 dark:text-red-400">
             {stats.deliveries_missing_pod} {stats.deliveries_missing_pod === 1 ? 'delivery' : 'deliveries'} missing POD
@@ -1018,6 +1111,9 @@ export default function DashboardPage() {
 
       {/* Customers who have gone quiet — call them to reorder */}
       {isAdmin && <QuietCustomersBanner rows={quietCustomers} />}
+
+      {/* Open leads — potential customers to follow up */}
+      {isAdmin && <LeadsBanner rows={openLeads} />}
 
       {/* Email template modal */}
       {templateOrder && (
