@@ -23,6 +23,7 @@ import {
   PackageCheck,
   MapPin,
   Sprout,
+  Mail,
   ShieldCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -59,6 +60,7 @@ const adminMoreItems = [
   { href: '/portal-management',   label: 'Portal',      icon: Globe,         permission: 'portal.view'       },
   { href: '/team',                label: 'Team',        icon: UserCog,       permission: 'team.manage'       },
   { href: '/permissions',         label: 'Permissions', icon: ShieldCheck,   permission: 'permissions.manage' },
+  { href: '/email-preview',       label: 'Emails',      icon: Mail,          permission: 'settings.view'      },
   { href: '/settings',            label: 'Settings',    icon: Settings,      permission: 'settings.view'     },
 ]
 

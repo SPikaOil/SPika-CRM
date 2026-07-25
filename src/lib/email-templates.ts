@@ -2,6 +2,12 @@
 // Kept separate from resend.ts so they can also be rendered in the in-app
 // preview (/email-preview) without pulling the mail transport into the browser.
 
+// Every button in these emails points here. It used to be hardcoded to
+// spika-crm.vercel.app in nine places — a domain that does not resolve — so
+// customers clicking "View My Orders" landed nowhere.
+export const APP_URL =
+  process.env.NEXT_PUBLIC_APP_URL ?? 'https://s-pika-crm.vercel.app'
+
 // ─── Shared styles ────────────────────────────────────────────────
 const LOGO_COLOR = '#dc2626'
 
@@ -56,7 +62,7 @@ export function emailOrderPlaced(p: { customerName: string; total: string; items
       ${row('Total', p.total)}
       ${row('Products', p.items)}
     </table>
-    ${button('View Order', 'https://spika-crm.vercel.app/orders')}
+    ${button('View Order', APP_URL + '/orders')}
   `)
 }
 
@@ -69,7 +75,7 @@ export function emailOrderConfirmed(p: { orderNumber: string; customerName: stri
       ${row('Order #', p.orderNumber)}
       ${p.plannedDate ? row('Planned delivery', p.plannedDate) : ''}
     </table>
-    ${button('View My Orders', 'https://spika-crm.vercel.app/portal')}
+    ${button('View My Orders', APP_URL + '/portal')}
   `)
 }
 
@@ -82,7 +88,7 @@ export function emailOutForDelivery(p: { orderNumber: string; customerName: stri
       ${row('Order #', p.orderNumber)}
       ${row('Customer', p.customerName)}
     </table>
-    ${button('Start Delivery', 'https://spika-crm.vercel.app/orders')}
+    ${button('Start Delivery', APP_URL + '/orders')}
   `)
 }
 
@@ -96,7 +102,7 @@ export function emailOrderDelivered(p: { orderNumber: string; customerName: stri
         ${row('Order #', p.orderNumber)}
         ${row('Customer', p.customerName)}
       </table>
-      ${button('View Order', 'https://spika-crm.vercel.app/orders')}
+      ${button('View Order', APP_URL + '/orders')}
     `)
   }
   return layout(`
@@ -106,7 +112,7 @@ export function emailOrderDelivered(p: { orderNumber: string; customerName: stri
     <table style="margin-top:16px;width:100%;border-collapse:collapse;">
       ${row('Order #', p.orderNumber)}
     </table>
-    ${button('View My Orders', 'https://spika-crm.vercel.app/portal')}
+    ${button('View My Orders', APP_URL + '/portal')}
   `)
 }
 
@@ -119,7 +125,7 @@ export function emailInvoiceReady(p: { orderNumber: string; customerName: string
       ${row('Order #', p.orderNumber)}
       ${row('Amount', p.total)}
     </table>
-    ${button('View My Orders', 'https://spika-crm.vercel.app/portal')}
+    ${button('View My Orders', APP_URL + '/portal')}
   `)
 }
 
@@ -165,7 +171,7 @@ export function emailOBFormSigned(p: { customerName: string; signerName: string 
       ${row('Company', p.customerName)}
       ${row('Signed by', p.signerName)}
     </table>
-    ${button('View Customers', 'https://spika-crm.vercel.app/customers')}
+    ${button('View Customers', APP_URL + '/customers')}
   `)
 }
 
@@ -179,7 +185,7 @@ export function emailNewCustomer(p: { customerName: string; email: string; categ
       ${row('Email', p.email || '—')}
       ${row('Category', p.category)}
     </table>
-    ${button('View Customers', 'https://spika-crm.vercel.app/customers')}
+    ${button('View Customers', APP_URL + '/customers')}
   `)
 }
 
@@ -208,7 +214,7 @@ export function emailTaskAssigned(p: { workerName: string; taskTitle: string; cu
       ${p.customerName ? row('Customer', p.customerName) : ''}
       ${p.dueDate ? row('Due date', p.dueDate) : ''}
     </table>
-    ${button('View Tasks', 'https://spika-crm.vercel.app/agenda')}
+    ${button('View Tasks', APP_URL + '/agenda')}
   `)
 }
 
@@ -222,7 +228,7 @@ export function emailTaskCompleted(p: { taskTitle: string; completedBy: string; 
       ${p.customerName ? row('Customer', p.customerName) : ''}
       ${row('Completed by', p.completedBy)}
     </table>
-    ${button('View Tasks', `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://s-pika-crm.vercel.app'}/tasks`)}
+    ${button('View Tasks', `${APP_URL}/tasks`)}
   `)
 }
 
