@@ -195,18 +195,20 @@ function MetricProgress({
   const pct = target > 0 ? Math.min(100, Math.round((value / target) * 100)) : 0
 
   return (
-    <div className="space-y-1.5">
-      <div className="flex items-center gap-2">
-        <div className={`p-1.5 rounded-md ${c.iconBg}`}>
-          <Icon className="h-3.5 w-3.5" />
+    <div className="space-y-1">
+      <div className="flex items-center gap-1.5">
+        <div className={`p-1 rounded-md ${c.iconBg}`}>
+          <Icon className="h-3 w-3" />
         </div>
         <p className="text-xs font-medium text-muted-foreground">{label}</p>
       </div>
-      <div className="flex items-end gap-2">
+      <div className="flex items-end gap-2 leading-none">
         {isLoading ? <Skeleton className="h-7 w-16" /> : (
           <>
-            <p className={`text-2xl font-bold ${c.text}`}>{formatValue(value)}</p>
-            <p className="text-xs text-muted-foreground mb-0.5">/ {formatValue(target)} · {pct}%</p>
+            {/* nowrap: "XCG 7,148" broke across two lines at tablet widths once
+                the two metrics sat side by side */}
+            <p className={`text-lg sm:text-2xl font-bold whitespace-nowrap ${c.text}`}>{formatValue(value)}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mb-0.5 truncate min-w-0">/ {formatValue(target)} · {pct}%</p>
             {editing ? (
               <div className="flex items-center gap-1 ml-auto shrink-0">
                 <Input autoFocus type="number" value={draft}
@@ -261,23 +263,13 @@ function BottlesCard({
   const fmtMoney = (n: number) => `XCG ${Math.round(n).toLocaleString('en')}`
 
   return (
-    <Card className="py-0">
-      <CardContent className="p-3 space-y-2">
-        {/* Month picker */}
-        <div className="flex justify-end">
-          <select
-            value={selectedMonth}
-            onChange={e => onMonthChange(e.target.value)}
-            className="h-6 text-xs rounded-md border border-input bg-background px-1.5 text-muted-foreground"
-          >
-            {monthOptions.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-        </div>
+    <Card className="py-0 gap-0">
+      <CardContent className="p-2.5 space-y-1.5">
+        {/* The month picker lives in the page header — see the header row */}
 
-        {/* Bottles + Sales side by side */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Bottles + Sales side by side, on phones too — stacking them cost a
+            full extra block of height for two numbers */}
+        <div className="grid grid-cols-2 gap-2.5">
           <MetricProgress
             icon={Package} label="Bottles Sold" value={bottles} formatValue={n => String(n)}
             color="blue" table="monthly_targets" targetColumn="bottle_target" defaultTarget={500}
@@ -1024,18 +1016,32 @@ export default function DashboardPage() {
   })()
 
   return (
-    <div className="p-3 lg:p-6 space-y-3">
-      <div>
+    <div className="p-3 lg:p-4 space-y-2">
+      {/* Title and month picker share one row — the picker used to sit on a
+          line of its own inside the metrics card, costing a full row of height */}
+      <div className="flex items-center justify-between gap-3">
         {isAdmin ? (
-          <>
-            <h1 className="text-xl font-bold">Dashboard</h1>
-            <p className="text-muted-foreground text-xs">Live overview — updates in real time</p>
-          </>
+          <h1 className="text-xl font-bold leading-none">Dashboard</h1>
         ) : (
-          <>
-            <h1 className="text-xl font-bold">SPika Sales — {profile?.name ?? ''}</h1>
-            <p className="text-muted-foreground text-sm">Ready for some sales today? See your tasks below</p>
-          </>
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold leading-tight truncate">SPika Sales — {profile?.name ?? ''}</h1>
+            <p className="text-muted-foreground text-xs">Ready for some sales today?</p>
+          </div>
+        )}
+        {isAdmin && (
+          <select
+            value={selectedMonth}
+            onChange={e => setSelectedMonth(e.target.value)}
+            className="h-7 text-xs rounded-md border border-input bg-background px-1.5 text-muted-foreground shrink-0"
+          >
+            {Array.from({ length: 12 }, (_, i) => {
+              const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i)
+              return {
+                value: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+                label: d.toLocaleDateString('en', { month: 'long', year: 'numeric' }),
+              }
+            }).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
         )}
       </div>
 
