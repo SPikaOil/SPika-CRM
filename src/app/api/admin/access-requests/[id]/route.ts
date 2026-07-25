@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient as createServerClient } from '@/lib/supabase/server'
-import { sendEmail } from '@/lib/resend'
+import { sendEmail, emailAccountApproved } from '@/lib/resend'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://s-pika-crm.vercel.app'
 
@@ -70,15 +70,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await sendEmail({
       to: request.email,
       subject: 'Your SPika B2B account is ready!',
-      html: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 16px;">
-  <h1 style="color:#dc2626;">🔥 SPika Oil</h1>
-  <h2>Your account is approved!</h2>
-  <p>Hi ${request.name},</p>
-  <p>Great news — your SPika B2B account for <strong>${request.company_name}</strong> has been approved and is ready to use.</p>
-  <p>Your pricing and account details have been set up. You can now log in and start placing orders.</p>
-  <a href="${APP_URL}/portal" style="display:inline-block;background:#dc2626;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;margin-top:16px;">Log in to Portal →</a>
-  <p style="margin-top:24px;color:#666;font-size:14px;">Questions? hello@spikaoil.nl or WhatsApp +5999 689-6969.</p>
-</div>`,
+      html: emailAccountApproved({
+        name: request.name,
+        companyName: request.company_name,
+        appUrl: APP_URL,
+      }),
     })
 
     // Update access_request status
@@ -168,7 +164,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: authError?.message || 'Failed to invite user' }, { status: 500 })
     }
 
-    await admin.from('users').insert({
+    // Upsert, not insert: the on_auth_user_created trigger has already written
+    // this profile row with the safe default role, so a plain insert fails on a
+    // duplicate primary key and the invite silently produces no portal access.
+    await admin.from('users').upsert({
       id: authData.user.id,
       email: request.email,
       name: request.name,

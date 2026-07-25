@@ -69,8 +69,10 @@ export async function POST(req: NextRequest) {
       authUserId = inviteData.user.id
     }
 
-    // Create users profile row
-    const { error: profileError } = await admin.from('users').insert({
+    // Upsert, not insert: the on_auth_user_created trigger already wrote this
+    // row with the safe default role, so a plain insert fails on a duplicate
+    // primary key and the customer never gets portal access.
+    const { error: profileError } = await admin.from('users').upsert({
       id: authUserId,
       email: customer.email,
       name: customer.contact_person || customer.company_name,

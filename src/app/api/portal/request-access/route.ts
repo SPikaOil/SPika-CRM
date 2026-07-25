@@ -1,5 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse, type NextRequest } from 'next/server'
+import { sendEmail, ADMIN_EMAIL, emailAccessRequestAdmin } from '@/lib/resend'
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://s-pika-crm.vercel.app'
 
 export async function POST(request: NextRequest) {
   const body = await request.json()
@@ -24,6 +27,24 @@ export async function POST(request: NextRequest) {
     console.error('access_requests insert error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  // Tell the admin a request came in. This notification used to live in the
+  // onboarding route, which only self-registered users reached — and
+  // self-registration is closed, so without this nobody would be emailed at all.
+  // Fire-and-forget: a mail problem must never lose the request itself.
+  sendEmail({
+    to: ADMIN_EMAIL,
+    subject: `New access request from ${String(company_name).trim()}`,
+    html: emailAccessRequestAdmin({
+      companyName: String(company_name).trim(),
+      name: String(name).trim(),
+      email: String(email).trim(),
+      phone: phone ? String(phone).trim() : null,
+      country: country ? String(country).trim() : null,
+      message: message ? String(message).trim() : null,
+      appUrl: APP_URL,
+    }),
+  }).catch(err => console.error('[email] access request notification failed:', err))
 
   return NextResponse.json({ ok: true })
 }
