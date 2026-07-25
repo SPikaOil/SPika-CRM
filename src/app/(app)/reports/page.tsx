@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { BarChart2, Download, Loader2 } from 'lucide-react'
+import { downloadCsv, csvMoney } from '@/lib/csv-export'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/auth-context'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -173,23 +174,19 @@ export default function ReportsPage() {
 
   // ── CSV export ──────────────────────────────────────────────────────────────
   function exportCSV() {
-    const rows = [
+    // Uses the shared helper so values are escaped — company names contain
+    // commas, which silently corrupted the columns before.
+    downloadCsv(
+      `report-${preset}`,
       ['Order #', 'Customer', 'Date', 'Total (XCG)', 'Status'],
-      ...orders.map(o => [
+      orders.map(o => [
         o.order_number,
         o.customer?.company_name ?? '',
-        new Date(o.sales_date + 'T12:00:00').toLocaleDateString('en'),
-        Number(o.total).toFixed(2),
+        o.sales_date,
+        csvMoney(o.total),
         o.status,
-      ]),
-    ]
-    const csv = rows.map(r => r.join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `spika-report-${preset}.csv`
-    a.click()
+      ])
+    )
   }
 
   const fmtDate = (d: string) => new Date(d).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })

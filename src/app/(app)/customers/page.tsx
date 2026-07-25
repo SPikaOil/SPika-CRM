@@ -2,7 +2,8 @@
 
 import { useRef, useState } from 'react'
 import Link from 'next/link'
-import { Plus, Search, Building2, Upload, Download, FileDown, X, CheckCircle, AlertCircle, MinusCircle } from 'lucide-react'
+import { Plus, Search, Building2, Upload, Download, FileDown, X, CheckCircle, AlertCircle, MinusCircle, FileSpreadsheet } from 'lucide-react'
+import { downloadCsv } from '@/lib/csv-export'
 import { useCustomers } from '@/hooks/use-customers'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -146,6 +147,27 @@ export default function CustomersPage() {
   const { isAdmin } = useAuth()
   const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // CSV of exactly what's on screen — search, category and country filters apply
+  function exportCsv() {
+    downloadCsv(
+      'customers',
+      ['Customer #', 'Company', 'Contact', 'Email', 'Phone', 'WhatsApp', 'Category',
+       'Country', 'City', 'Street', 'CoC', 'VAT', 'CRIB', 'Payment term (days)', 'Status', 'Notes'],
+      visibleCustomers.map(c => [
+        (c as any).customer_number ?? '',
+        c.company_name, c.contact_person, c.email, c.phone, c.whatsapp,
+        c.customer_category,
+        (c.billing_address as any)?.country ?? '',
+        (c.billing_address as any)?.city ?? '',
+        (c.billing_address as any)?.street ?? '',
+        c.coc_number, c.vat_number, c.crib_number,
+        c.payment_term_days,
+        c.status,
+        c.internal_notes,
+      ])
+    )
+  }
   const [importing, setImporting] = useState(false)
   const [importResults, setImportResults] = useState<ImportResult[] | null>(null)
 
@@ -233,6 +255,10 @@ export default function CustomersPage() {
             <Button variant="outline" size="icon" onClick={() => customers && exportCustomersXML(customers)}
               disabled={!customers?.length} title="Export Excel">
               <Download className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="icon" onClick={exportCsv}
+              disabled={!visibleCustomers.length} title="Export CSV">
+              <FileSpreadsheet className="h-4 w-4" />
             </Button>
             <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()}
               disabled={importing} title="Import CSV">

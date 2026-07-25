@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import SignaturePad from 'signature_pad'
-import { PackageCheck, Loader2, Plus, Minus, Check, Clock, X, Trash2, Eye } from 'lucide-react'
+import { PackageCheck, Loader2, Plus, Minus, Check, Clock, X, Trash2, Eye, FileSpreadsheet } from 'lucide-react'
+import { downloadCsv, csvDate } from '@/lib/csv-export'
 import { useAuth } from '@/contexts/auth-context'
 import { useUsers } from '@/hooks/use-users'
 import { createClient } from '@/lib/supabase/client'
@@ -86,7 +87,10 @@ export default function HandoverPage() {
     return () => { sigPadRef.current?.off() }
   }, [signBatch])
 
-  const salesTeam = (users ?? []).filter(u => (u.role === 'sales' || u.role === 'admin') && (u as any).is_active !== false)
+  // Anyone internal can be handed bottles — listing roles individually meant a
+  // new role (Manager) silently disappeared from this dropdown.
+  const INTERNAL_ROLES = ['admin', 'manager', 'sales', 'staff']
+  const salesTeam = (users ?? []).filter(u => INTERNAL_ROLES.includes(u.role) && (u as any).is_active !== false)
   const memberName = (id: string) => users?.find(u => u.id === id)?.name ?? 'Unknown'
 
   function adjust(sku: string, delta: number) {
@@ -184,13 +188,34 @@ export default function HandoverPage() {
 
   return (
     <div className="p-3 lg:p-6 space-y-3 max-w-2xl mx-auto w-full">
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <PackageCheck className="h-6 w-6 text-red-600" /> Handover Btls
-        </h1>
-        <p className="text-muted-foreground text-sm">
-          {isAdmin ? 'Bottles ready for pick-up, allocated to the sales team' : 'Bottles allocated to you — sign to confirm receipt'}
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <PackageCheck className="h-6 w-6 text-red-600" /> Handover Btls
+          </h1>
+          <p className="text-muted-foreground text-sm">
+            {isAdmin ? 'Bottles ready for pick-up, allocated to the sales team' : 'Bottles allocated to you — sign to confirm receipt'}
+          </p>
+        </div>
+        <Button variant="outline" size="icon" title="Export CSV"
+          disabled={!batches.length}
+          onClick={() => downloadCsv(
+            'handover-batches',
+            ['Batch #', 'Handover date', 'Member', 'Total bottles', 'Items', 'Signed by', 'Signed at', 'Notes', 'Created'],
+            batches.map(b => [
+              b.batch_number ?? '',
+              b.handover_date ?? '',
+              memberName(b.member_id),
+              (b.items ?? []).reduce((s, i) => s + (i.qty ?? 0), 0),
+              (b.items ?? []).map(i => `${i.qty}x ${i.sku}`).join('; '),
+              b.signer_name ?? '',
+              b.signed_at ? csvDate(b.signed_at) : '',
+              b.notes,
+              csvDate(b.created_at),
+            ])
+          )}>
+          <FileSpreadsheet className="h-4 w-4" />
+        </Button>
       </div>
 
       {/* New batch — admin only */}

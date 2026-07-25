@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
 
 export default function RequestAccessPage() {
   const [submitted, setSubmitted] = useState(false)
@@ -17,43 +16,28 @@ export default function RequestAccessPage() {
     email: '',
     company_name: '',
     country: '',
-    password: '',
-    confirm_password: '',
+    phone: '',
+    message: '',
   })
 
   function set(field: string, value: string) {
     setForm(prev => ({ ...prev, [field]: value }))
   }
 
+  // Submits a REQUEST only — no account is created here. An admin reviews it and
+  // sends the invite, which is the only path that creates a login.
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
-    if (form.password !== form.confirm_password) {
-      toast.error('Passwords do not match')
-      return
-    }
-
-    if (form.password.length < 8) {
-      toast.error('Password must be at least 8 characters')
-      return
-    }
-
     setLoading(true)
     try {
-      const supabase = createClient()
-      const { error } = await supabase.auth.signUp({
-        email: form.email,
-        password: form.password,
-        options: {
-          data: {
-            name: form.name,
-            company_name: form.company_name,
-            country: form.country,
-          },
-          emailRedirectTo: window.location.origin + '/portal/onboarding',
-        },
+      const res = await fetch('/api/portal/request-access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
       })
-      if (error) throw error
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Something went wrong')
       setSubmitted(true)
     } catch (err: any) {
       toast.error(err.message || 'Something went wrong')
@@ -79,11 +63,11 @@ export default function RequestAccessPage() {
             <div className="text-center py-8 space-y-4">
               <Mail className="h-14 w-14 text-red-600 mx-auto" />
               <div>
-                <p className="font-bold text-xl">Check your email!</p>
+                <p className="font-bold text-xl">Request received!</p>
                 <p className="text-sm text-muted-foreground mt-2">
-                  We sent a verification link to{' '}
+                  Thanks — we&rsquo;ll review your application and get back to you at{' '}
                   <span className="font-medium text-foreground">{form.email}</span>.
-                  Click the link to verify your address and complete your application.
+                  If approved, you&rsquo;ll receive an invitation to set up your login.
                 </p>
               </div>
               <Link href="/portal">
@@ -96,9 +80,10 @@ export default function RequestAccessPage() {
           ) : (
             <>
               <div>
-                <h1 className="text-2xl font-bold">Create Account</h1>
+                <h1 className="text-2xl font-bold">Request Access</h1>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Register to apply for B2B access.
+                  Apply for B2B access. We review every request personally and send
+                  you a login once approved.
                 </p>
               </div>
 
@@ -142,32 +127,21 @@ export default function RequestAccessPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Password *</Label>
+                  <Label>Phone</Label>
                   <Input
-                    type="password"
-                    placeholder="••••••••"
-                    value={form.password}
-                    onChange={e => set('password', e.target.value)}
-                    required
-                    autoComplete="new-password"
-                    minLength={8}
+                    placeholder="+5999 000 0000"
+                    value={form.phone}
+                    onChange={e => set('phone', e.target.value)}
+                    autoComplete="tel"
                   />
-                  <p className="text-xs text-muted-foreground">Minimum 8 characters</p>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Confirm password *</Label>
+                  <Label>Anything we should know?</Label>
                   <Input
-                    type="password"
-                    placeholder="••••••••"
-                    value={form.confirm_password}
-                    onChange={e => set('confirm_password', e.target.value)}
-                    required
-                    autoComplete="new-password"
-                    minLength={8}
+                    placeholder="Tell us about your business"
+                    value={form.message}
+                    onChange={e => set('message', e.target.value)}
                   />
-                  {form.confirm_password && form.password !== form.confirm_password && (
-                    <p className="text-xs text-red-600">Passwords do not match</p>
-                  )}
                 </div>
                 <Button
                   type="submit"
@@ -175,7 +149,7 @@ export default function RequestAccessPage() {
                   disabled={loading}
                 >
                   {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Create Account
+                  Send Request
                 </Button>
                 <Link href="/portal" className="block text-center text-sm text-muted-foreground hover:text-foreground underline underline-offset-4">
                   Already have an account? Sign in

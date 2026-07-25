@@ -84,8 +84,37 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // Profile update (name, role, phone)
   const updates: Record<string, string> = {}
   if (body.name)  updates.name  = body.name
-  if (body.role)  updates.role  = body.role
   if (body.phone !== undefined) updates.phone = body.phone
+
+  // Role changes are the one irreversible move here: only an admin may change a
+  // role, so demoting the last admin leaves nobody who can undo it. Guard both
+  // ways round before allowing it.
+  if (body.role) {
+    const { data: target } = await admin.from('users').select('role').eq('id', id).single()
+
+    if (id === caller.id && body.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'You cannot change your own role — ask another admin to do it' },
+        { status: 400 },
+      )
+    }
+
+    if (target?.role === 'admin' && body.role !== 'admin') {
+      const { count } = await admin
+        .from('users')
+        .select('id', { count: 'exact', head: true })
+        .eq('role', 'admin')
+        .eq('is_active', true)
+      if ((count ?? 0) <= 1) {
+        return NextResponse.json(
+          { error: 'This is the last admin — promote someone else to admin first' },
+          { status: 400 },
+        )
+      }
+    }
+
+    updates.role = body.role
+  }
 
   const { data, error } = await admin.from('users').update(updates).eq('id', id).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -103,6 +132,23 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: 'You cannot deactivate your own account' }, { status: 400 })
   }
   const admin = createAdminClient()
+
+  // Never let the last active admin be switched off — that would leave nobody
+  // able to manage users, roles or permissions.
+  const { data: target } = await admin.from('users').select('role').eq('id', id).single()
+  if (target?.role === 'admin') {
+    const { count } = await admin
+      .from('users')
+      .select('id', { count: 'exact', head: true })
+      .eq('role', 'admin')
+      .eq('is_active', true)
+    if ((count ?? 0) <= 1) {
+      return NextResponse.json(
+        { error: 'This is the last admin — promote someone else to admin first' },
+        { status: 400 },
+      )
+    }
+  }
 
   // 1. Ban the auth user (blocks new logins and token refresh)
   const { error } = await admin.auth.admin.updateUserById(id, { ban_duration: '876000h' })

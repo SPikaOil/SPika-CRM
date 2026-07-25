@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Pencil, Check, X, Package, Tag, Plus, Trash2, ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
+import { Pencil, Check, X, Package, Tag, Plus, Trash2, ChevronDown, ChevronUp, Loader2, FileSpreadsheet } from 'lucide-react'
+import { downloadCsv, csvMoney } from '@/lib/csv-export'
 import { useProducts, useUpdateProduct, ProductRecord } from '@/hooks/use-products'
 import { usePricePresets, useUpdatePricePreset, useCreatePricePreset, useDeletePricePreset } from '@/hooks/use-price-presets'
 import { SPIKA_PRODUCTS } from '@/lib/products'
@@ -443,6 +444,21 @@ function CategoriesTab() {
 
 export default function ProductsPage() {
   const [tab, setTab] = useState<'products' | 'categories'>('products')
+  const { data: allProducts } = useProducts()
+
+  function exportProductsCsv() {
+    downloadCsv(
+      'products',
+      ['SKU', 'Name', 'Product code', 'Default price (XCG)', 'Real volume (ml)',
+       'Weight (g)', 'Bottles per carton', 'Box L (cm)', 'Box W (cm)', 'Box H (cm)'],
+      (allProducts ?? []).map(p => [
+        p.sku, p.name, p.product_code ?? '',
+        csvMoney(p.default_price),
+        p.real_volume_ml ?? '', p.weight_g ?? '', p.bottles_per_carton ?? '',
+        p.box_length_cm ?? '', p.box_width_cm ?? '', p.box_height_cm ?? '',
+      ])
+    )
+  }
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto w-full space-y-4">
@@ -452,6 +468,10 @@ export default function ProductsPage() {
           <h1 className="text-2xl font-bold">Products</h1>
           <p className="text-sm text-muted-foreground">Manage products and customer category pricing</p>
         </div>
+        <Button variant="outline" size="icon" title="Export CSV" className="ml-auto"
+          onClick={exportProductsCsv}>
+          <FileSpreadsheet className="h-4 w-4" />
+        </Button>
       </div>
 
       {/* Tabs */}

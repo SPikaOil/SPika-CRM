@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Sprout, Plus, Search, Building2, PhoneCall } from 'lucide-react'
+import { Sprout, Plus, Search, Building2, PhoneCall, FileSpreadsheet } from 'lucide-react'
+import { downloadCsv, csvDate } from '@/lib/csv-export'
 import { useCustomers } from '@/hooks/use-customers'
 import { useAuth } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
@@ -28,6 +29,31 @@ export default function LeadsPage() {
     if (!authLoading && !isAdmin) router.replace('/dashboard')
   }, [isAdmin, authLoading, router])
 
+  // CSV of the leads currently listed, with their contact history summarised
+  function exportCsv() {
+    downloadCsv(
+      'leads',
+      ['Company', 'Contact', 'Email', 'Phone', 'WhatsApp', 'Category', 'Country', 'City',
+       'Contacts logged', 'Last contact', 'Last note', 'Notes'],
+      (leads ?? []).map(l => {
+        const log = ((l as any).contact_log ?? []) as any[]
+        const latest = log.length
+          ? [...log].sort((a, b) => (b.contacted_at || '').localeCompare(a.contacted_at || ''))[0]
+          : null
+        return [
+          l.company_name, l.contact_person, l.email, l.phone, l.whatsapp,
+          l.customer_category,
+          (l.billing_address as any)?.country ?? '',
+          (l.billing_address as any)?.city ?? '',
+          log.length,
+          latest?.contacted_at ? csvDate(latest.contacted_at) : '',
+          latest?.note ?? '',
+          l.internal_notes,
+        ]
+      })
+    )
+  }
+
   if (authLoading || !isAdmin) return null
 
   const today = new Date(); today.setHours(0, 0, 0, 0)
@@ -41,9 +67,15 @@ export default function LeadsPage() {
           </h1>
           <p className="text-muted-foreground text-sm">Potential customers — follow up and convert them</p>
         </div>
-        <Link href="/customers/new?lead=1">
-          <Button className="bg-teal-600 hover:bg-teal-700 gap-1.5"><Plus className="h-4 w-4" /> New Lead</Button>
-        </Link>
+        <div className="flex gap-2">
+          <Button variant="outline" size="icon" title="Export CSV"
+            disabled={!leads?.length} onClick={exportCsv}>
+            <FileSpreadsheet className="h-4 w-4" />
+          </Button>
+          <Link href="/customers/new?lead=1">
+            <Button className="bg-teal-600 hover:bg-teal-700 gap-1.5"><Plus className="h-4 w-4" /> New Lead</Button>
+          </Link>
+        </div>
       </div>
 
       <div className="relative">

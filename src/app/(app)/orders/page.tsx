@@ -3,7 +3,8 @@
 import { useEffect, useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ShoppingCart, Truck, CheckCircle2, Trash2, ChevronDown, ChevronUp, Plus, Search, RotateCcw } from 'lucide-react'
+import { ShoppingCart, Truck, CheckCircle2, Trash2, ChevronDown, ChevronUp, Plus, Search, RotateCcw, FileSpreadsheet } from 'lucide-react'
+import { downloadCsv, csvDate, csvMoney } from '@/lib/csv-export'
 import { useOrders, useUpdateOrder } from '@/hooks/use-orders'
 import { useAuth } from '@/contexts/auth-context'
 import { createClient } from '@/lib/supabase/client'
@@ -118,6 +119,30 @@ function OrdersPageInner() {
     ).filter(matchesSearch)
   )
 
+  // CSV of the orders currently listed — status filter, search and sort apply
+  function exportCsv() {
+    downloadCsv(
+      'orders',
+      ['Order #', 'PO #', 'Customer', 'Status', 'Payment', 'Consignment', 'Currency',
+       'Total', 'Created', 'Planned', 'Invoice date', 'Assigned to', 'Items'],
+      filteredActive.map(o => [
+        o.order_number,
+        o.po_number ?? '',
+        o.customer?.company_name ?? '',
+        o.status,
+        (o as any).payment_type ?? '',
+        (o as any).is_consignment ? 'yes' : 'no',
+        (o as any).currency ?? 'XCG',
+        csvMoney(o.total),
+        csvDate(o.created_at),
+        o.planned_date ?? '',
+        o.invoice_date ?? '',
+        o.assigned_user?.name ?? '',
+        ((o.items ?? []) as any[]).filter(i => i.qty > 0).map(i => `${i.qty}x ${i.sku}`).join('; '),
+      ])
+    )
+  }
+
   function openMarkPaid(order: Order, e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
@@ -188,12 +213,18 @@ function OrdersPageInner() {
           <h1 className="text-2xl font-bold">Orders</h1>
           <p className="text-muted-foreground text-sm">{filteredActive.length} active orders</p>
         </div>
-        <Link href="/orders/new">
-          <Button className="bg-red-600 hover:bg-red-700 gap-2">
-            <Plus className="h-4 w-4" />
-            New Order
+        <div className="flex gap-2">
+          <Button variant="outline" size="icon" title="Export CSV"
+            disabled={!filteredActive.length} onClick={exportCsv}>
+            <FileSpreadsheet className="h-4 w-4" />
           </Button>
-        </Link>
+          <Link href="/orders/new">
+            <Button className="bg-red-600 hover:bg-red-700 gap-2">
+              <Plus className="h-4 w-4" />
+              New Order
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Search */}

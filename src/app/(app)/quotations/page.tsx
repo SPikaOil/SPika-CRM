@@ -2,7 +2,8 @@
 
 import Link from 'next/link'
 import { Suspense, useState } from 'react'
-import { Plus, ReceiptText, FileText, Search, Trash2, Archive, Loader2 } from 'lucide-react'
+import { Plus, ReceiptText, FileText, Search, Trash2, Archive, Loader2, FileSpreadsheet } from 'lucide-react'
+import { downloadCsv, csvDate, csvMoney } from '@/lib/csv-export'
 import { useQuotes, useDeleteQuote, useConvertedQuoteIds } from '@/hooks/use-quotes'
 import { useAuth } from '@/contexts/auth-context'
 import { useSearchParams } from 'next/navigation'
@@ -75,6 +76,26 @@ function QuotationsPageInner() {
   const activeQuotes = all.filter(q => !isArchived(q)).filter(matches)
   const archivedQuotes = all.filter(isArchived).filter(matches)
 
+  // CSV of the quotations currently listed (active + archived), search applies
+  function exportCsv() {
+    const rows = [...activeQuotes, ...archivedQuotes]
+    downloadCsv(
+      'quotations',
+      ['Quote #', 'PO #', 'Customer', 'Status', 'Archived', 'Subtotal', 'Tax', 'Total', 'Valid until', 'Created', 'Items'],
+      rows.map(q => [
+        q.quote_number,
+        (q as any).po_number ?? '',
+        q.customer?.company_name ?? '',
+        q.status,
+        isArchived(q) ? 'yes' : 'no',
+        csvMoney(q.subtotal), csvMoney(q.tax), csvMoney(q.total),
+        q.valid_until ?? '',
+        csvDate(q.created_at),
+        ((q.items ?? []) as any[]).filter(i => i.qty > 0).map(i => `${i.qty}x ${i.sku}`).join('; '),
+      ])
+    )
+  }
+
   function QuoteRow({ quote }: { quote: Quote }) {
     const customer = (quote as any).customer
     const status = displayStatusOf(quote)
@@ -111,12 +132,18 @@ function QuotationsPageInner() {
     <div className="p-3 lg:p-6 space-y-3 max-w-7xl mx-auto w-full">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">Quotations</h1>
-        <Link href="/quotations/new">
-          <Button size="sm" className="gap-1.5 bg-red-600 hover:bg-red-700">
-            <Plus className="h-4 w-4" />
-            New Quotation
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="px-2" title="Export CSV"
+            disabled={!activeQuotes.length && !archivedQuotes.length} onClick={exportCsv}>
+            <FileSpreadsheet className="h-4 w-4" />
           </Button>
-        </Link>
+          <Link href="/quotations/new">
+            <Button size="sm" className="gap-1.5 bg-red-600 hover:bg-red-700">
+              <Plus className="h-4 w-4" />
+              New Quotation
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Search */}

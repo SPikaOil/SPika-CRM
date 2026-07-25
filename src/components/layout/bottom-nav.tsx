@@ -23,6 +23,7 @@ import {
   PackageCheck,
   MapPin,
   Sprout,
+  ShieldCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
@@ -43,25 +44,27 @@ const salesMainItems = [
   { href: '/handover',        label: 'Handover',  icon: PackageCheck },
 ]
 
+// `permission: null` = visible to anyone signed in; `adminOnly` = owner only.
 const adminMoreItems = [
-  { href: '/leads',               label: 'Leads',       icon: Sprout },
-  { href: '/agenda',              label: 'Agenda',      icon: CalendarDays },
-  { href: '/quotations',          label: 'Quotations',  icon: ReceiptText },
-  { href: '/products',            label: 'Products',    icon: Package },
-  { href: '/sales-documents',     label: 'Sales Docs',  icon: FolderOpen },
-  { href: '/tasks',               label: 'Tasks',       icon: ClipboardList },
-  { href: '/reports',              label: 'Reports',     icon: BarChart2 },
-  { href: '/stock',               label: 'Stock SPika', icon: Droplets },
-  { href: '/handover',            label: 'Handover',    icon: PackageCheck },
-  { href: '/store-locator',       label: 'Locator',     icon: MapPin },
-  { href: '/portal-management',   label: 'Portal',      icon: Globe },
-  { href: '/team',                label: 'Team',        icon: UserCog },
-  { href: '/settings',            label: 'Settings',    icon: Settings },
+  { href: '/leads',               label: 'Leads',       icon: Sprout,        permission: 'leads.view'        },
+  { href: '/agenda',              label: 'Agenda',      icon: CalendarDays,  permission: null                },
+  { href: '/quotations',          label: 'Quotations',  icon: ReceiptText,   permission: 'quotations.view'   },
+  { href: '/products',            label: 'Products',    icon: Package,       permission: 'products.view'     },
+  { href: '/sales-documents',     label: 'Sales Docs',  icon: FolderOpen,    permission: 'salesdocs.view'    },
+  { href: '/tasks',               label: 'Tasks',       icon: ClipboardList, permission: 'tasks.view'        },
+  { href: '/reports',              label: 'Reports',     icon: BarChart2,     permission: 'reports.view'      },
+  { href: '/stock',               label: 'Stock SPika', icon: Droplets,      permission: 'stock.view'        },
+  { href: '/handover',            label: 'Handover',    icon: PackageCheck,  permission: null                },
+  { href: '/store-locator',       label: 'Locator',     icon: MapPin,        permission: 'storelocator.view' },
+  { href: '/portal-management',   label: 'Portal',      icon: Globe,         permission: 'portal.view'       },
+  { href: '/team',                label: 'Team',        icon: UserCog,       permission: 'team.manage'       },
+  { href: '/permissions',         label: 'Permissions', icon: ShieldCheck,   permission: 'permissions.manage' },
+  { href: '/settings',            label: 'Settings',    icon: Settings,      permission: 'settings.view'     },
 ]
 
 export function BottomNav() {
   const pathname = usePathname()
-  const { isAdmin } = useAuth()
+  const { isAdmin, can } = useAuth()
   const [moreOpen, setMoreOpen] = useState(false)
   const [confirmSignOut, setConfirmSignOut] = useState(false)
   const router = useRouter()
@@ -78,10 +81,13 @@ export function BottomNav() {
     setConfirmSignOut(false)
   }
 
-  const mainItems = isAdmin ? adminMainItems : salesMainItems
+  // Driven by permission, not by "is this the owner" — otherwise a Manager
+  // silently drops into the sales layout and loses tabs they may use.
+  const mainItems = can('orders.view') ? adminMainItems : salesMainItems
+  const moreItems = adminMoreItems.filter(i => !i.permission || can(i.permission))
 
   // Check if current path is in the "more" menu to highlight the button
-  const moreActive = isAdmin && adminMoreItems.some(i => pathname.startsWith(i.href))
+  const moreActive = moreItems.some(i => pathname.startsWith(i.href))
 
   return (
     <>
@@ -103,7 +109,7 @@ export function BottomNav() {
             </button>
           </div>
           <div className="grid grid-cols-3 gap-1 p-3">
-            {adminMoreItems.map((item) => {
+            {moreItems.map((item) => {
               const Icon = item.icon
               const active = pathname.startsWith(item.href)
               return (
@@ -174,8 +180,8 @@ export function BottomNav() {
             )
           })}
 
-          {/* More button — admin only */}
-          {isAdmin && (
+          {/* More button — shown when this user actually has extra tabs */}
+          {moreItems.length > 0 && (
             <button
               onClick={() => setMoreOpen(v => !v)}
               className={cn(

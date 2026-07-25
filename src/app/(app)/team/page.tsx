@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Users, Plus, KeyRound, Edit2, UserX, Check, X, Loader2, ShieldCheck, Truck, UserCircle2, Lock, Clock
+  Users, Plus, KeyRound, Edit2, UserX, Check, X, Loader2, ShieldCheck, Truck, UserCircle2, Lock, Clock, FileSpreadsheet
 } from 'lucide-react'
+import { downloadCsv, csvDate } from '@/lib/csv-export'
 import { useAuth } from '@/contexts/auth-context'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -22,8 +23,9 @@ import { toast } from 'sonner'
 import { User } from '@/types'
 
 const roleConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
-  admin:  { label: 'Admin',  color: 'bg-green-100 text-green-700', icon: ShieldCheck },
-  sales:  { label: 'Sales',  color: 'bg-blue-100 text-blue-700',   icon: UserCircle2 },
+  admin:   { label: 'Admin',   color: 'bg-green-100 text-green-700',   icon: ShieldCheck },
+  manager: { label: 'Manager', color: 'bg-purple-100 text-purple-700', icon: ShieldCheck },
+  sales:   { label: 'Sales',   color: 'bg-blue-100 text-blue-700',     icon: UserCircle2 },
 }
 
 export default function TeamPage() {
@@ -238,9 +240,20 @@ export default function TeamPage() {
           <h1 className="text-2xl font-bold">Team</h1>
           <Badge variant="secondary">{activeUsers.length} members</Badge>
         </div>
-        <Button className="bg-red-600 hover:bg-red-700 gap-2" onClick={() => setShowCreate(true)}>
-          <Plus className="h-4 w-4" /> Add Member
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="icon" title="Export CSV"
+            disabled={!users.length}
+            onClick={() => downloadCsv(
+              'team',
+              ['Name', 'Email', 'Role', 'Phone', 'Active', 'Created'],
+              users.map(u => [u.name, u.email, u.role, u.phone, u.is_active === false ? 'no' : 'yes', csvDate(u.created_at)])
+            )}>
+            <FileSpreadsheet className="h-4 w-4" />
+          </Button>
+          <Button className="bg-red-600 hover:bg-red-700 gap-2" onClick={() => setShowCreate(true)}>
+            <Plus className="h-4 w-4" /> Add Member
+          </Button>
+        </div>
       </div>
 
       {/* My Account */}
@@ -390,10 +403,11 @@ export default function TeamPage() {
               </div>
               <div className="space-y-1.5">
                 <Label>Role <span className="text-red-500">*</span></Label>
-                <Select value={newRole} onValueChange={(v) => setNewRole(v ?? 'worker')}>
+                <Select value={newRole} onValueChange={(v) => setNewRole(v ?? 'sales')}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
                     <SelectItem value="sales">Sales</SelectItem>
                   </SelectContent>
                 </Select>
@@ -456,6 +470,7 @@ export default function TeamPage() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
                   <SelectItem value="sales">Sales</SelectItem>
                 </SelectContent>
               </Select>

@@ -21,39 +21,43 @@ import {
   PackageCheck,
   MapPin,
   Sprout,
+  ShieldCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
 import { UserMenu } from './user-menu'
 
+// `permission: null` means everyone signed in sees it. Everything else is
+// governed by the Permissions screen, so an admin decides who sees which tab.
 const allNavItems = [
-  { href: '/dashboard',       label: 'Dashboard',       icon: LayoutDashboard, adminOnly: false },
-  { href: '/customers',       label: 'Customers',        icon: Users,           adminOnly: true  },
-  { href: '/leads',           label: 'Leads',            icon: Sprout,          adminOnly: true  },
-  { href: '/quotations',      label: 'Quotations',       icon: ReceiptText,     adminOnly: true  },
-  { href: '/delivery-notes',  label: 'Delivery Notes',   icon: FileText,        adminOnly: false },
-  { href: '/orders',          label: 'Orders',           icon: ShoppingCart,    adminOnly: true  },
-  { href: '/products',         label: 'Products',         icon: Package,         adminOnly: true  },
-  { href: '/sales-documents', label: 'Sales Docs',       icon: FolderOpen,      adminOnly: true  },
-  { href: '/tasks',           label: 'Tasks',            icon: ClipboardList,   adminOnly: true  },
-  { href: '/agenda',          label: 'Agenda',           icon: CalendarDays,    adminOnly: false },
-  { href: '/reports',         label: 'Reports',          icon: BarChart2,       adminOnly: true  },
-  { href: '/stock',           label: 'Stock SPika',      icon: Droplets,        adminOnly: true  },
-  { href: '/handover',        label: 'Handover Btls',    icon: PackageCheck,    adminOnly: false },
-  { href: '/store-locator',   label: 'Store Locator',    icon: MapPin,          adminOnly: true  },
+  { href: '/dashboard',       label: 'Dashboard',       icon: LayoutDashboard, permission: null                 },
+  { href: '/customers',       label: 'Customers',        icon: Users,           permission: 'customers.view'     },
+  { href: '/leads',           label: 'Leads',            icon: Sprout,          permission: 'leads.view'         },
+  { href: '/quotations',      label: 'Quotations',       icon: ReceiptText,     permission: 'quotations.view'    },
+  { href: '/delivery-notes',  label: 'Delivery Notes',   icon: FileText,        permission: null                 },
+  { href: '/orders',          label: 'Orders',           icon: ShoppingCart,    permission: 'orders.view'        },
+  { href: '/products',         label: 'Products',         icon: Package,         permission: 'products.view'      },
+  { href: '/sales-documents', label: 'Sales Docs',       icon: FolderOpen,      permission: 'salesdocs.view'     },
+  { href: '/tasks',           label: 'Tasks',            icon: ClipboardList,   permission: 'tasks.view'         },
+  { href: '/agenda',          label: 'Agenda',           icon: CalendarDays,    permission: null                 },
+  { href: '/reports',         label: 'Reports',          icon: BarChart2,       permission: 'reports.view'       },
+  { href: '/stock',           label: 'Stock SPika',      icon: Droplets,        permission: 'stock.view'         },
+  { href: '/handover',        label: 'Handover Btls',    icon: PackageCheck,    permission: null                 },
+  { href: '/store-locator',   label: 'Store Locator',    icon: MapPin,          permission: 'storelocator.view'  },
 ]
 
 const adminOnlyItems = [
-  { href: '/portal-management', label: 'Portal',   icon: Globe    },
-  { href: '/team',              label: 'Team',     icon: UserCog  },
-  { href: '/settings',          label: 'Settings', icon: Settings },
+  { href: '/portal-management', label: 'Portal',      icon: Globe       },
+  { href: '/team',              label: 'Team',        icon: UserCog     },
+  { href: '/permissions',       label: 'Permissions', icon: ShieldCheck },
+  { href: '/settings',          label: 'Settings',    icon: Settings    },
 ]
 
 export function Sidebar() {
   const pathname = usePathname()
-  const { isAdmin } = useAuth()
+  const { isAdmin, can } = useAuth()
 
-  const navItems = allNavItems.filter(i => isAdmin || !i.adminOnly)
+  const navItems = allNavItems.filter(i => !i.permission || can(i.permission))
 
   return (
     <aside className="hidden lg:flex flex-col w-64 border-r bg-background h-screen sticky top-0">

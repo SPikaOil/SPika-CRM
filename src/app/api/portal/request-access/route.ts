@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 export async function POST(request: NextRequest) {
   const body = await request.json()
-  const { name, email, company_name, phone, message } = body
+  const { name, email, company_name, country, phone, message } = body
 
   if (!name || !email || !company_name) {
     return NextResponse.json({ error: 'Name, email and company name are required' }, { status: 400 })
@@ -15,6 +15,7 @@ export async function POST(request: NextRequest) {
     name: String(name).trim(),
     email: String(email).trim().toLowerCase(),
     company_name: String(company_name).trim(),
+    country: country ? String(country).trim() : null,
     phone: phone ? String(phone).trim() : null,
     message: message ? String(message).trim() : null,
   })

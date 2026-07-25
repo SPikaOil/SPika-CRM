@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { Session, User as SupabaseUser } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
 import { User } from '@/types'
+import { can as checkPermission, DEFAULT_ROLE_PERMISSIONS, type PermissionMap } from '@/lib/permissions'
 
 interface AuthContextValue {
   session: Session | null
@@ -12,6 +13,9 @@ interface AuthContextValue {
   isLoading: boolean
   isAdmin: boolean
   isCustomer: boolean
+  /** May the signed-in user do this? Admin always true. */
+  can: (permission: string) => boolean
+  permissions: PermissionMap
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -21,6 +25,8 @@ const AuthContext = createContext<AuthContextValue>({
   isLoading: true,
   isAdmin: false,
   isCustomer: false,
+  can: () => false,
+  permissions: {},
 })
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -29,6 +35,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null)
   const [profile, setProfile] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  // Live matrix from role_permissions; falls back to the defaults if the table
+  // is not reachable, so the app never renders as if nobody may do anything.
+  const [permissions, setPermissions] = useState<PermissionMap>(DEFAULT_ROLE_PERMISSIONS as PermissionMap)
 
   async function loadProfile(userId: string) {
     const { data } = await supabase
@@ -39,11 +48,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfile(data)
   }
 
+  async function loadPermissions() {
+    const { data } = await supabase.from('role_permissions').select('role, permissions')
+    if (!data?.length) return
+    const map: PermissionMap = {}
+    for (const row of data as any[]) map[row.role] = row.permissions ?? []
+    setPermissions(map)
+  }
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setSupabaseUser(session?.user ?? null)
       if (session?.user) {
+        loadPermissions()
         loadProfile(session.user.id).finally(() => setIsLoading(false))
       } else {
         setIsLoading(false)
@@ -75,6 +93,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         isAdmin: profile?.role === 'admin',
         isCustomer: profile?.role === 'customer',
+        permissions,
+        can: (permission: string) => checkPermission(profile?.role, permission, permissions),
       }}
     >
       {children}

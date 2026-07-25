@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckCircle2, Circle, ClipboardList, Plus, Trash2, RefreshCw, Calendar } from 'lucide-react'
+import { CheckCircle2, Circle, ClipboardList, Plus, Trash2, RefreshCw, Calendar, FileSpreadsheet } from 'lucide-react'
+import { downloadCsv, csvDate } from '@/lib/csv-export'
 import { useTasks, useCreateTask, useCompleteTask, useDeleteTask } from '@/hooks/use-tasks'
 import { useCustomers } from '@/hooks/use-customers'
 import { useUsers } from '@/hooks/use-users'
@@ -85,6 +86,24 @@ export default function TasksPage() {
   const pending = filtered.filter((t) => !t.completed_at)
   const completed = filtered.filter((t) => !!t.completed_at)
 
+  // CSV of the tasks currently listed (pending + completed), filters apply
+  function exportCsv() {
+    downloadCsv(
+      'tasks',
+      ['Title', 'Description', 'Customer', 'Assigned to', 'Frequency', 'Due date', 'Completed', 'Created'],
+      filtered.map(t => [
+        t.title,
+        t.description,
+        (t.customer as any)?.company_name ?? '',
+        (t.assigned_user as any)?.name ?? '',
+        t.frequency,
+        t.due_date ?? '',
+        t.completed_at ? csvDate(t.completed_at) : '',
+        csvDate(t.created_at),
+      ])
+    )
+  }
+
   return (
     <div className="p-4 lg:p-6 space-y-4">
       {/* Header */}
@@ -93,6 +112,10 @@ export default function TasksPage() {
           <h1 className="text-2xl font-bold">Tasks</h1>
           <p className="text-muted-foreground text-sm">{pending.length} pending</p>
         </div>
+        <Button variant="outline" size="icon" title="Export CSV" className="ml-auto"
+          disabled={!filtered.length} onClick={exportCsv}>
+          <FileSpreadsheet className="h-4 w-4" />
+        </Button>
         {isAdmin && (
           <Button
             className="bg-red-600 hover:bg-red-700"

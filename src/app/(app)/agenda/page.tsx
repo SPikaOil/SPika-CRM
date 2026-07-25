@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Truck, ClipboardList, RefreshCw, CalendarDays } from 'lucide-react'
+import { Truck, ClipboardList, RefreshCw, CalendarDays, FileSpreadsheet } from 'lucide-react'
+import { downloadCsv } from '@/lib/csv-export'
 import { useMyOrders } from '@/hooks/use-orders'
 import { useTasks } from '@/hooks/use-tasks'
 import { useAuth } from '@/contexts/auth-context'
@@ -110,6 +111,15 @@ export default function AgendaPage() {
             {events.length} {events.length === 1 ? 'item' : 'items'} coming up
           </p>
         </div>
+        <Button variant="outline" size="icon" title="Export CSV" className="ml-auto"
+          disabled={!events.length}
+          onClick={() => downloadCsv(
+            'agenda',
+            ['Date', 'Type', 'Title', 'Details', 'Status', 'Recurring'],
+            events.map(e => [e.date, e.type, e.title, e.subtitle, e.badge ?? '', e.recurring ? 'yes' : 'no'])
+          )}>
+          <FileSpreadsheet className="h-4 w-4" />
+        </Button>
         <div className="flex gap-1 p-1 rounded-lg bg-muted">
           <Button
             size="sm"

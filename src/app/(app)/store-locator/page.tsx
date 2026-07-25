@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
-import { MapPin, Loader2, Plus, Trash2, Check, X, Copy, ExternalLink } from 'lucide-react'
+import { MapPin, Loader2, Plus, Trash2, Check, X, Copy, ExternalLink, FileSpreadsheet } from 'lucide-react'
+import { downloadCsv } from '@/lib/csv-export'
 import { useAuth } from '@/contexts/auth-context'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -138,11 +139,22 @@ export default function StoreLocatorAdminPage() {
 
   return (
     <div className="p-3 lg:p-6 space-y-3 max-w-2xl mx-auto w-full">
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <MapPin className="h-6 w-6 text-red-600" /> Store Locator
-        </h1>
-        <p className="text-muted-foreground text-sm">Pins shown on the public website map</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <MapPin className="h-6 w-6 text-red-600" /> Store Locator
+          </h1>
+          <p className="text-muted-foreground text-sm">Pins shown on the public website map</p>
+        </div>
+        <Button variant="outline" size="icon" title="Export CSV"
+          disabled={!locs.length}
+          onClick={() => downloadCsv(
+            'store-locations',
+            ['Name', 'Address', 'Category', 'Latitude', 'Longitude', 'Link', 'Active'],
+            locs.map(l => [l.name, l.address, l.category, l.lat, l.lng, l.link_url, l.active ? 'yes' : 'no'])
+          )}>
+          <FileSpreadsheet className="h-4 w-4" />
+        </Button>
       </div>
 
       {/* Add / edit */}

@@ -2,7 +2,9 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { FileText, ChevronDown, ChevronUp, Search } from 'lucide-react'
+import { FileText, ChevronDown, ChevronUp, Search, FileSpreadsheet } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { downloadCsv, csvDate, csvMoney } from '@/lib/csv-export'
 import { useMyOrders } from '@/hooks/use-orders'
 import { useAuth } from '@/contexts/auth-context'
 import { Badge } from '@/components/ui/badge'
@@ -89,13 +91,38 @@ export default function DeliveryNotesPage() {
     ).filter(matchesSearch)
   )
 
+  // CSV of the notes currently listed — status filter, search and sort apply
+  function exportCsv() {
+    downloadCsv(
+      'delivery-notes',
+      ['Order #', 'Customer', 'Status', 'Planned', 'Created', 'Delivered', 'Assigned to', 'Total', 'Items'],
+      filteredActive.map(o => [
+        o.order_number,
+        o.customer?.company_name ?? '',
+        o.status,
+        o.planned_date ?? '',
+        csvDate(o.created_at),
+        csvDate((o.delivery as any)?.delivered_at),
+        o.assigned_user?.name ?? '',
+        csvMoney(o.total),
+        ((o.items ?? []) as any[]).filter(i => i.qty > 0).map(i => `${i.qty}x ${i.sku}`).join('; '),
+      ])
+    )
+  }
+
   return (
     <div className="p-4 lg:p-6 space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">Delivery Notes</h1>
-        <p className="text-muted-foreground text-sm">
-          {filteredActive.length} active{!isAdmin ? ' assigned' : ''} notes
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Delivery Notes</h1>
+          <p className="text-muted-foreground text-sm">
+            {filteredActive.length} active{!isAdmin ? ' assigned' : ''} notes
+          </p>
+        </div>
+        <Button variant="outline" size="icon" title="Export CSV"
+          disabled={!filteredActive.length} onClick={exportCsv}>
+          <FileSpreadsheet className="h-4 w-4" />
+        </Button>
       </div>
 
       {/* Search */}

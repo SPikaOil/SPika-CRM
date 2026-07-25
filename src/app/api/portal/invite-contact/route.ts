@@ -26,12 +26,21 @@ export async function POST(req: NextRequest) {
 
   if (existingUser) {
     // Check if already linked to this customer
-    const { data: existingProfile } = await admin.from('users').select('customer_id').eq('id', existingUser.id).single()
+    const { data: existingProfile } = await admin.from('users').select('customer_id, role').eq('id', existingUser.id).single()
     if (existingProfile?.customer_id === profile.customer_id) {
       return NextResponse.json({ error: 'This person already has access to your account' }, { status: 409 })
     }
     if (existingProfile?.customer_id) {
       return NextResponse.json({ error: 'This email is already linked to another account' }, { status: 409 })
+    }
+
+    // Never absorb an internal account. Staff have no customer_id, so without
+    // this guard a portal owner could "invite" a SPika email address and the
+    // link below would rewrite that account to role 'customer' — demoting an
+    // admin out of their own system.
+    const INTERNAL_ROLES = ['admin', 'manager', 'sales', 'staff']
+    if (existingProfile?.role && INTERNAL_ROLES.includes(existingProfile.role)) {
+      return NextResponse.json({ error: 'This email cannot be added' }, { status: 409 })
     }
 
     // Link existing user to this customer as member

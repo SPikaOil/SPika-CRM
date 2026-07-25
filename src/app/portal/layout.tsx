@@ -13,6 +13,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 
+// Internal team roles belong in the CRM, never in the customer portal.
+const INTERNAL_ROLES = ['admin', 'manager', 'sales', 'staff']
+
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   const { isCustomer, isLoading, profile, session } = useAuth()
   const router = useRouter()
@@ -38,7 +41,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     if (isLoading) return
     if (!session) return
     const role = profile?.role
-    if (role === 'admin' || role === 'staff') {
+    if (role && INTERNAL_ROLES.includes(role)) {
       router.replace('/dashboard')
       return
     }
@@ -78,8 +81,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     return <PortalLogin />
   }
 
-  // Staff/admin — blank while redirecting to /dashboard
-  if (profile?.role === 'admin' || profile?.role === 'staff') return null
+  // Internal staff — blank while redirecting to /dashboard
+  if (profile?.role && INTERNAL_ROLES.includes(profile.role)) return null
 
   // Prospect or new user — pass through to onboarding/pending (those pages handle their own layout)
   if (!isCustomer) return <>{children}</>

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Droplets, Loader2, Package, Shield, Factory } from 'lucide-react'
+import { Droplets, Loader2, Package, Shield, Factory, FileSpreadsheet } from 'lucide-react'
+import { downloadCsv } from '@/lib/csv-export'
 import { useAuth } from '@/contexts/auth-context'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -115,6 +116,21 @@ export default function StockPage() {
     else toast.success('Oil stock saved')
   }
 
+  // Export the full month-by-month stock history, not just the month on screen
+  async function exportCsv() {
+    const { data, error } = await supabase
+      .from('oil_stock')
+      .select('month, litres, note, updated_at')
+      .order('month', { ascending: false })
+    if (error) { toast.error(`Could not export: ${error.message}`); return }
+    if (!data?.length) { toast.error('No stock data to export yet'); return }
+    downloadCsv(
+      'oil-stock',
+      ['Month', 'Litres in stock', 'Note', 'Last updated'],
+      data.map((r: any) => [r.month, r.litres, r.note, r.updated_at ? String(r.updated_at).split('T')[0] : ''])
+    )
+  }
+
   async function saveSafety() {
     const n = parseInt(safetyDraft, 10)
     if (isNaN(n) || n < 1) { toast.error('Enter a valid number of months'); return }
@@ -143,10 +159,15 @@ export default function StockPage() {
           </h1>
           <p className="text-muted-foreground text-sm">Ready-to-bottle oil stock per month</p>
         </div>
-        <select value={month} onChange={e => setMonth(e.target.value)}
-          className="h-8 text-sm rounded-md border border-input bg-background px-2">
-          {monthOptions().map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon" className="h-8 w-8" title="Export CSV" onClick={exportCsv}>
+            <FileSpreadsheet className="h-4 w-4" />
+          </Button>
+          <select value={month} onChange={e => setMonth(e.target.value)}
+            className="h-8 text-sm rounded-md border border-input bg-background px-2">
+            {monthOptions().map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
       </div>
 
       {anyRealVolumeMissing && (

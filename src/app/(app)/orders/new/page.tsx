@@ -56,7 +56,8 @@ function NewDeliveryNoteInner() {
   const createOrder = useCreateOrder()
   const { data: customers } = useCustomers()
   const { data: users } = useUsers()
-  const { profile, isAdmin } = useAuth()
+  const { profile, can } = useAuth()
+  const isAdmin = can('prices.view')   // price fields follow the permission, not the role
 
   const [customerId, setCustomerId] = useState(searchParams.get('customer') ?? '')
   const [assignedTo, setAssignedTo] = useState('')

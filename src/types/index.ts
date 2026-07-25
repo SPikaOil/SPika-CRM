@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'sales' | 'staff' | 'customer' | 'prospect'
+export type UserRole = 'admin' | 'manager' | 'sales' | 'staff' | 'customer' | 'prospect'
 
 export type CustomerCategory = string
 

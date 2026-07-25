@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Search, Mail, MailCheck, ShieldOff, RefreshCw, Globe, Clock, UserPlus, CheckCircle, XCircle, Inbox, Send } from 'lucide-react'
+import { Search, Mail, MailCheck, ShieldOff, RefreshCw, Globe, Clock, UserPlus, CheckCircle, XCircle, Inbox, Send, FileSpreadsheet } from 'lucide-react'
+import { downloadCsv } from '@/lib/csv-export'
 import { useAuth } from '@/contexts/auth-context'
 import { useCustomers } from '@/hooks/use-customers'
 import { createClient } from '@/lib/supabase/client'
@@ -235,14 +236,30 @@ export default function PortalManagementPage() {
   return (
     <div className="p-3 lg:p-6 space-y-3 max-w-3xl mx-auto w-full">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Globe className="h-6 w-6 text-red-600" />
-          Customer Portal
-        </h1>
-        <p className="text-muted-foreground text-sm">
-          {activeCount} with access · {noAccessCount} without access
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Globe className="h-6 w-6 text-red-600" />
+            Customer Portal
+          </h1>
+          <p className="text-muted-foreground text-sm">
+            {activeCount} with access · {noAccessCount} without access
+          </p>
+        </div>
+        <Button variant="outline" size="icon" title="Export CSV"
+          disabled={!filtered.length}
+          onClick={() => downloadCsv(
+            'portal-access',
+            ['Company', 'Contact', 'Email', 'Category', 'Country', 'Portal access', 'Portal user'],
+            filtered.map(c => [
+              c.company_name, c.contact_person, c.email, c.customer_category,
+              customerCountryCode(c) ?? '',
+              portalUsers[c.id] ? 'yes' : 'no',
+              portalUsers[c.id] ?? '',
+            ])
+          )}>
+          <FileSpreadsheet className="h-4 w-4" />
+        </Button>
       </div>
 
       {/* Tabs */}

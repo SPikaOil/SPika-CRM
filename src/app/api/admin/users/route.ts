@@ -47,8 +47,11 @@ export async function POST(req: NextRequest) {
   })
   if (authError) return NextResponse.json({ error: authError.message }, { status: 400 })
 
-  // Create profile row
-  const { data: profile, error: profileError } = await admin.from('users').insert({
+  // Write the profile row. The on_auth_user_created trigger has already created
+  // it with the safe default role, so this must UPSERT — a plain insert hits a
+  // duplicate primary key and the rollback below deletes the fresh account.
+  // Upserting is also what applies the role the admin actually picked.
+  const { data: profile, error: profileError } = await admin.from('users').upsert({
     id: authData.user.id,
     email,
     name,
