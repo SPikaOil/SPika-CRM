@@ -22,11 +22,14 @@ create policy "role_permissions: authenticated read"
   on public.role_permissions for select
   using (auth.uid() is not null);
 
+-- current_user_role() still returns the user_role ENUM on this database:
+-- migration 031, which redefined it to return text, was never applied here.
+-- Cast to text everywhere so these comparisons work under either definition.
 drop policy if exists "role_permissions: admin write" on public.role_permissions;
 create policy "role_permissions: admin write"
   on public.role_permissions for all
-  using (public.current_user_role() = 'admin')
-  with check (public.current_user_role() = 'admin');
+  using (public.current_user_role()::text = 'admin')
+  with check (public.current_user_role()::text = 'admin');
 
 -- Seed with what the app does TODAY, so switching to permissions changes no
 -- behaviour until an admin edits the matrix.
@@ -50,11 +53,11 @@ on conflict (role) do nothing;
 create or replace function public.has_permission(perm text)
 returns boolean language sql security definer stable as $$
   select case
-    when public.current_user_role() = 'admin' then true
+    when public.current_user_role()::text = 'admin' then true
     else coalesce(
       (select perm = any(permissions)
        from public.role_permissions
-       where role = public.current_user_role()),
+       where role = public.current_user_role()::text),
       false
     )
   end;
