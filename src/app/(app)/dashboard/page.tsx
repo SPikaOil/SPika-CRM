@@ -641,8 +641,12 @@ export default function DashboardPage() {
   }
 
   async function loadOverdueOrders() {
+    // Payment terms run from the INVOICE date, which by house rule is the
+    // delivery date — sales_date carries it. This used to count from
+    // created_at, so the dashboard chased orders days before the date printed
+    // on the invoice, and the reminder mails quoted that wrong due date.
     const { data } = await supabase
-      .from('orders')
+      .from('orders_with_sales_date')
       .select('*, customer:customers(company_name, contact_person, email, payment_term_days)')
       .in('status', ['invoice_ready', 'invoice_blocked'])
       .order('created_at', { ascending: true })
@@ -658,7 +662,10 @@ export default function DashboardPage() {
       .filter((o) => !(o as any).is_consignment)
       .map((o) => {
         const termDays = (o.customer as any)?.payment_term_days ?? 7
-        const due = new Date(o.created_at)
+        // sales_date is a plain YYYY-MM-DD; midday keeps the day stable across
+        // timezones. Falls back to created_at only if the view ever yields null.
+        const salesDate = (o as any).sales_date as string | null
+        const due = salesDate ? new Date(salesDate + 'T12:00:00') : new Date(o.created_at)
         due.setDate(due.getDate() + termDays)
         due.setHours(0, 0, 0, 0)
         const daysOverdue = Math.floor((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24))

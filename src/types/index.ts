@@ -209,7 +209,10 @@ export interface Order {
   delivery_notes: string
   po_number: string | null
   planned_date: string | null
+  // Invoice date = the delivery date (house rule), stamped by a DB trigger when
+  // the delivery is completed. Not the payment date — that's paid_date.
   invoice_date: string | null
+  paid_date: string | null
   edit_log: OrderEditLogEntry[]
   created_at: string
   updated_at: string

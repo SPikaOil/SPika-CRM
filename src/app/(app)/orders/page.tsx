@@ -124,7 +124,7 @@ function OrdersPageInner() {
     downloadCsv(
       'orders',
       ['Order #', 'PO #', 'Customer', 'Status', 'Payment', 'Consignment', 'Currency',
-       'Total', 'Created', 'Planned', 'Invoice date', 'Assigned to', 'Items'],
+       'Total', 'Created', 'Planned', 'Invoice date', 'Paid date', 'Assigned to', 'Items'],
       filteredActive.map(o => [
         o.order_number,
         o.po_number ?? '',
@@ -137,6 +137,7 @@ function OrdersPageInner() {
         csvDate(o.created_at),
         o.planned_date ?? '',
         o.invoice_date ?? '',
+        (o as any).paid_date ?? '',
         o.assigned_user?.name ?? '',
         ((o.items ?? []) as any[]).filter(i => i.qty > 0).map(i => `${i.qty}x ${i.sku}`).join('; '),
       ])
@@ -154,7 +155,10 @@ function OrdersPageInner() {
     if (!paidTarget || !paidDate) return
     setMarkingPaid(true)
     try {
-      await updateOrder.mutateAsync({ id: paidTarget.id, values: { status: 'paid', invoice_date: paidDate } as any })
+      // Payment date goes to paid_date. It used to be written into invoice_date,
+      // which moved the revenue to the month the customer happened to pay in —
+      // the invoice date is the delivery date and must not shift.
+      await updateOrder.mutateAsync({ id: paidTarget.id, values: { status: 'paid', paid_date: paidDate } as any })
       toast.success(`${paidTarget.order_number} marked as paid`)
       setPaidTarget(null)
       setPaidDate('')
@@ -168,7 +172,9 @@ function OrdersPageInner() {
   async function handleRevertPaid(order: Order, e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
-    await updateOrder.mutateAsync({ id: order.id, values: { status: 'invoice_ready', invoice_date: null } as any })
+    // Clears the payment only — invoice_date stays, because the delivery that
+    // set it still happened.
+    await updateOrder.mutateAsync({ id: order.id, values: { status: 'invoice_ready', paid_date: null } as any })
     toast.success(`${order.order_number} reverted to Send Invoice status`)
   }
 

@@ -35,12 +35,20 @@ export async function POST(req: NextRequest) {
   const end = new Date(year, month, 1).toISOString()
   const label = monthLabel(year, month)
 
+  // Orders belong to the month of their INVOICE date (= delivery date), not the
+  // month they were created in. sales_date is a plain date, so the month
+  // boundary needs plain date strings — no timezone can shift them.
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`
+  const endDate = month === 12
+    ? `${year + 1}-01-01`
+    : `${year}-${String(month + 1).padStart(2, '0')}-01`
+
   const [ordersRes, customersRes, newCustomersRes, accessRes] = await Promise.all([
     admin
-      .from('orders')
-      .select('id, order_number, total, status, payment_type, customer:customers(company_name, customer_category), items, created_at')
-      .gte('created_at', start)
-      .lt('created_at', end)
+      .from('orders_with_sales_date')
+      .select('id, order_number, total, status, payment_type, customer:customers(company_name, customer_category), items, sales_date')
+      .gte('sales_date', startDate)
+      .lt('sales_date', endDate)
       .is('deleted_at', null),
     admin.from('customers').select('id').eq('status', 'active').eq('is_lead', false),
     admin.from('customers').select('id, company_name, customer_category').eq('is_lead', false).gte('created_at', start).lt('created_at', end),
