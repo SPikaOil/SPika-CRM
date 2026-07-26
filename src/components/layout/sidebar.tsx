@@ -42,7 +42,7 @@ const allNavItems = [
   { href: '/tasks',           label: 'Tasks',            icon: ClipboardList,   permission: 'tasks.view'         },
   { href: '/agenda',          label: 'Agenda',           icon: CalendarDays,    permission: null                 },
   { href: '/reports',         label: 'Reports',          icon: BarChart2,       permission: 'reports.view'       },
-  { href: '/stock',           label: 'Stock SPika',      icon: Droplets,        permission: 'stock.view'         },
+  { href: '/stock',           label: 'Stock & Production',      icon: Droplets,        permission: 'stock.view'         },
   { href: '/handover',        label: 'Handover Btls',    icon: PackageCheck,    permission: null                 },
   { href: '/store-locator',   label: 'Store Locator',    icon: MapPin,          permission: 'storelocator.view'  },
 ]

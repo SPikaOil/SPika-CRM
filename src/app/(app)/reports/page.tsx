@@ -381,7 +381,7 @@ export default function ReportsPage() {
         </CardHeader>
         <CardContent>
           {oilStock.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No stock recorded yet. Record it in Stock SPika.</p>
+            <p className="text-sm text-muted-foreground">No stock recorded yet. Record it in Stock & Production.</p>
           ) : (
             <div className="space-y-1.5">
               {oilStock.map((s, i) => {

@@ -152,12 +152,14 @@ export default function StockPage() {
 
   return (
     <div className="p-3 lg:p-6 space-y-3 max-w-2xl mx-auto w-full">
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Droplets className="h-6 w-6 text-red-600" /> Stock SPika
+      {/* Stacked on phones: beside the export button and month picker the longer
+          name either wrapped mid-word or ran underneath them. */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2 whitespace-nowrap">
+            <Droplets className="h-5 w-5 sm:h-6 sm:w-6 text-red-600 shrink-0" /> Stock &amp; Production
           </h1>
-          <p className="text-muted-foreground text-sm">Ready-to-bottle oil stock per month</p>
+          <p className="text-muted-foreground text-xs sm:text-sm">Ready-to-bottle oil stock per month</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon" className="h-8 w-8" title="Export CSV" onClick={exportCsv}>
