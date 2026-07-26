@@ -206,16 +206,19 @@ export default function EmailPreviewPage() {
             const a = AUDIENCE[p.audience]
             return (
               <button key={p.key} onClick={() => setActive(p.key)}
-                className={`w-full text-left px-2.5 py-1.5 leading-tight rounded-lg border transition-colors ${
+                className={`w-full text-left px-3 py-0.5 leading-tight rounded-lg border transition-colors ${
                   active === p.key ? 'border-red-300 bg-red-50 dark:bg-red-950/20' : 'bg-card hover:bg-accent'
                 }`}>
-                <div className="flex items-center gap-1.5">
-                  <span className={`text-[10px] px-1.5 py-0 rounded-full ${a.cls}`}>{a.label}</span>
+                {/* Badge and name on one line — stacked they cost a second row
+                    per item, which is what made this list taller than the rest
+                    of the app. */}
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className={`text-[10px] px-1.5 py-0 rounded-full shrink-0 ${a.cls}`}>{a.label}</span>
                   {!p.branded && (
-                    <span className="text-[10px] px-1.5 py-0 rounded-full bg-amber-100 text-amber-700" title="Does not use the branded layout">plain</span>
+                    <span className="text-[10px] px-1.5 py-0 rounded-full bg-amber-100 text-amber-700 shrink-0" title="Does not use the branded layout">plain</span>
                   )}
+                  <p className="text-sm font-medium truncate">{p.name}</p>
                 </div>
-                <p className="text-sm font-medium truncate mt-0.5">{p.name}</p>
               </button>
             )
           })}
