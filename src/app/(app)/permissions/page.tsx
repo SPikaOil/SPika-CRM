@@ -6,7 +6,7 @@ import { ShieldCheck, Loader2, Check, RotateCcw } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import {
@@ -117,15 +117,13 @@ export default function PermissionsPage() {
           {PERMISSIONS.map(group => {
             const keys = group.items.map(i => i.key)
             return (
-              <Card key={group.group} className="py-0">
-                <CardHeader className="pt-3 pb-2">
-                  <CardTitle className="text-sm">{group.group}</CardTitle>
-                </CardHeader>
-                <CardContent className="pb-3 px-0">
-                  {/* Column headers */}
-                  <div className="grid grid-cols-[1fr_48px_48px_48px] sm:grid-cols-[1fr_70px_70px_70px] gap-2 px-3 sm:px-4 pb-1.5 border-b">
-                    <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Permission</span>
-                    <span className="text-[11px] text-center text-muted-foreground">Admin</span>
+              <Card key={group.group} className="py-0 gap-0">
+                <CardContent className="p-0">
+                  {/* Group name doubles as the "Permission" column header — as a
+                      separate title bar it cost 40px plus a 16px gap per card. */}
+                  <div className="grid grid-cols-[1fr_48px_48px_48px] sm:grid-cols-[1fr_70px_70px_70px] gap-2 px-3 sm:px-4 py-1 border-b bg-muted/30">
+                    <span className="text-sm font-semibold">{group.group}</span>
+                    <span className="text-[11px] text-center text-muted-foreground self-center">Admin</span>
                     {EDITABLE_ROLES.map(r => (
                       <button key={r} type="button"
                         onClick={() => {
