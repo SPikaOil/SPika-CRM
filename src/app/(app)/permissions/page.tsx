@@ -123,7 +123,7 @@ export default function PermissionsPage() {
                 </CardHeader>
                 <CardContent className="pb-3 px-0">
                   {/* Column headers */}
-                  <div className="grid grid-cols-[1fr_70px_70px_70px] gap-2 px-4 pb-1.5 border-b">
+                  <div className="grid grid-cols-[1fr_48px_48px_48px] sm:grid-cols-[1fr_70px_70px_70px] gap-2 px-3 sm:px-4 pb-1.5 border-b">
                     <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Permission</span>
                     <span className="text-[11px] text-center text-muted-foreground">Admin</span>
                     {EDITABLE_ROLES.map(r => (
@@ -141,10 +141,16 @@ export default function PermissionsPage() {
 
                   {group.items.map(item => (
                     <div key={item.key}
-                      className="grid grid-cols-[1fr_70px_70px_70px] gap-2 items-center px-4 py-1 leading-tight border-b last:border-0">
-                      <div className="min-w-0">
+                      className="grid grid-cols-[1fr_48px_48px_48px] sm:grid-cols-[1fr_70px_70px_70px] gap-2 items-center px-3 sm:px-4 py-0.5 leading-tight border-b last:border-0">
+                      {/* Hint sits after the label instead of under it — on its
+                          own line it nearly doubled the row height. It is hidden
+                          on phones, where there is only room for a stub like
+                          "Re…" and the label would be pushed over the boxes. */}
+                      <div className="min-w-0 flex items-baseline gap-2">
                         <p className="text-sm truncate">{item.label}</p>
-                        {item.hint && <p className="text-[11px] text-muted-foreground truncate">{item.hint}</p>}
+                        {item.hint && (
+                          <p className="hidden sm:block text-[11px] text-muted-foreground truncate">{item.hint}</p>
+                        )}
                       </div>
                       {/* Admin — always on, never editable */}
                       <div className="flex justify-center">
