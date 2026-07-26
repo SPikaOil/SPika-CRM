@@ -4,6 +4,10 @@
     {
       "path": "/api/report/monthly",
       "schedule": "0 23 28-31 * *"
+    },
+    {
+      "path": "/api/report/period?store=1",
+      "schedule": "0 6 1 * *"
     }
   ],
   "headers": [

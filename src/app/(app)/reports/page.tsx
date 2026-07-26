@@ -2,8 +2,10 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { BarChart2, Download, Loader2 } from 'lucide-react'
+import { BarChart2, Download, Loader2, FileText, FileSpreadsheet, Table2, Database } from 'lucide-react'
+import { toast } from 'sonner'
 import { downloadCsv, csvMoney } from '@/lib/csv-export'
+import { triggerDownload } from '@/lib/download-pdf'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/auth-context'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -189,6 +191,37 @@ export default function ReportsPage() {
     )
   }
 
+  // ── Full CRM report ─────────────────────────────────────────────────────────
+  // Rendered server-side: it needs data the browser can't read under RLS, and a
+  // 30-page PDF built in a phone browser is exactly the memory profile that
+  // makes iOS Safari give up. Fetch the finished file, then hand it to
+  // triggerDownload — never pre-open a tab.
+  const [exporting, setExporting] = useState<string | null>(null)
+
+  async function downloadFullReport(format: 'pdf' | 'xlsx' | 'csv' | 'backup') {
+    setExporting(format)
+    try {
+      const [startDate, endDate] = getDateRange(preset, fromDate, toDate)
+      const qs = new URLSearchParams({ format, from: toDateStr(startDate), to: toDateStr(endDate) })
+      const res = await fetch(`/api/report/period?${qs}`)
+      if (!res.ok) {
+        const msg = await res.text().catch(() => '')
+        throw new Error(msg.slice(0, 200) || `Server returned ${res.status}`)
+      }
+      const blob = await res.blob()
+      const stamp = startDate.toLocaleDateString('en', { month: 'short' }).toUpperCase() + ' ' + startDate.getFullYear()
+      const name =
+        format === 'pdf' ? `${stamp} CRM Report.pdf`
+        : format === 'backup' ? `${stamp} Monthly Data.zip`
+        : `${stamp} CRM Data.${format}`
+      triggerDownload(blob, name)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Report failed')
+    } finally {
+      setExporting(null)
+    }
+  }
+
   const fmtDate = (d: string) => new Date(d).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })
 
   if (authLoading) return null
@@ -246,6 +279,51 @@ export default function ReportsPage() {
               <Loader2 className="h-4 w-4 animate-spin" /> Loading…
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Full CRM export */}
+      <Card className="py-3 gap-2">
+        <CardHeader>
+          <CardTitle className="text-sm">Full Report</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            Everything in the CRM for the selected period — customers with their details, all their orders, products,
+            outstanding payments, leads and contact moments. Sales are counted on their invoice date, which is the
+            delivery date.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" className="gap-2" disabled={!!exporting}
+              onClick={() => downloadFullReport('pdf')}>
+              {exporting === 'pdf' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+              PDF report
+            </Button>
+            <Button variant="outline" size="sm" className="gap-2" disabled={!!exporting}
+              onClick={() => downloadFullReport('xlsx')}>
+              {exporting === 'xlsx' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+              Excel
+            </Button>
+            <Button variant="outline" size="sm" className="gap-2" disabled={!!exporting}
+              onClick={() => downloadFullReport('csv')}>
+              {exporting === 'csv' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Table2 className="h-4 w-4" />}
+              CSV
+            </Button>
+          </div>
+          <Separator className="my-1" />
+          <p className="text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">Monthly Data</span> — a complete backup of the entire CRM:
+            every table, every row, every column, as a zip of CSV files. Not limited to the selected period; it is the
+            whole database as it stands right now.
+          </p>
+          <Button variant="outline" size="sm" className="gap-2" disabled={!!exporting}
+            onClick={() => downloadFullReport('backup')}>
+            {exporting === 'backup' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
+            Monthly Data (full backup)
+          </Button>
+          <p className="text-[11px] text-muted-foreground">
+            All of these are generated automatically on the 1st of every month and backed up to Google Drive.
+          </p>
         </CardContent>
       </Card>
 
