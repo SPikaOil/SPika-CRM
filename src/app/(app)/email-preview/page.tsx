@@ -209,15 +209,14 @@ export default function EmailPreviewPage() {
                 className={`w-full text-left px-3 py-0.5 leading-tight rounded-lg border transition-colors ${
                   active === p.key ? 'border-red-300 bg-red-50 dark:bg-red-950/20' : 'bg-card hover:bg-accent'
                 }`}>
-                {/* Badge and name on one line — stacked they cost a second row
-                    per item, which is what made this list taller than the rest
-                    of the app. */}
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span className={`text-[10px] px-1.5 py-0 rounded-full shrink-0 ${a.cls}`}>{a.label}</span>
+                {/* Name first — that is what you scan for; the audience is
+                    secondary, so it sits right-aligned out of the way. */}
+                <div className="flex items-center gap-2 min-w-0">
+                  <p className="text-sm font-medium truncate flex-1">{p.name}</p>
                   {!p.branded && (
                     <span className="text-[10px] px-1.5 py-0 rounded-full bg-amber-100 text-amber-700 shrink-0" title="Does not use the branded layout">plain</span>
                   )}
-                  <p className="text-sm font-medium truncate">{p.name}</p>
+                  <span className={`text-[10px] px-1.5 py-0 rounded-full shrink-0 ${a.cls}`}>{a.label}</span>
                 </div>
               </button>
             )
