@@ -19,7 +19,10 @@ import { buildFullBackup } from '@/lib/full-backup'
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
-const BUCKET = 'pod-files'
+// Its own bucket with no storage policies, so only the service-role key reaches
+// it. These files hold the entire customer base; pod-files allows the object
+// owner to read, which is right for delivery proof and far too wide for this.
+const BUCKET = 'crm-reports'
 const FOLDER = 'reports'
 
 async function assertAuthorized(req: NextRequest) {
