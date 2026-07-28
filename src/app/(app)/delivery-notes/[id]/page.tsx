@@ -140,9 +140,8 @@ export default function DeliveryNoteDetailPage({
     setIsGeneratingPreview(true)
     try {
       const blob = await buildDocBlob('DELIVERY NOTE')
-      const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[#/\\:*?"<>|]/g, '').trim()
-      const customerName = (order.customer?.company_name ?? '').replace(/[#/\\:*?"<>|]/g, '').trim()
-      const filename = customerName ? `${orderNum} - ${customerName} - Delivery Note.pdf` : `${orderNum} - Delivery Note.pdf`
+      const { documentFilename } = await import('@/lib/download-pdf')
+      const filename = documentFilename(order.order_number ?? order.id.slice(0, 8), order.customer?.company_name)
       showPdfInApp(blob, 'Delivery Note', filename)
     } catch (err: any) {
       toast.error(`Preview failed: ${err?.message ?? 'unknown error'}`, { duration: 8000 })
@@ -163,10 +162,8 @@ export default function DeliveryNoteDetailPage({
     setIsDownloading(true)
     try {
       const blob = await buildDocBlob('DELIVERY NOTE')
-      const { isMobileDevice, triggerDownload } = await import('@/lib/download-pdf')
-      const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[#/\\:*?"<>|]/g, '').trim()
-      const customerName = (order.customer?.company_name ?? '').replace(/[#/\\:*?"<>|]/g, '').trim()
-      const filename = customerName ? `${orderNum} - ${customerName} - Delivery Note.pdf` : `${orderNum} - Delivery Note.pdf`
+      const { isMobileDevice, triggerDownload, documentFilename } = await import('@/lib/download-pdf')
+      const filename = documentFilename(order.order_number ?? order.id.slice(0, 8), order.customer?.company_name)
       if (isMobileDevice()) {
         showPdfInApp(blob, 'Delivery Note', filename)
       } else {
@@ -188,11 +185,8 @@ export default function DeliveryNoteDetailPage({
       // signature + real photo). The photo lives ONLY in that file, so we serve
       // it rather than regenerate. Fall back to a fresh invoice (no photo) only
       // if the stored file is missing or broken.
-      const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[/\\:*?"<>|]/g, '').trim()
-      const customerName = (order.customer?.company_name ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
-      const filename = customerName
-        ? `${orderNum} - ${customerName} - Signed Invoice.pdf`
-        : `${orderNum} - Signed Invoice.pdf`
+      const { documentFilename } = await import('@/lib/download-pdf')
+      const filename = documentFilename(order.order_number ?? order.id.slice(0, 8), order.customer?.company_name)
 
       let blob: Blob | null = null
       const signedUrl = (order as any).signed_pdf_url

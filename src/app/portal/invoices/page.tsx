@@ -56,10 +56,8 @@ export default function PortalInvoicesPage() {
         })
       ).toBlob()
 
-      const { triggerDownload } = await import('@/lib/download-pdf')
-      const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[/\\:*?"<>|]/g, '').trim()
-      const custName = (customer?.company_name ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
-      triggerDownload(blob, custName ? `${orderNum} - ${custName} - Invoice.pdf` : `${orderNum} - Invoice.pdf`)
+      const { triggerDownload, documentFilename } = await import('@/lib/download-pdf')
+      triggerDownload(blob, documentFilename(order.order_number ?? order.id.slice(0, 8), customer?.company_name))
     } catch {
       toast.error('Failed to download invoice')
     } finally {

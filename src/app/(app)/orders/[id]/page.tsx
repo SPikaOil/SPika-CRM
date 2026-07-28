@@ -174,9 +174,8 @@ export default function OrderDetailPage({
       const docType = type === 'invoice' ? 'INVOICE' : 'DELIVERY NOTE'
       const label = type === 'invoice' ? 'Invoice' : 'Delivery Note'
       const blob = await buildDeliveryPdfBlob(docType)
-      const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[/\\:*?"<>|]/g, '').trim()
-      const customerName = (order.customer?.company_name ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
-      const filename = customerName ? `${orderNum} - ${customerName} - ${label}.pdf` : `${orderNum} - ${label}.pdf`
+      const { documentFilename } = await import('@/lib/download-pdf')
+      const filename = documentFilename(order.order_number ?? order.id.slice(0, 8), order.customer?.company_name)
       showPdfInApp(blob, label, filename)
     } catch (err: any) {
       toast.error(`Preview failed: ${err?.message ?? 'unknown error'}`, { duration: 8000 })
@@ -201,11 +200,12 @@ export default function OrderDetailPage({
   // fresh INVOICE (prices + signature, no photo, since the photo is unavailable)
   // and back it up.
   async function buildSignedInvoiceBlob(): Promise<{ blob: Blob; filename: string }> {
+    // orderNum/customerName stay as they are — they build the STORAGE path
+    // further down, which must keep matching the files already stored.
     const orderNum = (order!.order_number ?? order!.id.slice(0, 8)).replace(/[/\\:*?"<>|]/g, '').trim()
     const customerName = (order!.customer?.company_name ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
-    const filename = customerName
-      ? `${orderNum} - ${customerName} - Signed Invoice.pdf`
-      : `${orderNum} - Signed Invoice.pdf`
+    const { documentFilename } = await import('@/lib/download-pdf')
+    const filename = documentFilename(order!.order_number ?? order!.id.slice(0, 8), order!.customer?.company_name)
 
     // Try the stored PDF first (has the real photo)
     const storagePath = signedPdfStoragePath()
@@ -272,11 +272,9 @@ export default function OrderDetailPage({
       const docType = type === 'invoice' ? 'INVOICE' : 'DELIVERY NOTE'
       const label = type === 'invoice' ? 'Invoice' : 'Delivery Note'
       const blob = await buildDeliveryPdfBlob(docType)
-      const orderNum = (order.order_number ?? order.id.slice(0, 8)).replace(/[/\\:*?"<>|]/g, '').trim()
-      const customerName = (order.customer?.company_name ?? '').replace(/[/\\:*?"<>|]/g, '').trim()
-      const filename = customerName ? `${orderNum} - ${customerName} - ${label}.pdf` : `${orderNum} - ${label}.pdf`
 
-      const { isMobileDevice, triggerDownload } = await import('@/lib/download-pdf')
+      const { isMobileDevice, triggerDownload, documentFilename } = await import('@/lib/download-pdf')
+      const filename = documentFilename(order.order_number ?? order.id.slice(0, 8), order.customer?.company_name)
       if (isMobileDevice()) {
         showPdfInApp(blob, label, filename) // preview in-app, then Share button
       } else {

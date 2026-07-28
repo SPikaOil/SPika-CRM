@@ -4,6 +4,35 @@ function sanitize(str: string) {
   return str.replace(/[#/\\:*?"<>|]/g, '').trim()
 }
 
+// Strips only what a filesystem genuinely cannot take. The '#' is NOT stripped
+// here — it belongs in the name (see documentFilename).
+function stripIllegal(str: string) {
+  return str.replace(/[/\\:*?"<>|]/g, '').trim()
+}
+
+// THE one name every order document carries when it leaves the app —
+// download, share sheet, WhatsApp, e-mail attachment:
+//
+//     #729108 - Supermercado Luz.pdf
+//
+// The leading '#' is normalised, not copied: 45 order numbers are stored as
+// '#729108' and 22 as '729132', so a raw copy gives two different formats.
+// Strip whatever '#' is there, then always put exactly one back.
+//
+// NOT for storage paths. The signed PDFs in `pod-files/signed-notes/` are
+// already saved under their own historic names and `signed_pdf_url` points at
+// them — renaming that scheme would orphan every existing proof document.
+export function documentFilename(
+  orderNumber: string | null | undefined,
+  customerName: string | null | undefined,
+): string {
+  const num = stripIllegal(orderNumber ?? '').replace(/^#+\s*/, '')
+  const customer = stripIllegal(customerName ?? '')
+  const base = num ? `#${num}` : ''
+  if (base && customer) return `${base} - ${customer}.pdf`
+  return `${base || customer || 'document'}.pdf`
+}
+
 export function isMobileDevice() {
   return typeof navigator !== 'undefined' && /Android|iPad|iPhone|iPod/.test(navigator.userAgent)
 }
@@ -79,11 +108,10 @@ export async function downloadDeliveryNotePDF(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const blob = await (pdf as any)(element).toBlob()
 
-  const orderNum = sanitize(order.order_number ?? order.id.slice(0, 8))
-  const customerName = sanitize(order.customer?.company_name ?? '')
-  const filename = customerName
-    ? `${orderNum} - ${customerName}.pdf`
-    : `${orderNum}.pdf`
+  const filename = documentFilename(
+    order.order_number ?? order.id.slice(0, 8),
+    order.customer?.company_name,
+  )
 
   triggerDownload(blob, filename)
 }
