@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertCircle, CheckCircle, Clock, ShoppingBag, Truck, CreditCard, Copy, Check, X, Mail, ChevronDown, ChevronUp, Package, Pencil, UserPlus, Building2, ArrowRight, Droplets, ClipboardList, CalendarDays, PhoneCall, Sprout, MessageCircle } from 'lucide-react'
+import { AlertCircle, CheckCircle, Clock, ShoppingBag, Truck, CreditCard, Copy, Check, X, Mail, ChevronDown, ChevronUp, ChevronRight, Package, Pencil, UserPlus, Building2, ArrowRight, Droplets, ClipboardList, CalendarDays, PhoneCall, Sprout, MessageCircle } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
@@ -1085,17 +1085,30 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Pending access requests */}
+      {/* Pending access requests — same header shape as the collapsible banners
+          below it (title + hint line, text-sm badge, chevron) so the whole
+          alert stack lines up at one height. */}
       {isAdmin && pendingAccessRequests > 0 && (
-        <Link href="/portal-management">
-          <div className="flex items-center gap-3 px-3 py-0.5 leading-tight rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 hover:bg-blue-100/60 dark:hover:bg-blue-900/20 transition-colors">
+        <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 overflow-hidden">
+          <Link
+            href="/portal-management"
+            className="w-full flex items-center gap-3 px-3 py-0.5 leading-tight hover:bg-blue-100/40 dark:hover:bg-blue-900/20 transition-colors"
+          >
             <UserPlus className="h-4 w-4 text-blue-600 shrink-0" />
-            <p className="flex-1 text-sm font-semibold text-blue-700 dark:text-blue-400">
-              {pendingAccessRequests} reseller request{pendingAccessRequests > 1 ? 's' : ''} awaiting approval
-            </p>
-            <Badge className="bg-blue-600 text-white text-xs px-1.5">{pendingAccessRequests}</Badge>
-          </div>
-        </Link>
+            <div className="flex-1 text-left">
+              <p className="font-semibold text-blue-700 dark:text-blue-400">
+                {pendingAccessRequests} reseller request{pendingAccessRequests > 1 ? 's' : ''}
+              </p>
+              <p className="text-xs text-blue-600/80 dark:text-blue-500">
+                Awaiting approval
+                {/* Kept off mobile so the header stays one line (40px) */}
+                <span className="hidden sm:inline"> · Click to review</span>
+              </p>
+            </div>
+            <Badge className="bg-blue-600 text-white text-sm px-2 shrink-0">{pendingAccessRequests}</Badge>
+            <ChevronRight className="h-4 w-4 text-blue-500 shrink-0" />
+          </Link>
+        </div>
       )}
 
       {/* Missing POD alert */}
