@@ -90,6 +90,9 @@ export interface Customer {
   // 'S-0001' — auto-assigned by DB trigger (migration 039); null pre-migration
   customer_number?: string | null
   company_name: string
+  // Chosen at customer creation. Decides which price categories may be
+  // attached, and is stamped onto every order this customer places (051).
+  currency: OrderCurrency
   customer_category: CustomerCategory
   contact_person: string
   phone: string

@@ -83,6 +83,9 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
     })
 
   const isB2C = customer?.customer_category === 'b2c'
+  // The order's own currency wins; the customer is the fallback (051).
+  const currency = (order as any)?.currency ?? (customer as any)?.currency ?? 'XCG'
+  const fmtCur = (amount: number) => `${currency} ${amount.toFixed(2)}`
   const subtotal = activeItems.reduce((s, i) => s + i.line_total, 0)
   const tax = subtotal * (isB2C ? 0.06 : 0)
   const total = subtotal + tax
@@ -194,11 +197,11 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="min-w-0 flex-1">
                       <p className={`font-medium text-sm truncate ${qty === 0 ? 'text-muted-foreground' : ''}`}>{product.name}</p>
-                      <p className="text-xs text-muted-foreground">XCG {price.toFixed(2)} each</p>
+                      <p className="text-xs text-muted-foreground">{fmtCur(price)} each</p>
                     </div>
                     {qty > 0 && (
                       <p className="text-sm font-semibold text-red-600 shrink-0">
-                        XCG {(qty * price).toFixed(2)}
+                        {fmtCur(qty * price)}
                       </p>
                     )}
                   </div>
@@ -233,19 +236,19 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
               {activeItems.map((item, i) => (
                 <div key={i} className="flex justify-between text-sm">
                   <span className="text-muted-foreground">{item.qty}× {item.name}</span>
-                  <span>XCG {item.line_total.toFixed(2)}</span>
+                  <span>{fmtCur(item.line_total)}</span>
                 </div>
               ))}
               <Separator />
               {isB2C && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">VAT (6%)</span>
-                  <span>XCG {tax.toFixed(2)}</span>
+                  <span>{fmtCur(tax)}</span>
                 </div>
               )}
               <div className="flex justify-between font-bold text-base">
                 <span>Total</span>
-                <span className="text-red-600">XCG {total.toFixed(2)}</span>
+                <span className="text-red-600">{fmtCur(total)}</span>
               </div>
             </CardContent>
           </Card>

@@ -9,7 +9,9 @@ import { SPIKA_PRODUCTS } from '@/lib/products'
 import { PriceInput } from '@/components/ui/price-input'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { OrderCurrency } from '@/types'
 import { toast } from 'sonner'
 
 // ── Products tab ───────────────────────────────────────────────────────────
@@ -216,26 +218,31 @@ function CategoriesTab() {
   const [localPrices, setLocalPrices] = useState<Record<string, Record<string, number>>>({})
   const [localDiscounts, setLocalDiscounts] = useState<Record<string, Record<string, number>>>({})
   const [localProducts, setLocalProducts] = useState<Record<string, string[]>>({})
+  const [localCurrency, setLocalCurrency] = useState<Record<string, OrderCurrency>>({})
   const [saving, setSaving] = useState<string | null>(null)
 
   // New category form
   const [showAdd, setShowAdd] = useState(false)
   const [newLabel, setNewLabel] = useState('')
   const [newKey, setNewKey] = useState('')
+  const [newCurrency, setNewCurrency] = useState<OrderCurrency>('XCG')
 
   useEffect(() => {
     if (!presets) return
     const initPrices: Record<string, Record<string, number>> = {}
     const initDiscounts: Record<string, Record<string, number>> = {}
     const initProducts: Record<string, string[]> = {}
+    const initCurrency: Record<string, OrderCurrency> = {}
     for (const p of presets) {
       initPrices[p.category] = { ...p.prices }
       initDiscounts[p.category] = { ...(p.discounts ?? {}) }
       initProducts[p.category] = [...(p.products ?? [])]
+      initCurrency[p.category] = p.currency ?? 'XCG'
     }
     setLocalPrices(initPrices)
     setLocalDiscounts(initDiscounts)
     setLocalProducts(initProducts)
+    setLocalCurrency(initCurrency)
   }, [presets])
 
   function toggleProduct(category: string, sku: string, checked: boolean) {
@@ -267,7 +274,13 @@ function CategoriesTab() {
       const filteredDiscounts = Object.fromEntries(
         Object.entries(localDiscounts[category] ?? {}).filter(([sku]) => activeSkus.includes(sku))
       )
-      await updatePreset({ id, prices: filteredPrices, discounts: filteredDiscounts, products: activeSkus })
+      await updatePreset({
+        id,
+        prices: filteredPrices,
+        discounts: filteredDiscounts,
+        products: activeSkus,
+        currency: localCurrency[category] ?? 'XCG',
+      })
       toast.success('Saved')
     } catch (err: any) {
       toast.error(err.message)
@@ -282,10 +295,11 @@ function CategoriesTab() {
     if (!label || !category) return toast.error('Fill in both a name and a key')
     if (presets?.some(p => p.category === category)) return toast.error('Category key already exists')
     try {
-      await createPreset.mutateAsync({ category, label })
-      toast.success(`Category "${label}" added`)
+      await createPreset.mutateAsync({ category, label, currency: newCurrency })
+      toast.success(`Category "${label}" added in ${newCurrency}`)
       setNewLabel('')
       setNewKey('')
+      setNewCurrency('XCG')
       setShowAdd(false)
     } catch (err: any) {
       toast.error(err.message)
@@ -327,9 +341,14 @@ function CategoriesTab() {
                   onClick={() => setOpenCategory(isOpen ? null : preset.category)}
                 >
                   <div>
-                    <p className="text-sm font-medium">{preset.label}</p>
+                    <p className="text-sm font-medium flex items-center gap-2">
+                      {preset.label}
+                      {(preset.currency ?? 'XCG') !== 'XCG' && (
+                        <Badge className="bg-blue-600 text-white text-[10px] px-1.5 py-0">{preset.currency}</Badge>
+                      )}
+                    </p>
                     <p className="text-xs text-muted-foreground">
-                      {activeCount > 0 ? `${activeCount} products` : 'No products selected'}{customCount > 0 ? ` · ${customCount} custom prices` : ''} · key: {preset.category}
+                      {preset.currency ?? 'XCG'} · {activeCount > 0 ? `${activeCount} products` : 'No products selected'}{customCount > 0 ? ` · ${customCount} custom prices` : ''} · key: {preset.category}
                     </p>
                   </div>
                   {isOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
@@ -346,6 +365,33 @@ function CategoriesTab() {
 
               {isOpen && (
                 <div className="border-t space-y-0">
+                  {/* Currency for this category. Prices below are ENTERED in it —
+                      nothing is converted, so switching this does not touch the
+                      numbers, only what they mean. */}
+                  <div className="px-4 py-3 border-b flex items-center gap-3">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Currency</p>
+                      <p className="text-xs text-muted-foreground">
+                        Prices below are entered in this currency and are never converted
+                      </p>
+                    </div>
+                    <div className="flex rounded-md border overflow-hidden shrink-0">
+                      {(['XCG', 'USD', 'EUR'] as OrderCurrency[]).map(c => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => setLocalCurrency(prev => ({ ...prev, [preset.category]: c }))}
+                          className={`px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                            (localCurrency[preset.category] ?? 'XCG') === c
+                              ? 'bg-red-600 text-white'
+                              : 'text-muted-foreground hover:bg-accent'
+                          }`}
+                        >
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <div className="divide-y">
                     {SPIKA_PRODUCTS.map(product => {
                       const active = (localProducts[preset.category] ?? []).includes(product.sku)
@@ -366,11 +412,11 @@ function CategoriesTab() {
                           {active && (
                             <div className="flex gap-3 pl-7">
                               <div className="flex-1 space-y-1">
-                                <p className="text-xs text-muted-foreground">Price (XCG)</p>
+                                <p className="text-xs text-muted-foreground">Price ({localCurrency[preset.category] ?? 'XCG'})</p>
                                 <PriceInput
                                   value={prices[product.sku] ?? 0}
                                   onChange={v => setPrice(preset.category, product.sku, v)}
-                                  placeholder={product.default_price.toFixed(2)}
+                                  placeholder={(localCurrency[preset.category] ?? 'XCG') === 'XCG' ? product.default_price.toFixed(2) : '0.00'}
                                   className="h-8"
                                 />
                               </div>
@@ -418,6 +464,23 @@ function CategoriesTab() {
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">Key (auto-slug)</p>
               <Input value={newKey} onChange={e => setNewKey(e.target.value)} placeholder="e.g. retail" className="h-8 font-mono text-xs" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">Currency — prices for this category are entered in it</p>
+            <div className="flex rounded-md border overflow-hidden w-fit">
+              {(['XCG', 'USD', 'EUR'] as OrderCurrency[]).map(c => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setNewCurrency(c)}
+                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                    newCurrency === c ? 'bg-red-600 text-white' : 'text-muted-foreground hover:bg-accent'
+                  }`}
+                >
+                  {c}
+                </button>
+              ))}
             </div>
           </div>
           <div className="flex gap-2">

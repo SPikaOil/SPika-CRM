@@ -100,6 +100,8 @@ export default function PortalOrderDetailPage({ params }: { params: Promise<{ id
   const status = statusConfig[order.status] ?? { label: order.status, icon: Package, color: 'bg-gray-100 text-gray-700', description: '' }
   const Icon = status.icon
   const items = (order.items as QuoteItem[]).filter(i => i.qty > 0)
+  // Stamped on the order itself (051), so an old order keeps its own currency.
+  const currency = (order as any).currency ?? 'XCG'
   const currentStep = stepIndex(order.status)
   const canCancel = order.status === 'pending_approval'
 
@@ -196,13 +198,13 @@ export default function PortalOrderDetailPage({ params }: { params: Promise<{ id
           {items.map((item, i) => (
             <div key={i} className="flex justify-between text-sm">
               <span className="text-muted-foreground">{item.qty}× {item.name}</span>
-              <span className="font-medium">XCG {item.line_total.toFixed(2)}</span>
+              <span className="font-medium">{currency} {item.line_total.toFixed(2)}</span>
             </div>
           ))}
           <Separator />
           <div className="flex justify-between font-bold">
             <span>Total</span>
-            <span className="text-red-600">XCG {Number(order.total).toFixed(2)}</span>
+            <span className="text-red-600">{currency} {Number(order.total).toFixed(2)}</span>
           </div>
         </CardContent>
       </Card>

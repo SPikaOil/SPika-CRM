@@ -72,6 +72,8 @@ export default function PortalInvoicesPage() {
   )
 
   const paymentTermDays = customer?.payment_term_days ?? 7
+  // The invoice currency lives on the order; the customer is the fallback (051).
+  const currencyOf = (order: any) => order?.currency ?? customer?.currency ?? 'XCG'
 
   return (
     <div className="space-y-3">
@@ -122,14 +124,14 @@ export default function PortalInvoicesPage() {
                         {new Date(order.created_at).toLocaleDateString('nl', { day: 'numeric', month: 'short', year: 'numeric' })}
                       </p>
                     </div>
-                    <p className="font-bold text-red-600 text-sm shrink-0">XCG {Number(order.total).toFixed(2)}</p>
+                    <p className="font-bold text-red-600 text-sm shrink-0">{currencyOf(order)} {Number(order.total).toFixed(2)}</p>
                   </div>
 
                   <div className="space-y-0.5">
                     {items.map((item, i) => (
                       <div key={i} className="flex justify-between text-xs text-muted-foreground">
                         <span className="truncate">{item.qty}× {item.name}</span>
-                        <span className="shrink-0">XCG {item.line_total.toFixed(2)}</span>
+                        <span className="shrink-0">{currencyOf(order)} {item.line_total.toFixed(2)}</span>
                       </div>
                     ))}
                   </div>

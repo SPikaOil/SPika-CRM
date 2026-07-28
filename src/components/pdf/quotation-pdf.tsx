@@ -100,6 +100,11 @@ export function QuotationPDF({ quote }: QuotationPDFProps) {
 
   const billingAddr = customer?.billing_address as any
 
+  // The quote is priced in the customer's currency (051). Falls back to the
+  // customer for quotes written before the column existed.
+  const currency = (quote as any).currency ?? (customer as any)?.currency ?? 'XCG'
+  const fmtCur = (amount: number) => `${currency} ${amount.toFixed(2)}`
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -197,11 +202,11 @@ export function QuotationPDF({ quote }: QuotationPDFProps) {
               <Text style={styles.tdSub}>{item.sku}</Text>
             </View>
             <Text style={[styles.tdText, styles.colQty]}>{item.qty}</Text>
-            <Text style={[styles.tdText, styles.colRate]}>XCG {item.unit_price.toFixed(2)}</Text>
+            <Text style={[styles.tdText, styles.colRate]}>{fmtCur(item.unit_price)}</Text>
             <Text style={[styles.tdText, styles.colDisc]}>
-              {item.discount > 0 ? `XCG ${item.discount.toFixed(2)}` : '—'}
+              {item.discount > 0 ? fmtCur(item.discount) : '—'}
             </Text>
-            <Text style={[styles.tdText, styles.colAmount]}>XCG {item.line_total.toFixed(2)}</Text>
+            <Text style={[styles.tdText, styles.colAmount]}>{fmtCur(item.line_total)}</Text>
           </View>
         ))}
 
@@ -209,16 +214,16 @@ export function QuotationPDF({ quote }: QuotationPDFProps) {
         <View style={styles.totalsSection}>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Subtotal</Text>
-            <Text style={styles.totalValue}>XCG {subtotal.toFixed(2)}</Text>
+            <Text style={styles.totalValue}>{fmtCur(subtotal)}</Text>
           </View>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>{isB2C ? 'OB (6%)' : 'OB (0% — OB exempt)'}</Text>
-            <Text style={styles.totalValue}>XCG {tax.toFixed(2)}</Text>
+            <Text style={styles.totalValue}>{fmtCur(tax)}</Text>
           </View>
           <View style={styles.totalDivider} />
           <View style={styles.totalRow}>
             <Text style={styles.grandTotalLabel}>TOTAL</Text>
-            <Text style={styles.grandTotalValue}>XCG {total.toFixed(2)}</Text>
+            <Text style={styles.grandTotalValue}>{fmtCur(total)}</Text>
           </View>
         </View>
 

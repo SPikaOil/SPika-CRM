@@ -40,6 +40,9 @@ export default function PortalCataloguePage() {
     return () => { supabase.removeChannel(channel) }
   }, [profile?.customer_id])
 
+  // Priced in the customer's own currency (051).
+  const currency = (customer as any)?.currency ?? 'XCG'
+
   function getPrice(sku: string): number {
     return customer?.product_prices?.[sku] ?? SPIKA_PRODUCTS.find(p => p.sku === sku)?.default_price ?? 0
   }
@@ -79,7 +82,7 @@ export default function PortalCataloguePage() {
                     {meta?.packaging && <p className="text-[11px] text-muted-foreground">📦 {meta.packaging}</p>}
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="font-bold text-red-600 text-sm">XCG {getPrice(product.sku).toFixed(2)}</p>
+                    <p className="font-bold text-red-600 text-sm">{currency} {getPrice(product.sku).toFixed(2)}</p>
                     <p className="text-[11px] text-muted-foreground">per unit</p>
                   </div>
                 </CardContent>

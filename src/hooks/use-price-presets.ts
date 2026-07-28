@@ -1,10 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
+import { OrderCurrency } from '@/types'
 
 export interface PricePreset {
   id: string
   category: string
   label: string
+  /** The currency this category's prices are ENTERED in — never converted. */
+  currency: OrderCurrency
   prices: Record<string, number>
   discounts: Record<string, number>
   products: string[]
@@ -31,10 +34,10 @@ export function useUpdatePricePreset() {
   const supabase = createClient()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, prices, discounts, products }: { id: string; prices: Record<string, number>; discounts: Record<string, number>; products: string[] }) => {
+    mutationFn: async ({ id, prices, discounts, products, currency }: { id: string; prices: Record<string, number>; discounts: Record<string, number>; products: string[]; currency: OrderCurrency }) => {
       const { error } = await supabase
         .from('price_presets')
-        .update({ prices, discounts, products, updated_at: new Date().toISOString() })
+        .update({ prices, discounts, products, currency, updated_at: new Date().toISOString() })
         .eq('id', id)
       if (error) throw error
     },
@@ -48,10 +51,10 @@ export function useCreatePricePreset() {
   const supabase = createClient()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ category, label }: { category: string; label: string }) => {
+    mutationFn: async ({ category, label, currency }: { category: string; label: string; currency: OrderCurrency }) => {
       const { error } = await supabase
         .from('price_presets')
-        .insert({ category, label, prices: {}, discounts: {} })
+        .insert({ category, label, currency, prices: {}, discounts: {} })
       if (error) throw error
     },
     onSuccess: () => {

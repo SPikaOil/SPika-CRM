@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Customer, SpikaStand, SPIKA_STAND_TYPES } from '@/types'
+import { Customer, SpikaStand, SPIKA_STAND_TYPES, OrderCurrency } from '@/types'
 import { SPIKA_PRODUCTS } from '@/lib/products'
 import { getTaxIdInfo } from '@/lib/tax-id'
 import { useCustomers } from '@/hooks/use-customers'
@@ -28,6 +28,9 @@ import { PriceInput } from '@/components/ui/price-input'
 
 const customerSchema = z.object({
   company_name: z.string().min(1, 'Required'),
+  // Chosen FIRST, because it decides which categories may be picked below. A
+  // customer invoiced in euros can never hang off an XCG price category.
+  currency: z.enum(['XCG', 'USD', 'EUR']),
   customer_category: z.string().min(1, 'Required'),
   contact_person: z.string(),
   phone: z.string(),
@@ -260,6 +263,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
 
   const formDefaults: CustomerFormValues = {
     company_name: '',
+    currency: 'XCG',
     customer_category: 'other',
     contact_person: '',
     phone: '',
@@ -359,6 +363,23 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
   }
 
   const category = watch('customer_category')
+  const currency = watch('currency') ?? 'XCG'
+  // A category may only be attached when it prices in the customer's currency —
+  // otherwise the prices copied onto the customer mean something different from
+  // what the invoice will say.
+  const selectableCategories = (pricePresets ?? []).filter(p => (p.currency ?? 'XCG') === currency)
+
+  function changeCurrency(next: OrderCurrency) {
+    setValue('currency', next)
+    const current = (pricePresets ?? []).find(p => p.category === category)
+    if (current && (current.currency ?? 'XCG') !== next) {
+      // The attached category no longer matches. Clear it so a matching one has
+      // to be picked, which re-applies the prices in the new currency.
+      setValue('customer_category', '')
+      toast.info(`${current.label} prices in ${current.currency ?? 'XCG'} — pick a ${next} category`)
+    }
+  }
+
   const preferredComm = watch('preferred_communication')
   const status = watch('status')
   const billingCountry = watch('billing_country')
@@ -437,6 +458,26 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
                 {duplicates.length > 0 && dupWarning(duplicates)}
               </div>
               <div className="space-y-1.5">
+                <Label>Currency *</Label>
+                <div className="flex rounded-md border overflow-hidden w-fit">
+                  {(['XCG', 'USD', 'EUR'] as OrderCurrency[]).map(c => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => changeCurrency(c)}
+                      className={`px-4 py-2 text-sm font-medium transition-colors ${
+                        currency === c ? 'bg-red-600 text-white' : 'text-muted-foreground hover:bg-accent'
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Prices, orders and invoices for this customer are all in {currency}. Only {currency} categories can be selected below.
+                </p>
+              </div>
+              <div className="space-y-1.5">
                 <Label>Category *</Label>
                 <Select value={category} onValueChange={(v) => {
                   setValue('customer_category', v as any)
@@ -447,9 +488,14 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
                     pendingPresetCategory.current = v
                   }
                 }}>
-                  <SelectTrigger className="w-full"><SelectValue placeholder="Select category" /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue placeholder={`Select a ${currency} category`} /></SelectTrigger>
                   <SelectContent>
-                    {(pricePresets ?? []).map(p => (
+                    {selectableCategories.length === 0 && (
+                      <div className="px-2 py-3 text-xs text-muted-foreground">
+                        No {currency} categories yet — create one under Products → Categories
+                      </div>
+                    )}
+                    {selectableCategories.map(p => (
                       <SelectItem key={p.category} value={p.category}>{p.label}</SelectItem>
                     ))}
                   </SelectContent>
@@ -837,7 +883,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
                     onChange={e => toggleAllProducts(e.target.checked)} className="rounded" />
                 </label>
                 <span className="text-xs text-muted-foreground font-medium">Product</span>
-                <span className="text-xs text-muted-foreground w-20 text-center">Price (XCG)</span>
+                <span className="text-xs text-muted-foreground w-20 text-center">Price ({currency})</span>
                 <span className="text-xs text-muted-foreground w-20 text-center">Discount</span>
                 <span className="text-xs text-muted-foreground w-10 text-center">Free</span>
               </div>
@@ -868,7 +914,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
                       {/* Row 2: price · discount · free */}
                       <div className="flex items-end gap-2 pl-6">
                         <div className="flex-1 space-y-1">
-                          <p className="text-xs text-muted-foreground">Price (XCG)</p>
+                          <p className="text-xs text-muted-foreground">Price ({currency})</p>
                           <PriceInput
                             value={productPrices[product.sku] ?? product.default_price}
                             onChange={v => setProductPrices(prev => ({ ...prev, [product.sku]: v }))}

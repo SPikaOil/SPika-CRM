@@ -552,7 +552,15 @@ function PricePresetsCard() {
     setSaving(category)
     try {
       const preset = presets?.find(p => p.category === category)
-      await updatePreset({ id, prices: localPrices[category] ?? {}, discounts: localDiscounts[category] ?? {}, products: preset?.products ?? [] })
+      // Currency is set on Products -> Categories; pass it through unchanged so
+      // saving prices here can never silently reset it.
+      await updatePreset({
+        id,
+        prices: localPrices[category] ?? {},
+        discounts: localDiscounts[category] ?? {},
+        products: preset?.products ?? [],
+        currency: preset?.currency ?? 'XCG',
+      })
       toast.success('Price preset saved!')
     } catch (err: any) {
       toast.error(err.message)

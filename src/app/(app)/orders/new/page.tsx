@@ -144,6 +144,11 @@ function NewDeliveryNoteInner() {
     )
   }
 
+  // The order is invoiced in the customer's currency (051) — the DB trigger
+  // stamps it on insert, this only makes the screen say the same thing.
+  const currency = (selectedCustomer as any)?.currency ?? 'XCG'
+  const fmtCur = (amount: number) => `${currency} ${amount.toFixed(2)}`
+
   const taxRate = selectedCustomer?.customer_category === 'b2c' ? B2C_TAX_RATE : B2B_TAX_RATE
   const taxLabel = selectedCustomer?.customer_category === 'b2c' ? 'VAT (6%)' : 'VAT (0% — B2B exempt)'
 
@@ -338,7 +343,7 @@ function NewDeliveryNoteInner() {
                       <p className="text-xs text-muted-foreground">{item.sku}</p>
                     </div>
                     <p className="text-sm font-semibold whitespace-nowrap">
-                      XCG {item.line_total.toFixed(2)}
+                      {fmtCur(item.line_total)}
                     </p>
                   </div>
                   <div className="grid grid-cols-3 gap-2">
@@ -351,7 +356,7 @@ function NewDeliveryNoteInner() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">Price (XCG)</Label>
+                      <Label className="text-xs">Price ({currency})</Label>
                       <PriceInput
                         value={item.unit_price}
                         onChange={(v) => updatePrice(i, v)}
@@ -360,7 +365,7 @@ function NewDeliveryNoteInner() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">Discount (XCG)</Label>
+                      <Label className="text-xs">Discount ({currency})</Label>
                       <PriceInput
                         value={item.discount}
                         onChange={(v) => updateDiscount(i, v)}
@@ -375,15 +380,15 @@ function NewDeliveryNoteInner() {
               <div className="pt-3 space-y-1 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Subtotal</span>
-                  <span>XCG {subtotal.toFixed(2)}</span>
+                  <span>{fmtCur(subtotal)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">{taxLabel}</span>
-                  <span>XCG {tax.toFixed(2)}</span>
+                  <span>{fmtCur(tax)}</span>
                 </div>
                 <div className="flex justify-between font-bold text-base">
                   <span>Total</span>
-                  <span>XCG {total.toFixed(2)}</span>
+                  <span>{fmtCur(total)}</span>
                 </div>
               </div>
             </CardContent>

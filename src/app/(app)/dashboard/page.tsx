@@ -689,10 +689,20 @@ export default function DashboardPage() {
 
     const { data } = await supabase
       .from('orders_with_sales_date')
-      .select('items, assigned_to, total')
+      .select('id, items, assigned_to, total')
       .in('status', ['delivered', 'invoice_ready', 'invoice_blocked', 'paid'])
       .gte('sales_date', start)
       .lt('sales_date', end)
+
+    // Exchange rates come from the orders TABLE, not the view: the view was
+    // frozen with `o.*` in migration 048 and therefore has no fx_rate column.
+    // Only non-XCG orders are fetched — everything else is rate 1 by definition,
+    // so this is an empty round trip until the first foreign-currency order.
+    const { data: fxRows } = await supabase
+      .from('orders')
+      .select('id, fx_rate')
+      .neq('currency', 'XCG')
+    const fxById = new Map<string, number>((fxRows ?? []).map(r => [r.id as string, Number(r.fx_rate) || 1]))
 
     const COUNTED_SKUS = ['oil-100ml', 'oil-50ml']
     let total = 0
@@ -705,7 +715,10 @@ export default function DashboardPage() {
         .filter(item => COUNTED_SKUS.includes(item.sku))
         .reduce((sum, item) => sum + (item.qty ?? 0), 0)
       total += count
-      revenue += Number((order as any).total ?? 0)
+      // Converted with the rate frozen on the order's invoice date (051), so a
+      // month of mixed-currency orders adds up to one honest XCG figure and
+      // never moves again when the euro does. XCG orders have rate 1.
+      revenue += Number((order as any).total ?? 0) * (fxById.get((order as any).id) ?? 1)
       if (order.assigned_to) {
         byWorker[order.assigned_to] = (byWorker[order.assigned_to] ?? 0) + count
       }

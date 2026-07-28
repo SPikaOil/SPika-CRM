@@ -739,42 +739,16 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                     Cash
                   </button>
                 </div>
-                {/* Currency selector */}
-                <div className="flex rounded-lg border overflow-hidden shrink-0">
-                  {(['XCG', 'USD', 'EUR'] as OrderCurrency[]).map((c) => (
-                    <button
-                      key={c}
-                      onClick={async () => {
-                        if (cur === c) return
-                        // Fetch exchange rates then convert all item prices
-                        const { data: company } = await supabase
-                          .from('company_settings')
-                          .select('rate_usd,rate_eur')
-                          .eq('id', '00000000-0000-0000-0000-000000000001')
-                          .single()
-                        const rates = { usd: company?.rate_usd ?? 1.79, eur: company?.rate_eur ?? 2.0 }
-                        const fromRate = cur === 'USD' ? rates.usd : cur === 'EUR' ? rates.eur : 1
-                        const toRate = c === 'USD' ? rates.usd : c === 'EUR' ? rates.eur : 1
-                        const convert = (n: number) => parseFloat(((n * fromRate) / toRate).toFixed(2))
-                        const convertedItems = (order.items as QuoteItem[]).map(item => {
-                          const unit_price = convert(item.unit_price)
-                          const discount = convert(item.discount ?? 0)
-                          const line_total = parseFloat(((unit_price - discount) * item.qty).toFixed(2))
-                          return { ...item, unit_price, discount, line_total }
-                        })
-                        const newTotal = parseFloat(convertedItems.reduce((s, i) => s + i.line_total, 0).toFixed(2))
-                        await updateOrder.mutateAsync({
-                          id: order.id,
-                          values: { currency: c, items: convertedItems, total: newTotal } as any,
-                        })
-                      }}
-                      className={`px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                        cur === c ? 'bg-red-600 text-white' : 'text-muted-foreground hover:bg-accent'
-                      }`}
-                    >
-                      {c}
-                    </button>
-                  ))}
+                {/* Currency — read-only on purpose. It is decided at customer
+                    level (051): change it on the customer and every order,
+                    price and invoice follows. Converting a single order here
+                    would put its prices out of step with the customer's. */}
+                <div
+                  className="flex items-center rounded-lg border px-2.5 py-1.5 shrink-0 gap-1.5"
+                  title="Set on the customer — an order always follows its customer's currency"
+                >
+                  <span className="text-xs font-semibold">{cur}</span>
+                  <span className="text-[10px] text-muted-foreground hidden sm:inline">from customer</span>
                 </div>
               </div>
             </div>

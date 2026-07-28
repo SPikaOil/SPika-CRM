@@ -32,8 +32,13 @@ export interface SnapshotOrder {
   invoice_date: string | null
   paid_date: string | null
   created_at: string
+  /** What the customer was invoiced, in their own currency. */
   total: number
   currency: string
+  /** XCG per 1 unit of `currency`, frozen at the invoice date (051). */
+  fx_rate: number
+  /** `total` converted to XCG — the only figure safe to sum across currencies. */
+  total_xcg: number
   payment_type: string
   order_type: string
   is_consignment: boolean
@@ -153,12 +158,13 @@ export async function buildPeriodSnapshot(
 ): Promise<PeriodSnapshot> {
   const { from, to } = opts
 
-  const [ordersRes, customersRes, productsRes] = await Promise.all([
+  const [ordersRes, customersRes, productsRes, fxRes] = await Promise.all([
     admin
       .from('orders_with_sales_date')
       .select(
-        // No currency column exists on orders — the business runs in XCG and the
-        // TS type promises a field the database never had.
+        // currency/fx_rate are NOT selected here: this view was created with
+        // `o.*` in migration 048, so it still exposes the column list of that
+        // moment. They are fetched from the orders table below and merged in.
         'id, order_number, status, sales_date, planned_date, invoice_date, paid_date, created_at, total, payment_type, order_type, is_consignment, po_number, customer_id, assigned_to, items, delivery_notes, customer:customers(id, company_name, customer_category), delivery:deliveries(delivered_at, signer_name)'
       )
       .gte('sales_date', from)
@@ -170,10 +176,18 @@ export async function buildPeriodSnapshot(
       .select('*')
       .order('company_name', { ascending: true }),
     admin.from('products').select('sku, real_volume_ml'),
+    // Only the orders that are not in guilders — everything else is rate 1.
+    admin.from('orders').select('id, currency, fx_rate').neq('currency', 'XCG'),
   ])
 
   if (ordersRes.error) throw new Error(`orders: ${ordersRes.error.message}`)
   if (customersRes.error) throw new Error(`customers: ${customersRes.error.message}`)
+
+  // id -> { currency, rate }. Absent means guilders at rate 1.
+  const fxById = new Map<string, { currency: string; rate: number }>(
+    ((fxRes?.data ?? []) as { id: string; currency: string; fx_rate: number }[])
+      .map(r => [r.id, { currency: r.currency ?? 'XCG', rate: num(r.fx_rate) || 1 }])
+  )
 
   const volumeBySku: Record<string, number | null> = {}
   for (const p of (productsRes.data ?? []) as { sku: string; real_volume_ml: number | null }[]) {
@@ -193,7 +207,9 @@ export async function buildPeriodSnapshot(
       paid_date: o.paid_date ?? null,
       created_at: o.created_at,
       total: num(o.total),
-      currency: 'XCG',
+      currency: fxById.get(o.id)?.currency ?? 'XCG',
+      fx_rate: fxById.get(o.id)?.rate ?? 1,
+      total_xcg: Number((num(o.total) * (fxById.get(o.id)?.rate ?? 1)).toFixed(2)),
       payment_type: o.payment_type ?? 'invoice',
       order_type: o.order_type ?? 'normal',
       is_consignment: !!o.is_consignment,
@@ -262,7 +278,7 @@ export async function buildPeriodSnapshot(
       created_at: c.created_at,
       contactMoments: touchpoints,
       orders: mine,
-      revenue: revenueMine.reduce((s, o) => s + o.total, 0),
+      revenue: revenueMine.reduce((s, o) => s + o.total_xcg, 0),
       orderCount: mine.length,
       bottles: bottlesOf(revenueMine),
     }
@@ -280,7 +296,7 @@ export async function buildPeriodSnapshot(
     const k = o.customer_category || '—'
     const e = catMap.get(k) ?? { orders: 0, revenue: 0, bottles: 0 }
     e.orders++
-    e.revenue += o.total
+    e.revenue += o.total_xcg
     e.bottles += bottlesOf([o])
     catMap.set(k, e)
   }
@@ -289,7 +305,7 @@ export async function buildPeriodSnapshot(
   for (const o of revenueOrders) {
     const e = custMap.get(o.customer_id) ?? { id: o.customer_id, name: o.customer_name, orders: 0, revenue: 0, bottles: 0 }
     e.orders++
-    e.revenue += o.total
+    e.revenue += o.total_xcg
     e.bottles += bottlesOf([o])
     custMap.set(o.customer_id, e)
   }
@@ -314,7 +330,7 @@ export async function buildPeriodSnapshot(
     const k = monthKey(o.sales_date)
     const e = monthMap.get(k) ?? { orders: 0, revenue: 0, bottles: 0 }
     e.orders++
-    e.revenue += o.total
+    e.revenue += o.total_xcg
     e.bottles += bottlesOf([o])
     monthMap.set(k, e)
   }
@@ -347,7 +363,7 @@ export async function buildPeriodSnapshot(
     })
     .sort((a, b) => b.daysOverdue - a.daysOverdue)
 
-  const revenue = revenueOrders.reduce((s, o) => s + o.total, 0)
+  const revenue = revenueOrders.reduce((s, o) => s + o.total_xcg, 0)
   const bottles = bottlesOf(revenueOrders)
   const realVolumeMl = revenueOrders.reduce(
     (s, o) =>
@@ -374,9 +390,9 @@ export async function buildPeriodSnapshot(
     },
     kpis: {
       revenue,
-      revenueOpen: openOrders.reduce((s, o) => s + o.total, 0),
-      revenueConsignment: revenueOrders.filter(o => o.is_consignment).reduce((s, o) => s + o.total, 0),
-      revenueCash: revenueOrders.filter(o => o.payment_type === 'cash').reduce((s, o) => s + o.total, 0),
+      revenueOpen: openOrders.reduce((s, o) => s + o.total_xcg, 0),
+      revenueConsignment: revenueOrders.filter(o => o.is_consignment).reduce((s, o) => s + o.total_xcg, 0),
+      revenueCash: revenueOrders.filter(o => o.payment_type === 'cash').reduce((s, o) => s + o.total_xcg, 0),
       bottles,
       realVolumeMl,
       ordersTotal: orders.length,

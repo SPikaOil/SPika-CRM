@@ -110,6 +110,8 @@ function OrderCard({ order, dimmed }: { order: Order; dimmed?: boolean }) {
   const status = statusConfig[order.status] ?? { label: order.status, icon: Package, color: 'bg-gray-100 text-gray-700' }
   const Icon = status.icon
   const items = (order.items as QuoteItem[]).filter(i => i.qty > 0)
+  // Stamped on the order itself (051), so an old order keeps its own currency.
+  const currency = (order as any).currency ?? 'XCG'
 
   return (
     <Link href={`/portal/orders/${order.id}`}>
@@ -132,14 +134,14 @@ function OrderCard({ order, dimmed }: { order: Order; dimmed?: boolean }) {
           {items.map((item, i) => (
             <div key={i} className="flex justify-between text-xs">
               <span className="text-muted-foreground truncate">{item.qty}× {item.name}</span>
-              <span className="font-medium shrink-0">XCG {item.line_total.toFixed(2)}</span>
+              <span className="font-medium shrink-0">{currency} {item.line_total.toFixed(2)}</span>
             </div>
           ))}
         </div>
 
         <div className="flex justify-between items-center pt-1.5 border-t">
           <span className="text-xs text-muted-foreground">Total</span>
-          <span className="font-bold text-red-600 text-sm">XCG {Number(order.total).toFixed(2)}</span>
+          <span className="font-bold text-red-600 text-sm">{currency} {Number(order.total).toFixed(2)}</span>
         </div>
 
         {order.planned_date && (order.status === 'processing' || order.status === 'out_for_delivery') && (

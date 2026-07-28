@@ -86,8 +86,11 @@ export async function PATCH(
   const customer = (order as any).customer
   const customerName = customer?.company_name ?? 'Unknown'
   const orderNumber = order.order_number ?? id
-  const itemsText = items.map((i: QuoteItem) => `${i.qty}× ${i.name} (XCG ${i.line_total.toFixed(2)})`).join('<br>')
-  const totalFormatted = `XCG ${Number(total).toFixed(2)}`
+  // The order carries its own currency (051) — the notification must say the
+  // same thing the customer saw on screen and will see on the invoice.
+  const currency = (order as any).currency ?? customer?.currency ?? 'XCG'
+  const itemsText = items.map((i: QuoteItem) => `${i.qty}× ${i.name} (${currency} ${i.line_total.toFixed(2)})`).join('<br>')
+  const totalFormatted = `${currency} ${Number(total).toFixed(2)}`
 
   // Send admin notification (fire-and-forget)
   sendEmail({
