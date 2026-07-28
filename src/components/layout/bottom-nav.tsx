@@ -54,7 +54,7 @@ const adminMoreItems = [
   { href: '/sales-documents',     label: 'Sales Docs',  icon: FolderOpen,    permission: 'salesdocs.view'    },
   { href: '/tasks',               label: 'Tasks',       icon: ClipboardList, permission: 'tasks.view'        },
   { href: '/reports',              label: 'Reports',     icon: BarChart2,     permission: 'reports.view'      },
-  { href: '/stock',               label: 'Stock & Production', icon: Droplets,      permission: 'stock.view'        },
+  { href: '/stock',               label: 'Stock',       icon: Droplets,      permission: 'stock.view'        },
   { href: '/handover',            label: 'Handover',    icon: PackageCheck,  permission: null                },
   { href: '/store-locator',       label: 'Locator',     icon: MapPin,        permission: 'storelocator.view' },
   { href: '/portal-management',   label: 'Portal',      icon: Globe,         permission: 'portal.view'       },
