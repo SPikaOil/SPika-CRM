@@ -4,33 +4,46 @@ function sanitize(str: string) {
   return str.replace(/[#/\\:*?"<>|]/g, '').trim()
 }
 
-// Strips only what a filesystem genuinely cannot take. The '#' is NOT stripped
-// here — it belongs in the name (see documentFilename).
-function stripIllegal(str: string) {
-  return str.replace(/[/\\:*?"<>|]/g, '').trim()
+// Reduces a name to plain ASCII that every phone, share extension and storage
+// key can carry: accents lose their marks (Curaçao -> Curacao), curly quotes
+// become straight ones, and anything still outside printable ASCII is dropped.
+// '#' goes too — in a URL it starts the fragment, so a name containing one can
+// be silently truncated by whatever handles the file downstream.
+function toPlainAscii(str: string) {
+  return str
+    // NFD splits an accented letter into the plain letter + a combining mark,
+    // so the ASCII filter below keeps the letter and drops only the mark.
+    .normalize('NFD')
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/[#/\\:*?"<>|]/g, '')
+    .replace(/[^ -~]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 // THE one name every order document carries when it leaves the app —
 // download, share sheet, WhatsApp, e-mail attachment:
 //
-//     #729108 - Supermercado Luz.pdf
+//     729108 - Supermercado Luz.pdf
 //
-// The leading '#' is normalised, not copied: 45 order numbers are stored as
-// '#729108' and 22 as '729132', so a raw copy gives two different formats.
-// Strip whatever '#' is there, then always put exactly one back.
+// The order number is normalised, not copied: 45 are stored as '#729108' and
+// 22 as '729132'. The '#' is deliberately NOT kept (the user asked for it, then
+// released it while chasing the iOS share failure) because the same string is
+// also used as a Supabase storage key in the share fallback, where a '#' would
+// cut the URL in half.
 //
-// NOT for storage paths. The signed PDFs in `pod-files/signed-notes/` are
-// already saved under their own historic names and `signed_pdf_url` points at
-// them — renaming that scheme would orphan every existing proof document.
+// NOT for the signed-note storage paths. Those files are already saved under
+// their historic names and `orders.signed_pdf_url` points at them — renaming
+// that scheme would orphan every existing proof document.
 export function documentFilename(
   orderNumber: string | null | undefined,
   customerName: string | null | undefined,
 ): string {
-  const num = stripIllegal(orderNumber ?? '').replace(/^#+\s*/, '')
-  const customer = stripIllegal(customerName ?? '')
-  const base = num ? `#${num}` : ''
-  if (base && customer) return `${base} - ${customer}.pdf`
-  return `${base || customer || 'document'}.pdf`
+  const num = toPlainAscii(orderNumber ?? '').replace(/^#+\s*/, '')
+  const customer = toPlainAscii(customerName ?? '')
+  if (num && customer) return `${num} - ${customer}.pdf`
+  return `${num || customer || 'document'}.pdf`
 }
 
 export function isMobileDevice() {
@@ -58,13 +71,22 @@ export async function openStoredPdfInViewer(
 
 // Upload an ephemeral generated PDF under a real name, then open it in the
 // viewer (used for Invoice / Delivery Note which aren't stored otherwise).
+// A UNIQUE key per attempt, deliberately. `pod-files` has an insert policy but
+// no update policy, so re-uploading an existing key is rejected by RLS with
+// "new row violates row-level security policy" — writing to `generated/<name>`
+// therefore worked exactly once per document and failed silently ever after.
+// The name the user sees does not come from this key anyway: it comes from the
+// signed URL's `download` option below.
 export async function uploadAndOpenInViewer(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any, blob: Blob, filename: string,
 ): Promise<boolean> {
-  const path = `generated/${filename}`
+  const key = typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  const path = `generated/${key}.pdf`
   const { error } = await supabase.storage.from('pod-files')
-    .upload(path, blob, { upsert: true, contentType: 'application/pdf' })
+    .upload(path, blob, { contentType: 'application/pdf' })
   if (error) return false
   return openStoredPdfInViewer(supabase, path, filename)
 }
@@ -92,6 +114,54 @@ export function triggerDownload(blob: Blob, filename: string, legacyTab?: Window
   // (navigator.share of the file) — never here, to avoid the "Cannot Send
   // Message" failure that title+files sharing caused on iOS.
   anchorDownload(new File([blob], filename, { type: blob.type || 'application/pdf' }), filename)
+}
+
+// Hand a finished PDF to the phone, best route first, and NEVER swallow a
+// failure: the old version silently fell back to a download when the share
+// sheet errored, so the only thing the user ever saw was "cannot send" with no
+// clue why. Every problem is reported through `onProblem` before the next
+// route is tried.
+export async function sharePdfFile(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  file: File,
+  onProblem: (message: string) => void,
+): Promise<void> {
+  // 1. Native share sheet with the file attached — this is what drops the PDF
+  //    straight into WhatsApp when the device plays along.
+  const canShareFile =
+    typeof navigator !== 'undefined' &&
+    typeof navigator.share === 'function' &&
+    typeof navigator.canShare === 'function' &&
+    navigator.canShare({ files: [file] })
+
+  if (canShareFile) {
+    try {
+      await navigator.share({ files: [file] })
+      return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
+      // The user closing the sheet is not a failure.
+      if (err?.name === 'AbortError') return
+      onProblem(`Share sheet failed (${err?.name ?? 'unknown'}: ${err?.message ?? '-'}). Opening the file instead.`)
+    }
+  } else {
+    onProblem('This device cannot send the file through the share button. Opening the file instead.')
+  }
+
+  // 2. Put it on a real https URL under its real name and open that. iOS then
+  //    treats it as a proper document and its OWN share button sends it to
+  //    WhatsApp — the Web Share API is not involved at all.
+  try {
+    if (await uploadAndOpenInViewer(supabase, file, file.name)) return
+    onProblem('Could not stage the file for viewing. Downloading it instead.')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } catch (err: any) {
+    onProblem(`Could not stage the file (${err?.message ?? 'unknown error'}). Downloading it instead.`)
+  }
+
+  // 3. Last resort: a plain download.
+  triggerDownload(file, file.name)
 }
 
 export async function downloadDeliveryNotePDF(

@@ -86,20 +86,11 @@ export default function DeliveryNoteDetailPage({
   }
 
   async function sharePdf() {
-    if (!pdfShareFile) return
+    if (!pdfShareFile || isSharing) return
     setIsSharing(true)
     try {
-      if (navigator.canShare && navigator.canShare({ files: [pdfShareFile] })) {
-        await navigator.share({ files: [pdfShareFile] })
-      } else {
-        const { triggerDownload } = await import('@/lib/download-pdf')
-        triggerDownload(pdfShareFile, pdfShareFile.name)
-      }
-    } catch (err: any) {
-      if (err?.name !== 'AbortError') {
-        const { triggerDownload } = await import('@/lib/download-pdf')
-        triggerDownload(pdfShareFile, pdfShareFile.name)
-      }
+      const { sharePdfFile } = await import('@/lib/download-pdf')
+      await sharePdfFile(supabase, pdfShareFile, msg => toast.error(msg, { duration: 10000 }))
     } finally {
       setIsSharing(false)
     }
