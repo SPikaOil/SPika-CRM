@@ -127,7 +127,7 @@ export function QuotationPDF({ quote }: QuotationPDFProps) {
           <View style={styles.addressBlock}>
             <Text style={styles.addressLabel}>Quotation For</Text>
             <Text style={[styles.addressLine, { fontFamily: 'Helvetica-Bold' }]}>{customer?.company_name ?? '—'}</Text>
-            {customer?.contact_person ? <Text style={styles.addressLine}>{customer.contact_person}</Text> : null}
+            {/* Geen contactpersoon op de offerte — alleen bedrijf, adres en e-mailadressen */}
             {billingAddr?.street ? <Text style={styles.addressLine}>{billingAddr.street}</Text> : null}
             {billingAddr?.city ? (
               <Text style={styles.addressLine}>{[billingAddr.zip, billingAddr.city].filter(Boolean).join(' ')}</Text>

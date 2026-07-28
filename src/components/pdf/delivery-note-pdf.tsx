@@ -209,7 +209,7 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
                 <Text style={styles.addressLabel}>Bill To</Text>
                 <Text style={[styles.addressRed, { fontFamily: 'Helvetica-Bold' }]}>SPika Reseller</Text>
                 <Text style={[styles.addressLine, { fontFamily: 'Helvetica-Bold' }]}>{customer?.company_name ?? ''}</Text>
-                {customer?.contact_person ? <Text style={styles.addressLine}>{customer.contact_person}</Text> : null}
+                {/* Geen contactpersoon op de factuur — alleen bedrijf, adres en e-mailadressen */}
                 {ba?.street ? <Text style={styles.addressLine}>{ba.street}</Text> : null}
                 {ba?.city ? <Text style={styles.addressLine}>{ba.city}</Text> : null}
                 {ba?.state ? <Text style={styles.addressLine}>{ba.state}</Text> : null}
