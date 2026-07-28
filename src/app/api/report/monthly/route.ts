@@ -3,8 +3,15 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 
 async function assertAuthorized(req: NextRequest) {
-  const cronSecret = req.headers.get('x-cron-secret')
-  if (cronSecret && cronSecret === process.env.CRON_SECRET) return true
+  // Two cron shapes: our own header (manual curl, external schedulers) and the
+  // Authorization: Bearer that Vercel Cron sends by itself. Vercel does NOT
+  // send x-cron-secret, so accepting only that 401s every scheduled run — which
+  // is why this report had never once been produced by its schedule.
+  const secret = process.env.CRON_SECRET
+  if (secret) {
+    if (req.headers.get('x-cron-secret') === secret) return true
+    if (req.headers.get('authorization') === `Bearer ${secret}`) return true
+  }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return false
