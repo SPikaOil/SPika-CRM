@@ -2,6 +2,10 @@
   "framework": "nextjs",
   "crons": [
     {
+      "path": "/api/fx/sync",
+      "schedule": "30 16 * * 1-5"
+    },
+    {
       "path": "/api/report/monthly",
       "schedule": "0 23 28-31 * *"
     },
