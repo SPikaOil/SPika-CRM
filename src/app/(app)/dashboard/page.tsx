@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/auth-context'
 import { useUsers } from '@/hooks/use-users'
-import { Order, Task } from '@/types'
+import { Order, Task, OrderCurrency } from '@/types'
 import { DEFAULT_TEMPLATES, TEMPLATE_LABELS, fillTemplate, type ReminderTemplate, type TemplateKey } from '@/lib/reminder-templates'
 import { computeOrderRhythm, assessQuiet } from '@/lib/order-rhythm'
 
@@ -304,6 +304,21 @@ function BottlesCard({
   )
 }
 
+// Two different rules, deliberately:
+//
+//   toXcg   — what STAFF see. Every amount on this dashboard is in guilders so
+//             a mixed-currency list can be read and added up at a glance. It is
+//             converted with the rate frozen on the order's invoice date (051),
+//             never with today's rate, so yesterday's figures never move.
+//   ownCur  — what a CUSTOMER sees. They owe what their invoice says, in the
+//             currency their invoice says it in. Never converted.
+//
+// Printing `XCG {order.total}` is wrong on both counts: it labels a euro amount
+// as guilders without touching the number.
+const toXcg = (o: any) => Number(o?.total ?? 0) * (Number(o?.fx_rate) || 1)
+const fmtXcg = (n: number) => `XCG ${n.toFixed(2)}`
+const ownCur = (o: any) => `${o?.currency ?? 'XCG'} ${Number(o?.total ?? 0).toFixed(2)}`
+
 // ── Overdue payments collapsible banner ────────────────────────────────────
 function OverdueBanner({
   orders,
@@ -352,7 +367,7 @@ function OverdueBanner({
                 </p>
               </Link>
               <div className="flex items-center gap-2 shrink-0">
-                <p className="text-sm font-bold text-red-700 dark:text-red-400">XCG {Number(order.total).toFixed(2)}</p>
+                <p className="text-sm font-bold text-red-700 dark:text-red-400">{fmtXcg(toXcg(order))}</p>
                 <Button
                   size="sm"
                   variant="outline"
@@ -448,7 +463,7 @@ function ConsignmentBanner({ orders }: { orders: Order[] }) {
   const [expanded, setExpanded] = useState(false)
   if (orders.length === 0) return null
 
-  const totalValue = orders.reduce((s, o) => s + Number((o as any).total ?? 0), 0)
+  const totalValue = orders.reduce((s, o) => s + toXcg(o), 0)
 
   return (
     <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 overflow-hidden">
@@ -462,7 +477,7 @@ function ConsignmentBanner({ orders }: { orders: Order[] }) {
             {orders.length} consignment order{orders.length > 1 ? 's' : ''} out
           </p>
           <p className="text-xs text-blue-600/80 dark:text-blue-500">
-            {expanded ? 'Click to collapse' : `XCG ${totalValue.toFixed(2)} awaiting settlement`}
+            {expanded ? 'Click to collapse' : `${fmtXcg(totalValue)} awaiting settlement`}
           </p>
         </div>
         <Badge className="bg-blue-600 text-white text-sm px-2 shrink-0">{orders.length}</Badge>
@@ -487,7 +502,7 @@ function ConsignmentBanner({ orders }: { orders: Order[] }) {
                   {order.status?.replace(/_/g, ' ')} · {new Date(order.created_at).toLocaleDateString('en', { day: 'numeric', month: 'short' })}
                 </p>
               </div>
-              <p className="text-sm font-bold text-blue-700 dark:text-blue-400 shrink-0">XCG {Number((order as any).total).toFixed(2)}</p>
+              <p className="text-sm font-bold text-blue-700 dark:text-blue-400 shrink-0">{fmtXcg(toXcg(order))}</p>
             </Link>
           ))}
         </div>
@@ -651,6 +666,17 @@ export default function DashboardPage() {
       .in('status', ['invoice_ready', 'invoice_blocked'])
       .order('created_at', { ascending: true })
 
+    // The view is frozen at migration 048's column list and has no currency or
+    // fx_rate, so those come from the orders table and are merged back on. Only
+    // the non-guilder orders are fetched — the rest are rate 1 by definition.
+    const { data: fxRows } = await supabase
+      .from('orders')
+      .select('id, currency, fx_rate')
+      .neq('currency', 'XCG')
+    const fxById = new Map<string, { currency: OrderCurrency; fx_rate: number }>(
+      (fxRows ?? []).map(r => [r.id as string, { currency: r.currency as OrderCurrency, fx_rate: Number(r.fx_rate) || 1 }])
+    )
+
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
@@ -669,7 +695,8 @@ export default function DashboardPage() {
         due.setDate(due.getDate() + termDays)
         due.setHours(0, 0, 0, 0)
         const daysOverdue = Math.floor((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24))
-        return { ...o, dueDate: due, daysOverdue }
+        const fx = fxById.get(o.id)
+        return { ...o, currency: fx?.currency ?? 'XCG', fx_rate: fx?.fx_rate ?? 1, dueDate: due, daysOverdue }
       })
       .filter((o) => o.daysOverdue > 0)
       .sort((a, b) => b.daysOverdue - a.daysOverdue)
@@ -1089,7 +1116,7 @@ export default function DashboardPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <p className="text-sm font-bold text-orange-700 dark:text-orange-400">XCG {Number(order.total).toFixed(2)}</p>
+                  <p className="text-sm font-bold text-orange-700 dark:text-orange-400">{fmtXcg(toXcg(order))}</p>
                   <span className="text-xs font-medium text-orange-600 whitespace-nowrap">Review →</span>
                 </div>
               </Link>
@@ -1385,7 +1412,10 @@ function buildTemplate(
     contact: customer?.contact_person || customer?.company_name || 'Sir/Madam',
     company: customer?.company_name ?? '',
     order: order.order_number,
-    amount: `XCG ${Number(order.total).toFixed(2)}`,
+    // Goes to the CUSTOMER: they owe what their invoice says, in the currency
+    // their invoice says it in. Converting to guilders here would demand an
+    // amount that appears nowhere on their paperwork.
+    amount: ownCur(order),
     due_date: order.dueDate.toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' }),
     days: String(order.daysOverdue),
   })
