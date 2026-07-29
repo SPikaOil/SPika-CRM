@@ -39,6 +39,52 @@ function badge(text: string, color = '#f59e0b') {
   return `<span style="display:inline-block;background:${color}20;color:${color};border-radius:6px;padding:2px 10px;font-size:12px;font-weight:600;">${text}</span>`
 }
 
+/**
+ * Turn text that came from a person into text that stays text.
+ *
+ * Every value below is pasted straight into HTML. Without this, a company name
+ * of `Acme</td></tr><tr><td><a href="https://elders.nl">Approve</a>` produces a
+ * mail that arrives from SPika's own address, with SPika's own subject, holding
+ * someone else's link. Nothing executes — mail clients block scripts — but it
+ * looks exactly like the notification the reader is expecting, which is the
+ * whole point of the trick.
+ */
+function esc(v: unknown): string {
+  return String(v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+/**
+ * Escape a whole props object once, at the top of a template, instead of at
+ * every interpolation. Escaping in `row()` as well would double-encode, so it
+ * happens HERE and nowhere else — one entry point per mail.
+ *
+ * `keepHtml` names the fields that are markup on purpose (an items list joined
+ * with <br>, built by the app and never by a customer).
+ */
+function escProps<T extends Record<string, unknown>>(p: T, keepHtml: string[] = []): T {
+  const out: Record<string, unknown> = { ...p }
+  for (const key of Object.keys(out)) {
+    if (keepHtml.includes(key)) continue
+    const v = out[key]
+    if (typeof v === 'string') out[key] = esc(v)
+    else if (Array.isArray(v)) {
+      out[key] = v.map(item =>
+        typeof item === 'string'
+          ? esc(item)
+          : item && typeof item === 'object'
+            ? escProps(item as Record<string, unknown>)
+            : item,
+      )
+    }
+  }
+  return out as T
+}
+
 function row(label: string, value: string) {
   return `<tr>
     <td style="padding:6px 0;color:#6b7280;font-size:13px;width:140px;">${label}</td>
@@ -53,6 +99,7 @@ function button(text: string, href: string) {
 // ─── Email templates ───────────────────────────────────────────────
 
 export function emailOrderPlaced(p: { customerName: string; total: string; items: string }) {
+  p = escProps(p)
   return layout(`
     <h2 style="margin:0 0 4px;font-size:20px;color:#111;">New order request</h2>
     <p style="margin:0 0 20px;color:#6b7280;font-size:14px;">A customer placed an order request via the portal. Assign an order number and delivery date to process it.</p>
@@ -67,6 +114,7 @@ export function emailOrderPlaced(p: { customerName: string; total: string; items
 }
 
 export function emailOrderConfirmed(p: { orderNumber: string; customerName: string; plannedDate?: string }) {
+  p = escProps(p)
   return layout(`
     <h2 style="margin:0 0 4px;font-size:20px;color:#111;">Your order is confirmed!</h2>
     <p style="margin:0 0 20px;color:#6b7280;font-size:14px;">Hi ${p.customerName}, we've approved your order and it's being prepared for delivery.</p>
@@ -80,6 +128,7 @@ export function emailOrderConfirmed(p: { orderNumber: string; customerName: stri
 }
 
 export function emailOutForDelivery(p: { orderNumber: string; customerName: string; workerName: string }) {
+  p = escProps(p)
   return layout(`
     <h2 style="margin:0 0 4px;font-size:20px;color:#111;">New delivery assigned to you</h2>
     <p style="margin:0 0 20px;color:#6b7280;font-size:14px;">Hi ${p.workerName}, a new order is ready for you to deliver.</p>
@@ -93,6 +142,7 @@ export function emailOutForDelivery(p: { orderNumber: string; customerName: stri
 }
 
 export function emailOrderDelivered(p: { orderNumber: string; customerName: string; isAdmin: boolean }) {
+  p = escProps(p)
   if (p.isAdmin) {
     return layout(`
       <h2 style="margin:0 0 4px;font-size:20px;color:#111;">Order delivered</h2>
@@ -117,6 +167,7 @@ export function emailOrderDelivered(p: { orderNumber: string; customerName: stri
 }
 
 export function emailInvoiceReady(p: { orderNumber: string; customerName: string; total: string }) {
+  p = escProps(p)
   return layout(`
     <h2 style="margin:0 0 4px;font-size:20px;color:#111;">Your invoice is ready</h2>
     <p style="margin:0 0 20px;color:#6b7280;font-size:14px;">Hi ${p.customerName}, your invoice for order #${p.orderNumber} is ready.</p>
@@ -137,6 +188,7 @@ export function emailHandoverReceipt(p: {
   signedAt: string
   notes?: string
 }) {
+  p = escProps(p)
   const itemRows = p.items
     .map(i => row(i.name, `${i.qty}×`))
     .join('')
@@ -163,6 +215,7 @@ export function emailHandoverReceipt(p: {
 }
 
 export function emailOBFormSigned(p: { customerName: string; signerName: string }) {
+  p = escProps(p)
   return layout(`
     <h2 style="margin:0 0 4px;font-size:20px;color:#111;">OB form signed</h2>
     <p style="margin:0 0 20px;color:#6b7280;font-size:14px;">A customer has signed the OB Declaratie Formulier 2026.</p>
@@ -176,6 +229,7 @@ export function emailOBFormSigned(p: { customerName: string; signerName: string 
 }
 
 export function emailNewCustomer(p: { customerName: string; email: string; category: string }) {
+  p = escProps(p)
   return layout(`
     <h2 style="margin:0 0 4px;font-size:20px;color:#111;">New customer added</h2>
     <p style="margin:0 0 20px;color:#6b7280;font-size:14px;">A new customer has been added to the CRM.</p>
@@ -190,6 +244,7 @@ export function emailNewCustomer(p: { customerName: string; email: string; categ
 }
 
 export function emailQuoteSent(p: { quoteNumber: string; customerName: string; validUntil: string; total: string; items: string }) {
+  p = escProps(p)
   return layout(`
     <h2 style="margin:0 0 4px;font-size:20px;color:#111;">You have received a quotation</h2>
     <p style="margin:0 0 20px;color:#6b7280;font-size:14px;">Hi ${p.customerName}, please find your quotation details below.</p>
@@ -205,6 +260,7 @@ export function emailQuoteSent(p: { quoteNumber: string; customerName: string; v
 }
 
 export function emailTaskAssigned(p: { workerName: string; taskTitle: string; customerName?: string; dueDate?: string }) {
+  p = escProps(p)
   return layout(`
     <h2 style="margin:0 0 4px;font-size:20px;color:#111;">New task assigned to you</h2>
     <p style="margin:0 0 20px;color:#6b7280;font-size:14px;">Hi ${p.workerName}, you have a new task.</p>
@@ -219,6 +275,7 @@ export function emailTaskAssigned(p: { workerName: string; taskTitle: string; cu
 }
 
 export function emailTaskCompleted(p: { taskTitle: string; completedBy: string; customerName?: string }) {
+  p = escProps(p)
   return layout(`
     <h2 style="margin:0 0 4px;font-size:20px;color:#111;">Task completed ✓</h2>
     <p style="margin:0 0 20px;color:#6b7280;font-size:14px;">A task has been marked as done.</p>
@@ -233,6 +290,7 @@ export function emailTaskCompleted(p: { taskTitle: string; completedBy: string; 
 }
 
 export function emailOrderModified(p: { orderNumber: string; customerName: string; items: string; total: string }) {
+  p = escProps(p, ['items'])
   return layout(`
     <tr><td style="padding:28px 28px 0;">
       <p style="margin:0 0 4px;font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;">Order Modified</p>
@@ -250,6 +308,7 @@ export function emailOrderModified(p: { orderNumber: string; customerName: strin
 }
 
 export function emailOrderModifiedConfirmation(p: { orderNumber: string; customerName: string }) {
+  p = escProps(p)
   return layout(`
     <tr><td style="padding:28px 28px 0;">
       <p style="margin:0 0 4px;font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;">Order Update</p>
@@ -271,6 +330,7 @@ export function emailOrderModifiedConfirmation(p: { orderNumber: string; custome
 // they are sent today so the preview shows the truth, not an idealised version.
 
 export function emailAccountApproved(p: { name: string; companyName: string; appUrl: string }) {
+  p = escProps(p)
   return layout(`
     <h2 style="margin:0 0 4px;font-size:20px;color:#111;">Your account is approved!</h2>
     <p style="margin:0 0 20px;color:#6b7280;font-size:14px;">
@@ -289,6 +349,7 @@ export function emailAccessRequestAdmin(p: {
   companyName: string; name: string; email: string
   phone?: string | null; country?: string | null; message?: string | null; appUrl: string
 }) {
+  p = escProps(p)
   return layout(`
     <h2 style="margin:0 0 4px;font-size:20px;color:#111;">New access request</h2>
     <p style="margin:0 0 20px;color:#6b7280;font-size:14px;">A company applied for B2B portal access.</p>
@@ -308,6 +369,7 @@ export function emailAccessRequestAdmin(p: {
 // Sent to the CUSTOMER the moment they place an order in the portal. Without
 // this they heard nothing until an admin approved, which could be a day later.
 export function emailOrderReceived(p: { customerName: string; total: string; items: string }) {
+  p = escProps(p)
   return layout(`
     <h2 style="margin:0 0 4px;font-size:20px;color:#111;">We received your order</h2>
     <p style="margin:0 0 20px;color:#6b7280;font-size:14px;">Hi ${p.customerName}, thanks for your order. We'll confirm it shortly and let you know the delivery date.</p>
