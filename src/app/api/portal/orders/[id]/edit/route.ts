@@ -92,29 +92,40 @@ export async function PATCH(
   const itemsText = items.map((i: QuoteItem) => `${i.qty}× ${i.name} (${currency} ${i.line_total.toFixed(2)})`).join('<br>')
   const totalFormatted = `${currency} ${Number(total).toFixed(2)}`
 
-  // Send admin notification (fire-and-forget)
-  sendEmail({
-    to: ADMIN_EMAIL,
-    subject: `Order #${orderNumber} modified — ${customerName}`,
-    html: emailOrderModified({
-      orderNumber,
-      customerName,
-      items: itemsText,
-      total: totalFormatted,
-    }),
-  }).catch(err => console.error('[edit-order] Admin email failed:', err))
-
-  // Send customer confirmation if email is available
-  const customerEmail = customer?.email
-  if (customerEmail) {
-    sendEmail({
-      to: customerEmail,
-      subject: `Your changes to order #${orderNumber} have been received`,
-      html: emailOrderModifiedConfirmation({
+  // Both AWAITED. On Vercel the function is frozen as soon as the response is
+  // returned, so an un-awaited send is cut off mid-flight and nobody is told.
+  // The order is already saved above, so a mail failure here costs only the
+  // notification — which is what the old fire-and-forget was trying to achieve
+  // and did not.
+  try {
+    await sendEmail({
+      to: ADMIN_EMAIL,
+      subject: `Order #${orderNumber} modified — ${customerName}`,
+      html: emailOrderModified({
         orderNumber,
         customerName,
+        items: itemsText,
+        total: totalFormatted,
       }),
-    }).catch(err => console.error('[edit-order] Customer email failed:', err))
+    })
+  } catch (err) {
+    console.error('[edit-order] Admin email failed:', err)
+  }
+
+  const customerEmail = customer?.email
+  if (customerEmail) {
+    try {
+      await sendEmail({
+        to: customerEmail,
+        subject: `Your changes to order #${orderNumber} have been received`,
+        html: emailOrderModifiedConfirmation({
+          orderNumber,
+          customerName,
+        }),
+      })
+    } catch (err) {
+      console.error('[edit-order] Customer email failed:', err)
+    }
   }
 
   return NextResponse.json({ ok: true })
