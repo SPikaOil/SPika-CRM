@@ -33,6 +33,19 @@ const styles = StyleSheet.create({
   brandName: { fontSize: 20, fontFamily: 'Helvetica-Bold', color: RED, letterSpacing: 1 },
   brandSub: { fontSize: 8, color: GRAY, letterSpacing: 2 },
   invoiceTitle: { fontSize: 20, fontFamily: 'Helvetica-Bold', color: RED, textAlign: 'right' },
+  // Consignment marker, next to the document title. Outlined rather than filled
+  // so it reads as a status, not as part of the SPika wordmark.
+  consignmentTag: {
+    fontSize: 8,
+    fontFamily: 'Helvetica-Bold',
+    color: DARK,
+    letterSpacing: 1,
+    borderWidth: 0.75,
+    borderColor: DARK,
+    borderRadius: 3,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
 
   divider: { marginVertical: 5 },
 
@@ -159,6 +172,13 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
   const dueDate = new Date(invoiceDateObj)
   dueDate.setDate(invoiceDateObj.getDate() + paymentTermDays)
 
+  // Consignment: the goods stay SPika's until the customer sells them, so there
+  // is no payment term and therefore no due date. The revenue still lands on the
+  // delivery date like any other order — only the chase for payment is absent.
+  // Stamped on the order at insert (migration 042), so history stays correct
+  // even if the customer later becomes a normal payer.
+  const isConsignment = !!(order as any).is_consignment
+
   const isInvoice = documentType === 'INVOICE'
   const dateLabel = isInvoice ? 'Invoice Date' : 'Delivery Date'
   const dateValue = isInvoice
@@ -173,7 +193,8 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
         <View style={{ marginBottom: 2 }}>
           <Image src="/spika-banner.png" style={{ width: '100%', height: 101, objectFit: 'contain' }} />
         </View>
-        <View style={[styles.header, { justifyContent: 'flex-end' }]}>
+        <View style={[styles.header, { justifyContent: 'flex-end', alignItems: 'center', gap: 8 }]}>
+          {isConsignment && <Text style={styles.consignmentTag}>CONSIGNMENT</Text>}
           <Text style={styles.invoiceTitle}>{documentType}</Text>
         </View>
 
@@ -243,8 +264,14 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
           {[
             { label: 'Invoice #',  value: order.order_number },
             { label: dateLabel,    value: dateValue },
-            { label: 'Due Date',   value: fmt(dueDate) },
-            { label: 'Term',       value: `${paymentTermDays} days` },
+            // No due date and no term on a consignment invoice — there is
+            // nothing to be late for until the goods are sold and settled.
+            ...(isConsignment
+              ? [{ label: 'Payment', value: 'On settlement' }]
+              : [
+                  { label: 'Due Date', value: fmt(dueDate) },
+                  { label: 'Term',     value: `${paymentTermDays} days` },
+                ]),
             isInvoice
               ? { label: 'Delivery Date', value: order.planned_date ? fmt(new Date(order.planned_date + 'T12:00:00')) : fmt(today) }
               : { label: 'Reference', value: 'SPika Oil' },
