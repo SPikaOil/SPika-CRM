@@ -51,6 +51,16 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse
   }
 
+  // The report endpoints authorise themselves — an admin session, or the
+  // Authorization: Bearer that Vercel Cron sends with CRON_SECRET. They have to
+  // bypass this redirect because a cron request carries no cookies, and
+  // "cron jobs do not follow redirects": Vercel treats the 307 to /login as the
+  // final response and the route never runs. That, not the header name, is why
+  // the monthly report cron had never once produced a file.
+  if (pathname.startsWith('/api/report')) {
+    return supabaseResponse
+  }
+
   // Protected routes — redirect to login if not authenticated
   if (!user) {
     const url = request.nextUrl.clone()
