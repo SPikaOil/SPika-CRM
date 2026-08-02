@@ -10,6 +10,7 @@ import {
 } from '@react-pdf/renderer'
 import { Export, QuoteItem } from '@/types'
 import { CompanyInfo } from '../delivery-note-pdf'
+import { addressLines, isEuropeanAddress } from '@/lib/address'
 
 const RED = '#CC0000'
 const DARK = '#1a1a1a'
@@ -133,14 +134,10 @@ export function DonAndresBolPDF({ exportRecord, company = DEFAULT_COMPANY }: Pro
                 {customer?.company_name ?? '—'}
               </Text>
               <Text style={styles.boxLine}>{customer?.contact_person ?? ''}</Text>
-              {customer?.billing_address?.street && (
-                <Text style={styles.boxLine}>{customer.billing_address.street}</Text>
-              )}
-              {customer?.billing_address?.city && (
-                <Text style={styles.boxLine}>
-                  {customer.billing_address.city}{customer.billing_address.country ? `, ${customer.billing_address.country}` : ''}
-                </Text>
-              )}
+              {/* Shared layout — see lib/address.ts */}
+              {addressLines(customer?.billing_address as any, isEuropeanAddress(customer?.billing_address as any)).map((line, i) => (
+                <Text key={`b${i}`} style={styles.boxLine}>{line}</Text>
+              ))}
               {customer?.phone && <Text style={styles.boxLine}>{customer.phone}</Text>}
             </View>
           </View>

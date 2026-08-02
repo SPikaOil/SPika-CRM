@@ -10,6 +10,7 @@ import {
 } from '@react-pdf/renderer'
 import { Export, QuoteItem } from '@/types'
 import { CompanyInfo } from '../delivery-note-pdf'
+import { addressLines, isEuropeanAddress } from '@/lib/address'
 
 const RED = '#CC0000'
 const DARK = '#1a1a1a'
@@ -125,14 +126,10 @@ export function PackingListPDF({ exportRecord, company = DEFAULT_COMPANY }: Prop
               {customer?.company_name ?? '—'}
             </Text>
             <Text style={styles.addressLine}>{customer?.contact_person ?? ''}</Text>
-            {customer?.billing_address?.street && (
-              <Text style={styles.addressLine}>{customer.billing_address.street}</Text>
-            )}
-            {customer?.billing_address?.city && (
-              <Text style={styles.addressLine}>
-                {customer.billing_address.city}{customer.billing_address.country ? `, ${customer.billing_address.country}` : ''}
-              </Text>
-            )}
+            {/* Shared layout — see lib/address.ts */}
+            {addressLines(customer?.billing_address as any, isEuropeanAddress(customer?.billing_address as any)).map((line, i) => (
+              <Text key={`p${i}`} style={styles.addressLine}>{line}</Text>
+            ))}
             <Text style={styles.addressLine}>Destination: {exportRecord.destination || '—'}</Text>
           </View>
         </View>

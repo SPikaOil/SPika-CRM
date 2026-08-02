@@ -11,6 +11,7 @@ import {
 import { Export, QuoteItem } from '@/types'
 import { CompanyInfo } from '../delivery-note-pdf'
 import { formatTaxId } from '@/lib/tax-id'
+import { addressLines, isEuropeanAddress } from '@/lib/address'
 
 const RED = '#CC0000'
 const DARK = '#1a1a1a'
@@ -121,14 +122,12 @@ export function CommercialInvoicePDF({ exportRecord, company = DEFAULT_COMPANY }
               {customer?.company_name ?? '—'}
             </Text>
             <Text style={styles.addressLine}>{customer?.contact_person ?? ''}</Text>
-            {customer?.billing_address?.street && (
-              <Text style={styles.addressLine}>{customer.billing_address.street}</Text>
-            )}
-            {customer?.billing_address?.city && (
-              <Text style={styles.addressLine}>
-                {customer.billing_address.city}{customer.billing_address.country ? `, ${customer.billing_address.country}` : ''}
-              </Text>
-            )}
+            {/* Same layout as the invoice and the shipping label. Customs wants
+                the full address including the postcode, which the old
+                "city, country" line left off entirely. */}
+            {addressLines(customer?.billing_address as any, isEuropeanAddress(customer?.billing_address as any)).map((line, i) => (
+              <Text key={`c${i}`} style={styles.addressLine}>{line}</Text>
+            ))}
             {(() => {
               const taxId = formatTaxId(
                 (customer?.billing_address as any)?.country ?? '',

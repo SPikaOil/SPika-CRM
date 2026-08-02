@@ -393,6 +393,11 @@ export default function DeliveryPage({
     )
   }
 
+  // This screen mirrors the delivery note the customer is about to sign, so it
+  // shows the order's OWN currency rather than the converted guilder amount the
+  // office screens use. Anything else would contradict the paper in their hand.
+  const deliveryCurrency = (order as any).currency ?? 'XCG'
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -597,21 +602,21 @@ export default function DeliveryPage({
                   <div key={i} className="flex justify-between text-sm gap-2">
                     <div className="min-w-0">
                       <p className="font-medium truncate">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">× {item.qty} @ XCG {Number(item.unit_price).toFixed(2)}</p>
+                      <p className="text-xs text-muted-foreground">× {item.qty} @ {deliveryCurrency} {Number(item.unit_price).toFixed(2)}</p>
                     </div>
-                    <span className="font-semibold shrink-0">XCG {Number(item.line_total).toFixed(2)}</span>
+                    <span className="font-semibold shrink-0">{deliveryCurrency} {Number(item.line_total).toFixed(2)}</span>
                   </div>
                 ))}
                 <Separator />
                 {order.customer?.customer_category === 'b2c' && (
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">VAT (6%)</span>
-                    <span>XCG {(Number(order.total) * 0.06 / 1.06).toFixed(2)}</span>
+                    <span>{deliveryCurrency} {(Number(order.total) * 0.06 / 1.06).toFixed(2)}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-bold text-base">
                   <span>Total Due</span>
-                  <span className="text-red-600">XCG {Number(order.total).toFixed(2)}</span>
+                  <span className="text-red-600">{deliveryCurrency} {Number(order.total).toFixed(2)}</span>
                 </div>
               </CardContent>
             </Card>

@@ -10,6 +10,7 @@ import {
 } from '@react-pdf/renderer'
 import { Order, QuoteItem } from '@/types'
 import { formatTaxId } from '@/lib/tax-id'
+import { addressLines, isEuropeanAddress } from '@/lib/address'
 
 const RED = '#CC0000'
 const DARK = '#1a1a1a'
@@ -33,6 +34,9 @@ const styles = StyleSheet.create({
   brandName: { fontSize: 20, fontFamily: 'Helvetica-Bold', color: RED, letterSpacing: 1 },
   brandSub: { fontSize: 8, color: GRAY, letterSpacing: 2 },
   invoiceTitle: { fontSize: 20, fontFamily: 'Helvetica-Bold', color: RED, textAlign: 'right' },
+  // Same weight and colour as the invoice title, smaller because the phrase is
+  // long and shares the line with the CONSIGNMENT tag.
+  consignmentTitle: { fontSize: 13, fontFamily: 'Helvetica-Bold', color: RED, textAlign: 'right' },
   // Consignment marker, next to the document title. Outlined rather than filled
   // so it reads as a status, not as part of the SPika wordmark.
   consignmentTag: {
@@ -94,6 +98,10 @@ const styles = StyleSheet.create({
   totalLabel: { fontSize: 9, color: GRAY, textAlign: 'right', width: 100 },
   totalValue: { fontSize: 9, color: DARK, textAlign: 'right', width: 80 },
   balanceDueLabel: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: DARK, textAlign: 'right', width: 100 },
+  // Wider and smaller than BALANCE DUE: the sentence is 56 characters and would
+  // otherwise wrap into the amount beside it.
+  consignmentValueLabel: { fontSize: 8, fontFamily: 'Helvetica-Bold', color: DARK, textAlign: 'right', width: 240 },
+  taxNoteLabel: { fontSize: 9, color: GRAY, textAlign: 'right', width: 160 },
   balanceDueValue: { fontSize: 14, fontFamily: 'Helvetica-Bold', color: RED, textAlign: 'right', width: 120 },
   outOfScope: { fontSize: 7, color: GRAY, textAlign: 'right', marginTop: 2 },
 
@@ -149,6 +157,12 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
   const fmtCur = (amount: number) => `${currency} ${amount.toFixed(2)}`
   const items = (order.items ?? []) as QuoteItem[]
   const customer = order.customer
+  // The address layout follows the DESTINATION, not the money — the same rule
+  // the quotation, the shipping label and the three export documents now use.
+  // For every customer on file today this gives the identical result to keying
+  // it off the euro; it only differs the day a Dutch customer is billed in
+  // guilders, where the country is the right answer and the currency is not.
+  const europeanAddress = isEuropeanAddress(customer?.billing_address as any)
   const isB2C = customer?.customer_category === 'b2c'
   const taxRate = isB2C ? 0.06 : 0
   const returnPrice = customer?.table_bottle_return_price ?? 2.50
@@ -180,6 +194,9 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
   const isConsignment = !!(order as any).is_consignment
 
   const isInvoice = documentType === 'INVOICE'
+  // Only the INVOICE of a consignment order changes character. A delivery note
+  // is already an afleverbon and keeps its own title and wording.
+  const isConsignmentInvoice = isConsignment && isInvoice
   const dateLabel = isInvoice ? 'Invoice Date' : 'Delivery Date'
   const dateValue = isInvoice
     ? fmt(invoiceDateObj)
@@ -195,7 +212,14 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
         </View>
         <View style={[styles.header, { justifyContent: 'flex-end', alignItems: 'center', gap: 8 }]}>
           {isConsignment && <Text style={styles.consignmentTag}>CONSIGNMENT</Text>}
-          <Text style={styles.invoiceTitle}>{documentType}</Text>
+          {/* On consignment the document is not an invoice at all — nothing is
+              claimable on delivery — so it is titled for what it is. The
+              delivery note keeps its own title; only the INVOICE variant is
+              renamed. Set smaller than the 20pt title because the phrase is
+              four times as long and has to sit beside the tag. */}
+          <Text style={isConsignmentInvoice ? styles.consignmentTitle : styles.invoiceTitle}>
+            {isConsignmentInvoice ? 'CONSIGNMENT NOTE' : documentType}
+          </Text>
         </View>
 
         <Svg height={1} style={styles.divider}>
@@ -230,12 +254,10 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
                 <Text style={styles.addressLabel}>Bill To</Text>
                 <Text style={[styles.addressRed, { fontFamily: 'Helvetica-Bold' }]}>SPika Reseller</Text>
                 <Text style={[styles.addressLine, { fontFamily: 'Helvetica-Bold' }]}>{customer?.company_name ?? ''}</Text>
-                {/* Geen contactpersoon op de factuur — alleen bedrijf, adres en e-mailadressen */}
-                {ba?.street ? <Text style={styles.addressLine}>{ba.street}</Text> : null}
-                {ba?.city ? <Text style={styles.addressLine}>{ba.city}</Text> : null}
-                {ba?.state ? <Text style={styles.addressLine}>{ba.state}</Text> : null}
-                {ba?.zip ? <Text style={styles.addressLine}>{ba.zip}</Text> : null}
-                {ba?.country ? <Text style={styles.addressLine}>{ba.country}</Text> : null}
+                {/* No contact person on the invoice — company, address and e-mail only */}
+                {addressLines(ba, europeanAddress).map((line, i) => (
+                  <Text key={`b${i}`} style={styles.addressLine}>{line}</Text>
+                ))}
                 {taxId ? <Text style={styles.addressLine}>{taxId}</Text> : null}
                 {customer?.coc_number ? <Text style={styles.addressLine}>CoC: {customer.coc_number}</Text> : null}
                 {customer?.email ? <Text style={styles.addressRed}>{customer.email}</Text> : null}
@@ -248,11 +270,9 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
                 <View style={styles.addressBlock}>
                   <Text style={styles.addressLabel}>Ship To</Text>
                   <Text style={[styles.addressLine, { fontFamily: 'Helvetica-Bold' }]}>{customer?.company_name ?? ''}</Text>
-                  {da.street ? <Text style={styles.addressLine}>{da.street}</Text> : null}
-                  {da.city ? <Text style={styles.addressLine}>{da.city}</Text> : null}
-                  {da.state ? <Text style={styles.addressLine}>{da.state}</Text> : null}
-                  {da.zip ? <Text style={styles.addressLine}>{da.zip}</Text> : null}
-                  {da.country ? <Text style={styles.addressLine}>{da.country}</Text> : null}
+                  {addressLines(da, europeanAddress).map((line, i) => (
+                    <Text key={`s${i}`} style={styles.addressLine}>{line}</Text>
+                  ))}
                 </View>
               )}
             </View>
@@ -338,7 +358,15 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
               <Text style={styles.totalValue}>{fmtCur(subtotal)}</Text>
             </View>
             <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>{isB2C ? 'OB (6%)' : 'OB (0% — OB exempt)'}</Text>
+              {/* One tax statement, not two. A normal invoice carries both
+                  "OB exempt" here and "Out of Scope of OB" below it; on a
+                  consignment note only this line remains, and it says what it
+                  actually is: goods leaving Curacao, no OB charged. */}
+              <Text style={isConsignmentInvoice ? styles.taxNoteLabel : styles.totalLabel}>
+                {isConsignmentInvoice
+                  ? 'OB 0% — export from Curacao'
+                  : (isB2C ? 'OB (6%)' : 'OB (0% — OB exempt)')}
+              </Text>
               <Text style={styles.totalValue}>{fmtCur(tax)}</Text>
             </View>
             {bottleCredit > 0 && (
@@ -348,10 +376,18 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
               </View>
             )}
             <View style={[styles.totalRow, { marginTop: 4, paddingTop: 4, borderTopWidth: 0.5, borderTopColor: BORDER }]}>
-              <Text style={styles.balanceDueLabel}>BALANCE DUE</Text>
+              {/* Nothing is due on delivery under consignment — the customer
+                  pays after they sell. Calling it BALANCE DUE would demand
+                  money on a document that by definition demands none. */}
+              <Text style={isConsignmentInvoice ? styles.consignmentValueLabel : styles.balanceDueLabel}>
+                {isConsignmentInvoice
+                  ? 'TOTAL CONSIGNMENT VALUE — NOT DUE ON DELIVERY'
+                  : 'BALANCE DUE'}
+              </Text>
               <Text style={styles.balanceDueValue}>{fmtCur(total)}</Text>
             </View>
-            <Text style={styles.outOfScope}>Out of Scope of OB</Text>
+            {/* Dropped on a consignment note: the tax line above already says it */}
+            {!isConsignmentInvoice && <Text style={styles.outOfScope}>Out of Scope of OB</Text>}
           </View>
         )}
 

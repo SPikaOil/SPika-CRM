@@ -10,6 +10,7 @@ import {
 } from '@react-pdf/renderer'
 import { Quote } from '@/types'
 import { formatTaxId } from '@/lib/tax-id'
+import { addressLines, isEuropeanAddress } from '@/lib/address'
 
 const RED = '#CC0000'
 const DARK = '#1a1a1a'
@@ -132,12 +133,10 @@ export function QuotationPDF({ quote }: QuotationPDFProps) {
           <View style={styles.addressBlock}>
             <Text style={styles.addressLabel}>Quotation For</Text>
             <Text style={[styles.addressLine, { fontFamily: 'Helvetica-Bold' }]}>{customer?.company_name ?? '—'}</Text>
-            {/* Geen contactpersoon op de offerte — alleen bedrijf, adres en e-mailadressen */}
-            {billingAddr?.street ? <Text style={styles.addressLine}>{billingAddr.street}</Text> : null}
-            {billingAddr?.city ? (
-              <Text style={styles.addressLine}>{[billingAddr.zip, billingAddr.city].filter(Boolean).join(' ')}</Text>
-            ) : null}
-            {billingAddr?.country ? <Text style={styles.addressLine}>{billingAddr.country}</Text> : null}
+            {/* No contact person on the quotation — company, address and e-mail only */}
+            {addressLines(billingAddr, isEuropeanAddress(billingAddr)).map((line, i) => (
+              <Text key={`q${i}`} style={styles.addressLine}>{line}</Text>
+            ))}
             {customer?.email ? <Text style={[styles.addressLine, { color: RED }]}>{customer.email}</Text> : null}
             {(customer?.billing_emails ?? []).map((email: string) => (
               <Text key={email} style={[styles.addressLine, { color: RED }]}>{email}</Text>

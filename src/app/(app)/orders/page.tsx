@@ -8,6 +8,7 @@ import { downloadCsv, csvDate, csvMoney } from '@/lib/csv-export'
 import { useOrders, useUpdateOrder } from '@/hooks/use-orders'
 import { useAuth } from '@/contexts/auth-context'
 import { createClient } from '@/lib/supabase/client'
+import { orderXcg, fmtXcg } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -353,7 +354,7 @@ function OrdersPageInner() {
                         Deleted {(order as any).deleted_at ? new Date((order as any).deleted_at).toLocaleString() : ''}
                       </p>
                     </div>
-                    {isAdmin && <p className="text-sm font-semibold shrink-0">XCG {Number(order.total).toFixed(2)}</p>}
+                    {isAdmin && <p className="text-sm font-semibold shrink-0">{fmtXcg(orderXcg(order))}</p>}
                   </div>
                 </Link>
               ))}
@@ -510,9 +511,11 @@ function OrderRow({
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {isAdmin && (() => {
+            // The credit is priced in the customer's currency, like the order,
+            // so subtract first and convert the result once.
             const credit = (order.delivery?.table_bottles_returned ?? 0) * (order.customer?.table_bottle_return_price ?? 2.50)
-            const adj = Number(order.total) - credit
-            return <p className="font-semibold text-sm">XCG {adj.toFixed(2)}</p>
+            const adj = (Number(order.total) - credit) * (Number((order as any).fx_rate) || 1)
+            return <p className="font-semibold text-sm">{fmtXcg(adj)}</p>
           })()}
           <div className="flex gap-1">
             {order.status === 'processing' && (

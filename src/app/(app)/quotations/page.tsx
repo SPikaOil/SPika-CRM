@@ -113,7 +113,9 @@ function QuotationsPageInner() {
               {quote.valid_until && ` · valid until ${new Date(quote.valid_until).toLocaleDateString('en', { day: 'numeric', month: 'short' })}`}
             </p>
           </div>
-          <span className="text-sm font-medium shrink-0">XCG {Number(quote.total ?? 0).toFixed(2)}</span>
+          <span className="text-sm font-medium shrink-0">
+            {(quote as any).currency ?? 'XCG'} {Number(quote.total ?? 0).toFixed(2)}
+          </span>
         </Link>
         <Button
           variant="ghost"

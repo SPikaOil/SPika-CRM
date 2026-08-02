@@ -243,6 +243,9 @@ export function emailNewCustomer(p: { customerName: string; email: string; categ
   `)
 }
 
+// `total` arrives already formatted WITH its currency (e.g. "EUR 1,240.00").
+// It used to be prefixed with a hardcoded XCG here, which announced a euro
+// quotation to the customer in guilders.
 export function emailQuoteSent(p: { quoteNumber: string; customerName: string; validUntil: string; total: string; items: string }) {
   p = escProps(p)
   return layout(`
@@ -251,7 +254,7 @@ export function emailQuoteSent(p: { quoteNumber: string; customerName: string; v
     ${badge('Quotation', '#6366f1')}
     <table style="margin-top:16px;width:100%;border-collapse:collapse;">
       ${row('Quote #', p.quoteNumber)}
-      ${row('Total', `XCG ${p.total}`)}
+      ${row('Total', p.total)}
       ${row('Valid until', p.validUntil)}
       ${row('Products', p.items)}
     </table>

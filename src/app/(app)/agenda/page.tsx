@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Truck, ClipboardList, RefreshCw, CalendarDays, FileSpreadsheet } from 'lucide-react'
 import { downloadCsv } from '@/lib/csv-export'
+import { orderXcg, fmtXcg } from '@/lib/utils'
 import { useMyOrders } from '@/hooks/use-orders'
 import { useTasks } from '@/hooks/use-tasks'
 import { useAuth } from '@/contexts/auth-context'
@@ -66,7 +67,7 @@ export default function AgendaPage() {
         date: order.planned_date,
         type: 'delivery',
         title: order.customer?.company_name ?? 'Unknown customer',
-        subtitle: `${order.order_number} · XCG ${Number(order.total).toFixed(2)}`,
+        subtitle: `${order.order_number} · ${fmtXcg(orderXcg(order))}`,
         // Sales members work orders via the delivery-notes screen, not the admin order page
         href: isAdmin ? `/orders/${order.id}` : `/delivery-notes/${order.id}`,
         badge: order.status.replace(/_/g, ' '),

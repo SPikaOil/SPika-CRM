@@ -64,6 +64,10 @@ export default function QuotationDetailPage({
   const activeItems = (quote?.items ?? []).filter((i) => i.qty > 0)
   const subtotal = activeItems.reduce((sum, i) => sum + i.line_total, 0)
   const isB2C = customer?.customer_category === 'b2c'
+  // The quote carries its own currency (051); the customer is the fallback for
+  // quotations written before that column existed.
+  const currency = (quote as any)?.currency ?? (customer as any)?.currency ?? 'XCG'
+  const fmtCur = (amount: number) => `${currency} ${amount.toFixed(2)}`
   const taxRate = isB2C ? B2C_TAX_RATE : 0
   const tax = subtotal * taxRate
   const total = subtotal + tax
@@ -125,7 +129,9 @@ export default function QuotationDetailPage({
             customerEmail: customer.email,
             customerName: customer.company_name,
             validUntil: validUntilStr,
-            total: total.toFixed(2),
+            // Formatted here, with the quote's own currency — the template no
+            // longer prefixes anything.
+            total: fmtCur(total),
             items: itemsSummary,
             billingEmails: customer.billing_emails ?? [],
           },
@@ -422,15 +428,15 @@ export default function QuotationDetailPage({
                 </p>
                 <p className="text-right">
                   <span className="sm:hidden text-muted-foreground">Price: </span>
-                  XCG {item.unit_price.toFixed(2)}
+                  {fmtCur(item.unit_price)}
                 </p>
                 <p className="text-right text-muted-foreground">
                   <span className="sm:hidden">Discount: </span>
-                  {item.discount > 0 ? `XCG ${item.discount.toFixed(2)}` : '—'}
+                  {item.discount > 0 ? fmtCur(item.discount) : '—'}
                 </p>
                 <p className="text-right font-semibold">
                   <span className="sm:hidden text-muted-foreground">Total: </span>
-                  XCG {item.line_total.toFixed(2)}
+                  {fmtCur(item.line_total)}
                 </p>
               </div>
             ))
@@ -440,15 +446,15 @@ export default function QuotationDetailPage({
           <div className="px-4 pt-3 pb-4 space-y-1 border-t text-sm">
             <div className="flex justify-between text-muted-foreground">
               <span>Subtotal</span>
-              <span>XCG {subtotal.toFixed(2)}</span>
+              <span>{fmtCur(subtotal)}</span>
             </div>
             <div className="flex justify-between text-muted-foreground">
               <span>{isB2C ? 'VAT (6%)' : 'VAT (0% — B2B exempt)'}</span>
-              <span>XCG {tax.toFixed(2)}</span>
+              <span>{fmtCur(tax)}</span>
             </div>
             <div className="flex justify-between font-bold text-base pt-1 border-t">
               <span>Total</span>
-              <span>XCG {total.toFixed(2)}</span>
+              <span>{fmtCur(total)}</span>
             </div>
           </div>
         </CardContent>

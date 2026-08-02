@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     ? `${year + 1}-01-01`
     : `${year}-${String(month + 1).padStart(2, '0')}-01`
 
-  const [ordersRes, customersRes, newCustomersRes, accessRes] = await Promise.all([
+  const [ordersRes, customersRes, newCustomersRes, accessRes, fxRes] = await Promise.all([
     admin
       .from('orders_with_sales_date')
       .select('id, order_number, total, status, payment_type, customer:customers(company_name, customer_category), items, sales_date')
@@ -60,6 +60,10 @@ export async function POST(req: NextRequest) {
     admin.from('customers').select('id').eq('status', 'active').eq('is_lead', false),
     admin.from('customers').select('id, company_name, customer_category').eq('is_lead', false).gte('created_at', start).lt('created_at', end),
     admin.from('access_requests').select('id, status, company_name, created_at').gte('created_at', start).lt('created_at', end),
+    // The view is frozen at migration 048's column list and carries no fx_rate,
+    // so the rates come from the orders table. Only non-guilder orders are
+    // fetched; everything else is rate 1 by definition.
+    admin.from('orders').select('id, fx_rate').neq('currency', 'XCG'),
   ])
 
   const orders = ordersRes.data ?? []
@@ -67,8 +71,16 @@ export async function POST(req: NextRequest) {
   const newCustomers = newCustomersRes.data ?? []
   const accessRequests = accessRes.data ?? []
 
+  // Every revenue figure below is in XCG, converted with the rate frozen on each
+  // order's invoice date (051). Summing raw totals across currencies would count
+  // a EUR 1320 order as XCG 1320.
+  const fxById = new Map<string, number>(
+    ((fxRes.data ?? []) as { id: string; fx_rate: number }[]).map(r => [r.id, Number(r.fx_rate) || 1])
+  )
+  const xcg = (o: { id?: string; total?: unknown }) => Number(o.total ?? 0) * (fxById.get(o.id ?? '') ?? 1)
+
   const delivered = orders.filter(o => ['delivered', 'invoice_ready', 'invoice_blocked', 'paid'].includes(o.status))
-  const totalRevenue = delivered.reduce((s, o) => s + Number(o.total ?? 0), 0)
+  const totalRevenue = delivered.reduce((s, o) => s + xcg(o), 0)
   const totalOrders = orders.length
   const deliveredCount = delivered.length
   const pendingCount = orders.filter(o => ['pending_approval', 'approved', 'out_for_delivery'].includes(o.status)).length
@@ -78,7 +90,7 @@ export async function POST(req: NextRequest) {
     const cat = (o.customer as any)?.customer_category ?? 'unknown'
     if (!byCategory[cat]) byCategory[cat] = { count: 0, revenue: 0 }
     byCategory[cat].count++
-    byCategory[cat].revenue += Number(o.total ?? 0)
+    byCategory[cat].revenue += xcg(o)
   }
 
   const byCustomer: Record<string, { name: string; count: number; revenue: number }> = {}
@@ -86,7 +98,7 @@ export async function POST(req: NextRequest) {
     const name = (o.customer as any)?.company_name ?? 'Unknown'
     if (!byCustomer[name]) byCustomer[name] = { name, count: 0, revenue: 0 }
     byCustomer[name].count++
-    byCustomer[name].revenue += Number(o.total ?? 0)
+    byCustomer[name].revenue += xcg(o)
   }
   const topCustomers = Object.values(byCustomer).sort((a, b) => b.revenue - a.revenue).slice(0, 10)
 

@@ -9,6 +9,7 @@ import {
   Image,
 } from '@react-pdf/renderer'
 import { Export } from '@/types'
+import { formatPostcode, countryLabel } from '@/lib/address'
 import { CompanyInfo } from '../delivery-note-pdf'
 
 const RED = '#CC0000'
@@ -73,14 +74,17 @@ export function ShippingLabelPDF({ exportRecord, company = DEFAULT_COMPANY, qrCo
   const billingAddr = customer?.billing_address ?? {}
   const deliveryAddr = customer?.delivery_address ?? {}
   const shipToAddr = deliveryAddr?.street ? deliveryAddr : billingAddr
-  const destination = exportRecord.destination || billingAddr?.country || ''
+  // Spelled the same way as on the invoice and the quotation, so the label and
+  // the paperwork inside the parcel do not name the country differently.
+  const destination = countryLabel(exportRecord.destination || billingAddr?.country || '')
 
   const carrier = (exportRecord as any).carrier
 
-  // Build address lines
+  // Build address lines. Shared with the invoice and the quotation so a parcel
+  // is addressed exactly as the paperwork inside it reads.
   const nameLine = customer?.company_name ?? '—'
   const streetLine = shipToAddr?.street ?? ''
-  const cityLine = [shipToAddr?.zip, shipToAddr?.city].filter(Boolean).join(' ')
+  const cityLine = [formatPostcode((shipToAddr?.zip ?? '').trim()), shipToAddr?.city].filter(Boolean).join(' ')
 
   return (
     <Document>
