@@ -122,6 +122,16 @@ const s = StyleSheet.create({
 const money = (n: number) =>
   n.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
+/**
+ * What a single order was actually invoiced for, in the currency it was
+ * invoiced in. Aggregates elsewhere are converted to guilders and can be added
+ * up; a row about one order must show the figure the customer received, or the
+ * report and the invoice disagree. The currency is only spelled out when it is
+ * not the default, so the common case stays uncluttered.
+ */
+const invoiced = (o: { total: number; currency: string }) =>
+  o.currency && o.currency !== 'XCG' ? `${o.currency} ${money(o.total)}` : money(o.total)
+
 const shortDate = (d: string | null) =>
   d ? new Date(d.length > 10 ? d : d + 'T12:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short' }) : '—'
 
@@ -205,6 +215,8 @@ export interface PeriodReportProps {
 export function PeriodReportPDF({ snapshot, bannerSrc }: PeriodReportProps) {
   const { meta, kpis, byCategory, byCustomer, byProduct, byMonth, outstanding, reconciliation } = snapshot
   const cur = 'XCG'
+  // Only worth explaining the conversion when there is something to convert.
+  const foreignCurrencies = [...new Set(snapshot.orders.map(o => o.currency).filter(c => c && c !== cur))].sort()
 
   return (
     <Document title={`${meta.label} — SPika CRM Report`} author="SPika CRM">
@@ -228,6 +240,13 @@ export function PeriodReportPDF({ snapshot, bannerSrc }: PeriodReportProps) {
             Revenue counts delivered, awaiting-invoice, blocked and paid orders. Orders still in progress are shown
             separately and are NOT in the revenue figure.
           </Text>
+          {foreignCurrencies.length > 0 && (
+            <Text style={s.provLine}>
+              This period also contains orders in {foreignCurrencies.join(', ')}. Every total and subtotal is converted
+              to {cur} at the rate fixed on the invoice date, so the figures can be added up. Rows about a single order
+              show what that customer was actually invoiced, in their own currency.
+            </Text>
+          )}
         </View>
 
         <Text style={s.h2}>Key Numbers</Text>
@@ -355,15 +374,17 @@ export function PeriodReportPDF({ snapshot, bannerSrc }: PeriodReportProps) {
           only once the customer has sold the goods.
         </Text>
         <Table
-          head={['Order / Customer', 'Invoiced', 'Due', `Amount (${cur})`]}
+          head={['Order / Customer', 'Invoiced', 'Due', 'Amount']}
           widths={[4, 1.4, 1.6, 2]}
           rows={outstanding.map(o => [
             `${o.order.order_number} · ${o.order.customer_name}`,
             shortDate(o.order.sales_date),
             o.daysOverdue > 0 ? `${shortDate(o.dueDate)} (${o.daysOverdue}d late)` : shortDate(o.dueDate),
-            money(o.order.total),
+            invoiced(o.order),
           ])}
-          total={['Total outstanding', '', '', money(outstanding.reduce((t, o) => t + o.order.total, 0))]}
+          // Each row is what that customer owes in their own currency; the sum
+          // can only be stated in one, so it is converted and labelled as such.
+          total={['Total outstanding', '', '', `${cur} ${money(outstanding.reduce((t, o) => t + o.order.total_xcg, 0))}`]}
           emptyText="Nothing outstanding — everything invoiced in this period has been settled"
         />
 
@@ -449,7 +470,7 @@ export function PeriodReportPDF({ snapshot, bannerSrc }: PeriodReportProps) {
             </View>
 
             <Table
-              head={['Order', 'Date', 'Status', 'Items', `Total (${cur})`]}
+              head={['Order', 'Date', 'Status', 'Items', 'Invoiced']}
               widths={[1.8, 1.2, 1.8, 4, 1.6]}
               rows={c.orders.map(o => [
                 o.order_number,
@@ -459,7 +480,7 @@ export function PeriodReportPDF({ snapshot, bannerSrc }: PeriodReportProps) {
                   .filter(i => Number(i.qty) > 0)
                   .map(i => `${i.qty}× ${i.name || i.sku}`)
                   .join(', ') || '—',
-                money(o.total),
+                invoiced(o),
               ])}
               emptyText="No orders in this period"
             />

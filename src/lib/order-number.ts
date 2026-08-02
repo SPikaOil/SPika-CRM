@@ -31,6 +31,32 @@ export async function getNextOrderNumber(): Promise<string> {
 }
 
 /**
+ * Generates the next credit note number.
+ *
+ * A credit note is a document in its own right and carries its own number, in
+ * its own sequence: CR-2026-0001, CR-2026-0002. It is deliberately NOT taken
+ * from the invoice series — the customer has to be able to put the invoice and
+ * the credit note side by side and see two different documents.
+ */
+export async function getNextCreditNoteNumber(): Promise<string> {
+  const supabase = createClient()
+  const year = new Date().getFullYear()
+
+  const { data } = await supabase
+    .from('orders')
+    .select('order_number')
+    .like('order_number', `CR-${year}-%`)
+    .order('order_number', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const last = data?.order_number ?? ''
+  const match = last.match(/^CR-\d{4}-(\d+)$/)
+  const next = match ? parseInt(match[1], 10) + 1 : 1
+  return `CR-${year}-${String(next).padStart(4, '0')}`
+}
+
+/**
  * Generates the next cash order number.
  * Cash orders use a separate "C-YYYY-XXXX" sequence.
  * e.g. "C-2026-0004" → "C-2026-0005"

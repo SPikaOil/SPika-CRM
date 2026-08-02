@@ -2,7 +2,7 @@
 
 import { use, useMemo, useState } from 'react'
 import { formatTaxId } from '@/lib/tax-id'
-import { orderXcg, fmtXcg } from '@/lib/utils'
+import { fmtOwnCurrency } from '@/lib/utils'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Edit, Building2, Package, CheckCircle2, Clock, Truck, FileSignature, AlertTriangle, Download, Upload, Info, RefreshCw, CalendarClock, Trash2, Power, X, RotateCcw, UserCheck } from 'lucide-react'
@@ -842,7 +842,7 @@ export default function CustomerDetailPage({
                           {activeItems.length > 0 && ` · ${activeItems.map(i => `${i.qty}× ${i.name.replace('SPika Oil - ', '').replace('SPika2Go - ', '')}`).join(', ')}`}
                         </p>
                       </div>
-                      <span className="text-sm font-medium shrink-0">{fmtXcg(orderXcg(order))}</span>
+                      <span className="text-sm font-medium shrink-0">{fmtOwnCurrency(order)}</span>
                     </div>
                   </Link>
                 )

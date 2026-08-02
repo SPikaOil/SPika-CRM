@@ -3,7 +3,7 @@
 import { use, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Truck, CheckCircle, Clock, AlertCircle, Calendar, Download, Upload, FileCheck, X, UserCheck, XCircle, Pencil, Check, Plus, Trash2, PackageCheck, MapPin } from 'lucide-react'
+import { ArrowLeft, Truck, CheckCircle, Clock, AlertCircle, Calendar, Download, Upload, FileCheck, X, UserCheck, XCircle, Pencil, Check, Plus, Trash2, PackageCheck, MapPin, RotateCcw } from 'lucide-react'
 import { useOrder, useUpdateOrder } from '@/hooks/use-orders'
 import { useExportByOrderId, useCreateExport, useUpdateExport, useCarriers } from '@/hooks/use-exports'
 import { useUsers } from '@/hooks/use-users'
@@ -22,7 +22,7 @@ import { Separator } from '@/components/ui/separator'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Order, OrderCurrency, OrderEditLogEntry, OrderStatus, QuoteItem } from '@/types'
 import { SPIKA_PRODUCTS } from '@/lib/products'
-import { getNextCashOrderNumber, getNextOrderNumber } from '@/lib/order-number'
+import { getNextCashOrderNumber, getNextOrderNumber, getNextCreditNoteNumber } from '@/lib/order-number'
 import { formatCurrency } from '@/lib/utils'
 
 const statusColors: Record<OrderStatus, string> = {
@@ -94,6 +94,12 @@ export default function OrderDetailPage({
   const [pdfShareFile, setPdfShareFile] = useState<File | null>(null)
   const [isSharing, setIsSharing] = useState(false)
   const [isGeneratingPreview, setIsGeneratingPreview] = useState<'invoice' | 'note' | null>(null)
+  const [creditOpen, setCreditOpen] = useState(false)
+  // Credited quantity per SKU. A credit note credits LINES — which products and
+  // how many — never a loose amount; the amount is what those lines add up to.
+  const [creditQty, setCreditQty] = useState<Record<string, number>>({})
+  const [creditReason, setCreditReason] = useState('')
+  const [creditNumber, setCreditNumber] = useState('')
 
   // When a portal request (pending, no order number yet) opens, suggest the
   // next order number so the admin can accept or override it, and prefill any
@@ -279,6 +285,22 @@ export default function OrderDetailPage({
       setIsDownloading(null)
     }
   }
+
+  // Lines that can be credited: what was actually invoiced. Free and returned
+  // SKUs are priced at 0, so crediting them is meaningless — they are left out.
+  const creditableItems = ((order?.items ?? []) as QuoteItem[])
+    .filter(i => i.qty > 0 && Number(i.unit_price) - Number(i.discount ?? 0) > 0)
+
+  const creditLines = creditableItems
+    .map(i => ({
+      sku: i.sku,
+      name: i.name,
+      qty: creditQty[i.sku] ?? 0,
+      unit: Number(i.unit_price) - Number(i.discount ?? 0),
+    }))
+    .filter(l => l.qty > 0)
+
+  const creditTotal = creditLines.reduce((s, l) => s + l.qty * l.unit, 0)
 
   function handleClosePdf() {
     if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl)
@@ -751,6 +773,45 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                   <span className="text-[10px] text-muted-foreground hidden sm:inline">from customer</span>
                 </div>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Credit note — a correction on an invoice that has already gone out.
+          Deliberately has none of the delivery machinery: no planned date, no
+          assignee, no signature, no proof photo. It is a money document, and it
+          is created FROM the order so the link between the two is never in
+          doubt. */}
+      {isAdmin && (
+        <Card>
+          <CardContent className="pt-4 pb-4 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">Credit Note</p>
+                <p className="text-xs text-muted-foreground">
+                  {order.invoice_date
+                    ? `Correct this invoice without deleting it. Links to ${order.order_number}.`
+                    : 'This order has not been invoiced yet — nothing to correct.'}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                className="shrink-0 gap-2 border-red-200 text-red-600 hover:bg-red-50"
+                disabled={!order.invoice_date}
+                onClick={async () => {
+                  setCreditQty({})
+                  setCreditReason('')
+                  setCreditNumber('')
+                  setCreditOpen(true)
+                  // Its own number, from its own series — shown up front so she
+                  // knows which document she is about to create.
+                  try { setCreditNumber(await getNextCreditNoteNumber()) } catch { /* shown as pending */ }
+                }}
+              >
+                <RotateCcw className="h-4 w-4" />
+                Credit Note
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -1289,6 +1350,144 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
           )}
         </CardContent>
       </Card>
+
+      {/* Credit note dialog. Amount and reason, nothing else — no date to plan,
+          nobody to assign, nothing to sign. */}
+      {creditOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-background w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl border shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-4 py-3 border-b">
+              <p className="font-semibold text-sm">Credit note for {order.order_number}</p>
+              <Button variant="ghost" size="icon" onClick={() => setCreditOpen(false)}>
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              <div className="rounded-lg border bg-muted/40 px-3 py-2 text-xs space-y-0.5">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Credit note #</span>
+                  <span className="font-mono font-semibold">{creditNumber || '…'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Credit of invoice</span>
+                  <span className="font-mono font-medium">{order.order_number}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Customer</span>
+                  <span className="font-medium">{order.customer?.company_name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Invoiced</span>
+                  <span className="font-medium">
+                    {order.invoice_date
+                      ? new Date(order.invoice_date + 'T12:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })
+                      : '—'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Invoice total</span>
+                  <span className="font-medium">{fmt(Number(order.total))}</span>
+                </div>
+              </div>
+
+              {/* Lines. Set how many of each product are being credited — the
+                  amount follows from that, it is never typed in loose. */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label>What is being credited *</Label>
+                  <button
+                    type="button"
+                    className="text-xs text-red-600 hover:underline"
+                    onClick={() => setCreditQty(Object.fromEntries(
+                      creditableItems.map(i => [i.sku, i.qty]),
+                    ))}
+                  >
+                    Credit everything
+                  </button>
+                </div>
+                <div className="border rounded-lg divide-y">
+                  {creditableItems.map(item => {
+                    const unit = Number(item.unit_price) - Number(item.discount ?? 0)
+                    const qty = creditQty[item.sku] ?? 0
+                    return (
+                      <div key={item.sku} className="px-3 py-2 flex items-center gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">{item.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {item.qty} invoiced · {fmt(unit)} each
+                          </p>
+                        </div>
+                        <QtyInput
+                          value={qty}
+                          onChange={v => setCreditQty(prev => ({
+                            ...prev,
+                            [item.sku]: Math.max(0, Math.min(v, item.qty)),
+                          }))}
+                          className="h-8 w-24 shrink-0"
+                        />
+                        <p className="text-sm font-semibold w-24 text-right shrink-0">
+                          {qty > 0 ? `− ${fmt(qty * unit)}` : '—'}
+                        </p>
+                      </div>
+                    )
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Never more than what was invoiced on that line.
+                </p>
+              </div>
+
+              <div className="flex justify-between items-center px-1 pt-1 border-t font-bold">
+                <span>Credit total</span>
+                <span className="text-red-600">− {fmt(creditTotal)}</span>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Reason *</Label>
+                <Input
+                  value={creditReason}
+                  onChange={e => setCreditReason(e.target.value)}
+                  placeholder="e.g. returned damaged"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Printed on the credit note and kept with the order.
+                </p>
+              </div>
+
+              {/* What this will create — spelled out so nothing is a surprise. */}
+              <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900 px-3 py-2.5 space-y-1">
+                <p className="text-xs font-semibold text-red-700 dark:text-red-400">This creates</p>
+                <ul className="text-xs text-red-700/90 dark:text-red-400/90 space-y-0.5">
+                  <li>• <strong>{creditNumber || 'CR-…'}</strong> — a credit note of <strong>− {fmt(creditTotal)}</strong> over {creditLines.length} line{creditLines.length === 1 ? '' : 's'}, against invoice {order.order_number}</li>
+                  <li>• Dated today — no delivery, no driver, no signature</li>
+                  <li>• Currency and rate copied from this order, so the amount matches the invoice</li>
+                  <li>• Subtracted from your revenue; kept out of the payment chase</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="flex gap-2 px-4 py-3 border-t">
+              <Button variant="outline" className="flex-1" onClick={() => setCreditOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-red-600 hover:bg-red-700"
+                disabled={!creditReason.trim() || creditLines.length === 0}
+                onClick={() => {
+                  toast.info(
+                    `Screen only for now — nothing saved. Would credit ${creditLines.map(l => `${l.qty}× ${l.name}`).join(', ')} = ${fmt(creditTotal)} against ${order.order_number}, reason: "${creditReason.trim()}".`,
+                    { duration: 12000 },
+                  )
+                  setCreditOpen(false)
+                }}
+              >
+                Create credit note
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* In-app PDF Viewer */}
       {pdfBlobUrl && (

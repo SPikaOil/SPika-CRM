@@ -320,7 +320,11 @@ export async function buildPeriodSnapshot(
         revenue: 0,
       }
       e.qty += num(item.qty)
-      e.revenue += num(item.line_total)
+      // Line totals are in the order's own currency. Converting here is what
+      // keeps this column addable and lets it tie to the headline revenue —
+      // summing a EUR line straight into guilders silently inflates the total
+      // and then the reconciliation block reports a difference it cannot explain.
+      e.revenue += num(item.line_total) * o.fx_rate
       prodMap.set(item.sku, e)
     }
   }
