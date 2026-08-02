@@ -51,13 +51,16 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse
   }
 
-  // The report endpoints authorise themselves — an admin session, or the
-  // Authorization: Bearer that Vercel Cron sends with CRON_SECRET. They have to
-  // bypass this redirect because a cron request carries no cookies, and
-  // "cron jobs do not follow redirects": Vercel treats the 307 to /login as the
-  // final response and the route never runs. That, not the header name, is why
-  // the monthly report cron had never once produced a file.
-  if (pathname.startsWith('/api/report')) {
+  // Every path listed under "crons" in vercel.json has to be here. A cron
+  // request carries no cookies, and "cron jobs do not follow redirects":
+  // Vercel treats the 307 to /login as the final response, so the route never
+  // runs at all. That, not the header name, is why the scheduled reports had
+  // never once produced a file.
+  //
+  // These routes authorise themselves — an admin or staff session, or the
+  // Authorization: Bearer that Vercel Cron sends with CRON_SECRET. Adding a
+  // cron to vercel.json without adding its path here silently does nothing.
+  if (pathname.startsWith('/api/report') || pathname.startsWith('/api/fx')) {
     return supabaseResponse
   }
 
