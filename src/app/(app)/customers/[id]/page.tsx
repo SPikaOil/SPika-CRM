@@ -835,6 +835,9 @@ export default function CustomerDetailPage({
                           <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 capitalize shrink-0 ${statusColor}`}>
                             {order.status?.replace(/_/g, ' ')}
                           </Badge>
+                          {(order as any).order_type === 'credit_note' && (
+                            <Badge className="text-[10px] px-1.5 py-0 shrink-0 bg-red-100 text-red-700">↩ Credit</Badge>
+                          )}
                         </div>
                         <p className="text-[11px] text-muted-foreground truncate">
                           {order.planned_date && new Date(order.planned_date).toLocaleDateString('en', { day: 'numeric', month: 'short' })}

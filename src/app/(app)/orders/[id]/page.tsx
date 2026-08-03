@@ -22,7 +22,7 @@ import { Separator } from '@/components/ui/separator'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Order, OrderCurrency, OrderEditLogEntry, OrderStatus, QuoteItem } from '@/types'
 import { SPIKA_PRODUCTS } from '@/lib/products'
-import { getNextCashOrderNumber, getNextOrderNumber, getNextCreditNoteNumber } from '@/lib/order-number'
+import { getNextCashOrderNumber, getNextOrderNumber, getCreditNoteNumber } from '@/lib/order-number'
 import { formatCurrency } from '@/lib/utils'
 
 const statusColors: Record<OrderStatus, string> = {
@@ -100,6 +100,161 @@ export default function OrderDetailPage({
   const [creditQty, setCreditQty] = useState<Record<string, number>>({})
   const [creditReason, setCreditReason] = useState('')
   const [creditNumber, setCreditNumber] = useState('')
+  // Credit notes already raised against this invoice. Loaded with the order so
+  // they are visible on the page itself, not only inside the dialog.
+  const [existingCredits, setExistingCredits] = useState<any[]>([])
+  // Deleting a credit note follows the same rule as deleting an order: admin
+  // only, a written reason, and the password typed again.
+  const [creditDeleteTarget, setCreditDeleteTarget] = useState<any>(null)
+  const [creditDeleteReason, setCreditDeleteReason] = useState('')
+  const [creditDeletePassword, setCreditDeletePassword] = useState('')
+  const [creditDeleting, setCreditDeleting] = useState(false)
+  const [creditSaving, setCreditSaving] = useState(false)
+  const [creditPdfBusy, setCreditPdfBusy] = useState<string | null>(null)
+
+  async function loadCredits(invoiceNumber: string) {
+    const base = `CR${(invoiceNumber ?? '').replace(/^#+/, '').trim()}`
+    if (base === 'CR') return
+    const { data } = await supabase
+      .from('orders')
+      .select('id, order_number, total, currency, invoice_date, delivery_notes, items, created_at')
+      .like('order_number', `${base}%`)
+      .neq('status', 'deleted')
+      .order('created_at', { ascending: true })
+    setExistingCredits(data ?? [])
+  }
+
+  useEffect(() => {
+    if (order?.order_number) loadCredits(order.order_number)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order?.order_number])
+
+  /**
+   * The credit note PDF, built from the credit note's OWN order row. It goes
+   * through exactly the same path as the invoice — same generator, same
+   * download helper, same in-app viewer with the Share button — so the iPhone
+   * share sheet behaves identically. Nothing here is a second implementation.
+   */
+  async function buildCreditNotePdfBlob(creditNote: any): Promise<Blob> {
+    const React = await import('react')
+    const { pdf } = await import('@react-pdf/renderer')
+    const { DeliveryNotePDF } = await import('@/components/pdf/delivery-note-pdf')
+    const { data: companyData } = await supabase
+      .from('company_settings').select('*')
+      .eq('id', '00000000-0000-0000-0000-000000000001').single()
+
+    return (pdf as any)(
+      React.createElement(DeliveryNotePDF as any, {
+        order: { ...creditNote, customer: order?.customer },
+        showPrices: true,
+        company: companyData ?? undefined,
+        documentType: 'CREDIT NOTE',
+        creditOfNumber: order?.order_number ?? '',
+      })
+    ).toBlob()
+  }
+
+  async function handleCreditNotePdf(creditNote: any, mode: 'download' | 'view') {
+    setCreditPdfBusy(creditNote.id)
+    try {
+      const blob = await buildCreditNotePdfBlob(creditNote)
+      const { isMobileDevice, triggerDownload, documentFilename } = await import('@/lib/download-pdf')
+      const filename = documentFilename(creditNote.order_number, order?.customer?.company_name)
+      // Same rule as the invoice: on a phone show it first, then Share sends the
+      // actual named file. Never pre-open a tab — that freezes iOS Safari.
+      if (mode === 'view' || isMobileDevice()) {
+        showPdfInApp(blob, 'Credit Note', filename)
+      } else {
+        triggerDownload(blob, filename)
+      }
+    } catch (err: any) {
+      toast.error(`Credit note PDF failed: ${err?.message ?? 'unknown error'}`, { duration: 8000 })
+    } finally {
+      setCreditPdfBusy(null)
+    }
+  }
+
+  async function handleCreateCreditNote() {
+    if (!order || creditLines.length === 0 || !creditReason.trim()) return
+    setCreditSaving(true)
+    try {
+      // NEGATIVE quantities and a NEGATIVE total. That single choice is what
+      // makes every existing sum come out right: revenue drops, the bottle
+      // count on the stock page drops, the customer's totals drop. Storing it
+      // positive would mean special-casing every total in the app, forever.
+      const items = creditLines.map(l => ({
+        sku: l.sku,
+        name: l.name,
+        qty: -l.qty,
+        unit_price: l.unit,
+        discount: 0,
+        line_total: -(l.qty * l.unit),
+      }))
+
+      const { error } = await supabase.from('orders').insert({
+        customer_id: order.customer_id,
+        order_number: creditNumber || await getCreditNoteNumber(order.order_number ?? ''),
+        credit_note_of: order.id,
+        order_type: 'credit_note',
+        // 'paid' on purpose: revenue counts this status so the credit lands in
+        // the figures, while the overdue chase only looks at invoice_ready and
+        // invoice_blocked — there is nothing to collect on a credit note.
+        status: 'paid',
+        payment_type: (order as any).payment_type ?? 'invoice',
+        items,
+        total: -creditTotal,
+        delivery_notes: creditReason.trim(),
+        assigned_to: null,
+        planned_date: null,
+      } as any)
+      if (error) throw error
+
+      toast.success(`${creditNumber} created — ${fmt(creditTotal)} credited`)
+      setCreditOpen(false)
+      await loadCredits(order.order_number ?? '')
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Could not create the credit note', { duration: 10000 })
+    } finally {
+      setCreditSaving(false)
+    }
+  }
+
+  async function handleDeleteCreditNote() {
+    if (!creditDeleteTarget || !creditDeleteReason.trim() || !creditDeletePassword) return
+    setCreditDeleting(true)
+    try {
+      // Re-authenticate — same guard the order delete uses.
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: profile?.email ?? '',
+        password: creditDeletePassword,
+      })
+      if (authError) {
+        toast.error('Incorrect password')
+        setCreditDeleting(false)
+        return
+      }
+
+      // Soft delete, like an order: the document stays, it simply stops
+      // counting. A credit note that vanished without trace would be the very
+      // problem credit notes exist to solve.
+      await supabase.from('orders').update({
+        status: 'deleted',
+        deleted_by: profile?.id,
+        deleted_reason: creditDeleteReason.trim(),
+        deleted_at: new Date().toISOString(),
+      } as any).eq('id', creditDeleteTarget.id)
+
+      toast.success(`${creditDeleteTarget.order_number} deleted`)
+      setCreditDeleteTarget(null)
+      setCreditDeleteReason('')
+      setCreditDeletePassword('')
+      if (order?.order_number) await loadCredits(order.order_number)
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Could not delete the credit note')
+    } finally {
+      setCreditDeleting(false)
+    }
+  }
 
   // When a portal request (pending, no order number yet) opens, suggest the
   // next order number so the admin can accept or override it, and prefill any
@@ -286,10 +441,22 @@ export default function OrderDetailPage({
     }
   }
 
-  // Lines that can be credited: what was actually invoiced. Free and returned
-  // SKUs are priced at 0, so crediting them is meaningless — they are left out.
+  // How much of each line earlier credit notes already took, so the same
+  // bottles can never be credited twice across two documents.
+  const alreadyCredited: Record<string, number> = {}
+  for (const cn of existingCredits) {
+    for (const line of ((cn.items ?? []) as QuoteItem[])) {
+      alreadyCredited[line.sku] = (alreadyCredited[line.sku] ?? 0) + Math.abs(Number(line.qty) || 0)
+    }
+  }
+
+  // Lines that can be credited: what was actually invoiced, minus what has
+  // already been credited. Free and returned SKUs are priced at 0, so crediting
+  // them is meaningless — they are left out.
   const creditableItems = ((order?.items ?? []) as QuoteItem[])
     .filter(i => i.qty > 0 && Number(i.unit_price) - Number(i.discount ?? 0) > 0)
+    .map(i => ({ ...i, remaining: i.qty - (alreadyCredited[i.sku] ?? 0) }))
+    .filter(i => i.remaining > 0)
 
   const creditLines = creditableItems
     .map(i => ({
@@ -804,17 +971,136 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                   setCreditReason('')
                   setCreditNumber('')
                   setCreditOpen(true)
-                  // Its own number, from its own series — shown up front so she
-                  // knows which document she is about to create.
-                  try { setCreditNumber(await getNextCreditNoteNumber()) } catch { /* shown as pending */ }
+                  // CR + this invoice's number, so the two documents read as a
+                  // pair without anyone having to look anything up.
+                  try { setCreditNumber(await getCreditNoteNumber(order.order_number ?? '')) } catch { /* shown as pending */ }
+                  // Refresh what has already been credited, so the caps are
+                  // right even if another tab raised one a moment ago.
+                  try { await loadCredits(order.order_number ?? '') } catch { /* empty list shows nothing */ }
                 }}
               >
                 <RotateCcw className="h-4 w-4" />
                 Credit Note
               </Button>
             </div>
+
+            {/* Credit notes raised against this invoice, on the page itself so
+                they are visible without opening anything. */}
+            {existingCredits.length > 0 && (
+              <div className="border rounded-lg divide-y">
+                {existingCredits.map(cn => (
+                  <div key={cn.id} className="flex items-center gap-3 px-3 py-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-mono text-sm font-medium">{cn.order_number}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {cn.invoice_date
+                          ? new Date(cn.invoice_date + 'T12:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })
+                          : '—'}
+                        {cn.delivery_notes ? ` · ${cn.delivery_notes}` : ''}
+                      </p>
+                    </div>
+                    <p className="text-sm font-semibold text-red-600 shrink-0">
+                      − {cn.currency ?? 'XCG'} {Math.abs(Number(cn.total) || 0).toFixed(2)}
+                    </p>
+                    <button
+                      type="button"
+                      title="Download credit note"
+                      disabled={creditPdfBusy === cn.id}
+                      className="text-muted-foreground hover:text-foreground transition-colors shrink-0 disabled:opacity-50"
+                      onClick={() => handleCreditNotePdf(cn, 'download')}
+                    >
+                      {creditPdfBusy === cn.id
+                        ? <Clock className="h-4 w-4 animate-spin" />
+                        : <Download className="h-4 w-4" />}
+                    </button>
+                    <button
+                      type="button"
+                      title="View credit note"
+                      disabled={creditPdfBusy === cn.id}
+                      className="text-green-600 hover:text-green-700 transition-colors shrink-0 disabled:opacity-50"
+                      onClick={() => handleCreditNotePdf(cn, 'view')}
+                    >
+                      <FileCheck className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Delete credit note"
+                      className="text-muted-foreground hover:text-red-600 transition-colors shrink-0"
+                      onClick={() => {
+                        setCreditDeleteTarget(cn)
+                        setCreditDeleteReason('')
+                        setCreditDeletePassword('')
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
+      )}
+
+      {/* Deleting a credit note — admin only, reason and password, exactly the
+          guard an order delete uses. Soft delete: the document stays on record
+          and simply stops counting. */}
+      {creditDeleteTarget && (
+        <div className="fixed inset-0 z-[60] bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-background w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl border shadow-xl">
+            <div className="flex items-center justify-between px-4 py-3 border-b">
+              <p className="font-semibold text-sm">Delete {creditDeleteTarget.order_number}</p>
+              <Button variant="ghost" size="icon" onClick={() => setCreditDeleteTarget(null)}>
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900 px-3 py-2.5">
+                <p className="text-xs text-red-700 dark:text-red-400">
+                  The credited quantities go back to {order.order_number} and can be credited again.
+                  The credit note stays on record as deleted, with your reason.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Reason *</Label>
+                <Input
+                  value={creditDeleteReason}
+                  onChange={e => setCreditDeleteReason(e.target.value)}
+                  placeholder="e.g. raised against the wrong invoice"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Your password *</Label>
+                <Input
+                  type="password"
+                  value={creditDeletePassword}
+                  onChange={e => setCreditDeletePassword(e.target.value)}
+                  placeholder="••••••••"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Confirms it is really you — the same check as deleting an order.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-2 px-4 py-3 border-t pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+              <Button variant="outline" className="flex-1" onClick={() => setCreditDeleteTarget(null)}>
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-red-600 hover:bg-red-700"
+                disabled={creditDeleting || !creditDeleteReason.trim() || !creditDeletePassword}
+                onClick={handleDeleteCreditNote}
+              >
+                {creditDeleting ? <Clock className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                Delete credit note
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* PDF Actions */}
@@ -1354,16 +1640,18 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
       {/* Credit note dialog. Amount and reason, nothing else — no date to plan,
           nobody to assign, nothing to sign. */}
       {creditOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-background w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl border shadow-xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-4 py-3 border-b">
+        // z-[60]: the bottom navigation bar is z-50 and would otherwise paint
+        // over the Cancel / Create buttons on a phone.
+        <div className="fixed inset-0 z-[60] bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-background w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl border shadow-xl max-h-[92vh] flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
               <p className="font-semibold text-sm">Credit note for {order.order_number}</p>
               <Button variant="ghost" size="icon" onClick={() => setCreditOpen(false)}>
                 <X className="h-5 w-5" />
               </Button>
             </div>
 
-            <div className="p-4 space-y-4">
+            <div className="p-4 space-y-4 overflow-y-auto flex-1">
               <div className="rounded-lg border bg-muted/40 px-3 py-2 text-xs space-y-0.5">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Credit note #</span>
@@ -1391,6 +1679,39 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                 </div>
               </div>
 
+              {/* Credit notes already raised against this invoice. Shown before
+                  the lines, so it is obvious what has been done before rather
+                  than something you discover after issuing a duplicate. */}
+              {existingCredits.length > 0 && (
+                <div className="rounded-lg border border-orange-200 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-900 px-3 py-2.5 space-y-1.5">
+                  <p className="text-xs font-semibold text-orange-700 dark:text-orange-400">
+                    Already credited on this invoice ({existingCredits.length})
+                  </p>
+                  {existingCredits.map(cn => (
+                    <div key={cn.id} className="flex items-start justify-between gap-2 text-xs">
+                      <div className="min-w-0">
+                        <p className="font-mono font-medium text-orange-800 dark:text-orange-300">{cn.order_number}</p>
+                        <p className="text-orange-700/80 dark:text-orange-400/80">
+                          {cn.invoice_date
+                            ? new Date(cn.invoice_date + 'T12:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })
+                            : '—'}
+                          {cn.delivery_notes ? ` · ${cn.delivery_notes}` : ''}
+                        </p>
+                      </div>
+                      <p className="font-semibold shrink-0 text-orange-800 dark:text-orange-300">
+                        {cn.currency ?? 'XCG'} {Math.abs(Number(cn.total) || 0).toFixed(2)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {creditableItems.length === 0 && (
+                <div className="rounded-lg border px-3 py-4 text-center text-sm text-muted-foreground">
+                  Everything on this invoice has already been credited.
+                </div>
+              )}
+
               {/* Lines. Set how many of each product are being credited — the
                   amount follows from that, it is never typed in loose. */}
               <div className="space-y-1.5">
@@ -1400,7 +1721,7 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                     type="button"
                     className="text-xs text-red-600 hover:underline"
                     onClick={() => setCreditQty(Object.fromEntries(
-                      creditableItems.map(i => [i.sku, i.qty]),
+                      creditableItems.map(i => [i.sku, i.remaining]),
                     ))}
                   >
                     Credit everything
@@ -1411,24 +1732,30 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                     const unit = Number(item.unit_price) - Number(item.discount ?? 0)
                     const qty = creditQty[item.sku] ?? 0
                     return (
-                      <div key={item.sku} className="px-3 py-2 flex items-center gap-3">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium truncate">{item.name}</p>
-                          <p className="text-xs text-muted-foreground">
+                      // Two rows on a phone: the product name gets the full
+                      // width instead of being truncated to "SPika Oil - 1…",
+                      // with the quantity and the amount underneath.
+                      <div key={item.sku} className="px-3 py-2">
+                        <p className="text-sm font-medium">{item.name}</p>
+                        <div className="flex items-center gap-3 mt-1">
+                          <p className="text-xs text-muted-foreground flex-1 min-w-0">
                             {item.qty} invoiced · {fmt(unit)} each
+                            {item.remaining < item.qty && (
+                              <span className="text-orange-600"> · {item.qty - item.remaining} already credited</span>
+                            )}
+                          </p>
+                          <QtyInput
+                            value={qty}
+                            onChange={v => setCreditQty(prev => ({
+                              ...prev,
+                              [item.sku]: Math.max(0, Math.min(v, item.remaining)),
+                            }))}
+                            className="h-8 w-20 shrink-0"
+                          />
+                          <p className="text-sm font-semibold w-24 text-right shrink-0">
+                            {qty > 0 ? `− ${fmt(qty * unit)}` : '—'}
                           </p>
                         </div>
-                        <QtyInput
-                          value={qty}
-                          onChange={v => setCreditQty(prev => ({
-                            ...prev,
-                            [item.sku]: Math.max(0, Math.min(v, item.qty)),
-                          }))}
-                          className="h-8 w-24 shrink-0"
-                        />
-                        <p className="text-sm font-semibold w-24 text-right shrink-0">
-                          {qty > 0 ? `− ${fmt(qty * unit)}` : '—'}
-                        </p>
                       </div>
                     )
                   })}
@@ -1467,21 +1794,16 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
               </div>
             </div>
 
-            <div className="flex gap-2 px-4 py-3 border-t">
+            <div className="flex gap-2 px-4 py-3 border-t shrink-0 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
               <Button variant="outline" className="flex-1" onClick={() => setCreditOpen(false)}>
                 Cancel
               </Button>
               <Button
                 className="flex-1 bg-red-600 hover:bg-red-700"
-                disabled={!creditReason.trim() || creditLines.length === 0}
-                onClick={() => {
-                  toast.info(
-                    `Screen only for now — nothing saved. Would credit ${creditLines.map(l => `${l.qty}× ${l.name}`).join(', ')} = ${fmt(creditTotal)} against ${order.order_number}, reason: "${creditReason.trim()}".`,
-                    { duration: 12000 },
-                  )
-                  setCreditOpen(false)
-                }}
+                disabled={creditSaving || !creditReason.trim() || creditLines.length === 0}
+                onClick={handleCreateCreditNote}
               >
+                {creditSaving && <Clock className="h-4 w-4 mr-2 animate-spin" />}
                 Create credit note
               </Button>
             </div>

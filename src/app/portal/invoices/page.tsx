@@ -106,7 +106,13 @@ export default function PortalInvoicesPage() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-mono text-sm font-semibold">{order.order_number}</p>
-                        {isPaid ? (
+                        {/* A credit note sits between the invoices and has to
+                            say what it is — the amount alone is negative and
+                            that is not enough of a signal. */}
+                        {(order as any).order_type === 'credit_note' && (
+                          <Badge className="bg-red-100 text-red-700 text-[11px] px-1.5 py-0">Credit note</Badge>
+                        )}
+                        {(order as any).order_type === 'credit_note' ? null : isPaid ? (
                           <Badge className="bg-green-100 text-green-700 flex items-center gap-1 text-[11px] px-1.5 py-0">
                             <CheckCircle2 className="h-3 w-3" /> Paid
                           </Badge>

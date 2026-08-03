@@ -149,13 +149,28 @@ interface Props {
   deliveryPhotoDataUrl?: string
   showPrices?: boolean
   company?: CompanyInfo
-  documentType?: 'DELIVERY NOTE' | 'INVOICE'
+  documentType?: 'DELIVERY NOTE' | 'INVOICE' | 'CREDIT NOTE'
+  /** The invoice this credit note corrects — printed on the document. */
+  creditOfNumber?: string
 }
 
-export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned, tableBottlesNotes, signerName, deliveryPhotoDataUrl, showPrices = true, company = DEFAULT_COMPANY, documentType = 'DELIVERY NOTE' }: Props) {
+export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned, tableBottlesNotes, signerName, deliveryPhotoDataUrl, showPrices = true, company = DEFAULT_COMPANY, documentType = 'DELIVERY NOTE', creditOfNumber }: Props) {
   const currency = (order as any).currency ?? 'XCG'
   const fmtCur = (amount: number) => `${currency} ${amount.toFixed(2)}`
-  const items = (order.items ?? []) as QuoteItem[]
+
+  // A credit note is stored with negative quantities and a negative total —
+  // that is what makes every sum in the app come out right. On paper the
+  // customer should read positive quantities under a heading that says CREDIT,
+  // so the figures are flipped for display only.
+  const isCreditNote = documentType === 'CREDIT NOTE' || (order as any).order_type === 'credit_note'
+  const rawItems = (order.items ?? []) as QuoteItem[]
+  const items = isCreditNote
+    ? rawItems.map(i => ({
+        ...i,
+        qty: Math.abs(Number(i.qty) || 0),
+        line_total: Math.abs(Number(i.line_total) || 0),
+      }))
+    : rawItems
   const customer = order.customer
   // The address layout follows the DESTINATION, not the money — the same rule
   // the quotation, the shipping label and the three export documents now use.
@@ -218,7 +233,7 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
               renamed. Set smaller than the 20pt title because the phrase is
               four times as long and has to sit beside the tag. */}
           <Text style={isConsignmentInvoice ? styles.consignmentTitle : styles.invoiceTitle}>
-            {isConsignmentInvoice ? 'CONSIGNMENT NOTE' : documentType}
+            {isCreditNote ? 'CREDIT NOTE' : isConsignmentInvoice ? 'CONSIGNMENT NOTE' : documentType}
           </Text>
         </View>
 
@@ -282,11 +297,14 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
         {/* ── Meta ── */}
         <View style={styles.metaRow}>
           {[
-            { label: 'Invoice #',  value: order.order_number },
-            { label: dateLabel,    value: dateValue },
-            // No due date and no term on a consignment invoice — there is
-            // nothing to be late for until the goods are sold and settled.
-            ...(isConsignment
+            { label: isCreditNote ? 'Credit Note #' : 'Invoice #', value: order.order_number },
+            { label: isCreditNote ? 'Credit Date' : dateLabel,    value: dateValue },
+            // A credit note owes nothing and refers back to the invoice it
+            // corrects. A consignment invoice has no due date either — nothing
+            // is claimable until the goods are sold and settled.
+            ...(isCreditNote
+              ? [{ label: 'Credit of invoice', value: creditOfNumber || '—' }]
+              : isConsignment
               ? [{ label: 'Payment', value: 'On settlement' }]
               : [
                   { label: 'Due Date', value: fmt(dueDate) },
@@ -380,7 +398,9 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
                   pays after they sell. Calling it BALANCE DUE would demand
                   money on a document that by definition demands none. */}
               <Text style={isConsignmentInvoice ? styles.consignmentValueLabel : styles.balanceDueLabel}>
-                {isConsignmentInvoice
+                {isCreditNote
+                  ? 'TOTAL CREDITED'
+                  : isConsignmentInvoice
                   ? 'TOTAL CONSIGNMENT VALUE — NOT DUE ON DELIVERY'
                   : 'BALANCE DUE'}
               </Text>
@@ -391,7 +411,19 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
           </View>
         )}
 
-        {/* ── Signature area ── */}
+        {/* ── Credit reason ── */}
+        {isCreditNote && (order as any).delivery_notes && (
+          <View style={[styles.signedNote, { marginTop: 12 }]}>
+            <Text style={[styles.signedNoteText, { fontFamily: 'Helvetica-Bold', marginBottom: 4 }]}>
+              Reason for credit
+            </Text>
+            <Text style={styles.signedNoteText}>{(order as any).delivery_notes}</Text>
+          </View>
+        )}
+
+        {/* ── Signature area — nothing is delivered on a credit note, so there
+             is nothing for the customer to sign for. ── */}
+        {!isCreditNote && (
         <View style={[styles.signedNote, { marginTop: 12 }]}>
           <Text style={[styles.signedNoteText, { fontFamily: 'Helvetica-Bold', marginBottom: 4 }]}>
             Signature / Confirmation
@@ -428,6 +460,7 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
             </View>
           </View>
         </View>
+        )}
 
         {/* ── Bank Details ── */}
         <View style={styles.bankSection}>

@@ -14,6 +14,10 @@ export async function getNextOrderNumber(): Promise<string> {
     .not('order_number', 'is', null)
     .neq('order_number', '')
     .not('order_number', 'like', 'C-%')
+    // Credit notes are numbered CR<invoice> and are NOT part of the invoice
+    // series. Without this the next invoice after CR729134 would become
+    // CR729135 — the credit note would hijack the numbering.
+    .not('order_number', 'like', 'CR%')
     .order('created_at', { ascending: false })
     .limit(1)
     .single()
@@ -31,29 +35,33 @@ export async function getNextOrderNumber(): Promise<string> {
 }
 
 /**
- * Generates the next credit note number.
+ * The credit note number for a given invoice: CR + that invoice's number.
  *
- * A credit note is a document in its own right and carries its own number, in
- * its own sequence: CR-2026-0001, CR-2026-0002. It is deliberately NOT taken
- * from the invoice series — the customer has to be able to put the invoice and
- * the credit note side by side and see two different documents.
+ *   invoice 729134   -> CR729134
+ *   invoice #729108  -> CR729108   (the stored '#' is not part of the number)
+ *
+ * Derived rather than sequential, on the owner's instruction: put the two
+ * documents side by side and it is immediately clear which invoice is being
+ * corrected, without looking anything up.
+ *
+ * A second, partial credit on the same invoice cannot reuse the number — a
+ * document number has to be unique — so it gets -2, -3, and so on.
  */
-export async function getNextCreditNoteNumber(): Promise<string> {
+export async function getCreditNoteNumber(invoiceNumber: string): Promise<string> {
   const supabase = createClient()
-  const year = new Date().getFullYear()
+  const base = `CR${(invoiceNumber ?? '').replace(/^#+/, '').trim()}`
 
   const { data } = await supabase
     .from('orders')
     .select('order_number')
-    .like('order_number', `CR-${year}-%`)
-    .order('order_number', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+    .like('order_number', `${base}%`)
 
-  const last = data?.order_number ?? ''
-  const match = last.match(/^CR-\d{4}-(\d+)$/)
-  const next = match ? parseInt(match[1], 10) + 1 : 1
-  return `CR-${year}-${String(next).padStart(4, '0')}`
+  const taken = new Set((data ?? []).map(r => r.order_number))
+  if (!taken.has(base)) return base
+
+  let n = 2
+  while (taken.has(`${base}-${n}`)) n++
+  return `${base}-${n}`
 }
 
 /**

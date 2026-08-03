@@ -775,7 +775,10 @@ export default function DashboardPage() {
   async function loadQuietCustomers() {
     const { data } = await supabase
       .from('orders')
-      .select('customer_id, created_at, invoice_date, status, customer:customers(company_name, status), delivery:deliveries(delivered_at)')
+      .select('customer_id, created_at, invoice_date, status, order_type, customer:customers(company_name, status), delivery:deliveries(delivered_at)')
+      // A credit note is not a purchase. Counting one as a buying moment would
+      // make a customer who returned goods look like a customer who ordered.
+      .neq('order_type', 'credit_note')
 
     const byCustomer = new Map<string, { name: string; active: boolean; orders: any[] }>()
     for (const o of (data ?? []) as any[]) {
