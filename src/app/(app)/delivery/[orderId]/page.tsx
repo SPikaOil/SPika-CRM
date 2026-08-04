@@ -23,6 +23,7 @@ import { toast } from 'sonner'
 import { useOrder } from '@/hooks/use-orders'
 import { useCustomerSigners, useHideCustomerSigner } from '@/hooks/use-customer-signers'
 import { createClient } from '@/lib/supabase/client'
+import { thtToMonthInput, monthInputToTht } from '@/lib/utils'
 import { queuePodUpload, processQueue } from '@/lib/offline-queue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -140,8 +141,8 @@ export default function DeliveryPage({
   const deliveryItems = ((order?.items as any[]) ?? []).filter(i => (i.qty ?? 0) > 0 && !String(i.sku).includes('return'))
   const missingTht = deliveryItems.some(i => !i.tht_date)
 
-  async function updateItemTht(sku: string, tht_date: string) {
-    const newItems = ((order?.items as any[]) ?? []).map(i => i.sku === sku ? { ...i, tht_date: tht_date || undefined } : i)
+  async function updateItemTht(sku: string, thtMonth: string) {
+    const newItems = ((order?.items as any[]) ?? []).map(i => i.sku === sku ? { ...i, tht_date: monthInputToTht(thtMonth) ?? undefined } : i)
     await supabase.from('orders').update({ items: newItems }).eq('id', orderId)
     refetch()
   }
@@ -471,8 +472,8 @@ export default function DeliveryPage({
                   <div key={item.sku} className="flex items-center justify-between gap-2">
                     <span className="text-sm truncate">{item.name}</span>
                     <Input
-                      type="date"
-                      value={item.tht_date ?? ''}
+                      type="month"
+                      value={thtToMonthInput(item.tht_date)}
                       onChange={e => updateItemTht(item.sku, e.target.value)}
                       className={`h-8 w-40 text-sm px-2 shrink-0 ${!item.tht_date ? 'border-red-400' : ''}`}
                     />

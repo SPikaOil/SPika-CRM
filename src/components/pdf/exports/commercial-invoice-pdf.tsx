@@ -8,10 +8,11 @@ import {
   Svg,
   Image,
 } from '@react-pdf/renderer'
-import { Export, QuoteItem } from '@/types'
+import { Transport, Order, QuoteItem } from '@/types'
 import { CompanyInfo } from '../delivery-note-pdf'
 import { formatTaxId } from '@/lib/tax-id'
 import { addressLines, isEuropeanAddress } from '@/lib/address'
+import { formatTht } from '@/lib/utils'
 
 const RED = '#CC0000'
 const DARK = '#1a1a1a'
@@ -70,23 +71,25 @@ const DEFAULT_COMPANY: CompanyInfo = {
 }
 
 interface Props {
-  exportRecord: Export
+  transport: Transport
+  order: Order
   company?: CompanyInfo
 }
 
-export function CommercialInvoicePDF({ exportRecord, company = DEFAULT_COMPANY }: Props) {
-  const order = exportRecord.order as any
-  const customer = (order?.customer ?? (exportRecord as any).customer) as any
-  const items: QuoteItem[] = (order?.items ?? exportRecord.items ?? []) as QuoteItem[]
+export function CommercialInvoicePDF({ transport, order, company = DEFAULT_COMPANY }: Props) {
+  const customer = order.customer as any
+  const items: QuoteItem[] = (order.items ?? []) as QuoteItem[]
   const activeItems = items.filter(i => i.qty > 0)
   const subtotal = activeItems.reduce((sum, i) => sum + i.line_total, 0)
-  const currency = exportRecord.currency ?? 'XCG'
+  // The invoice is in the currency the customer was charged in — that lives on
+  // the order, never on the journey.
+  const currency = order.currency ?? 'XCG'
 
   const fmt = (d: Date) =>
     d.toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })
 
-  const exportDate = exportRecord.export_date
-    ? fmt(new Date(exportRecord.export_date + 'T12:00:00'))
+  const exportDate = transport.etd
+    ? fmt(new Date(transport.etd + 'T12:00:00'))
     : fmt(new Date())
 
   return (
@@ -136,19 +139,20 @@ export function CommercialInvoicePDF({ exportRecord, company = DEFAULT_COMPANY }
               )
               return taxId ? <Text style={styles.addressLine}>{taxId}</Text> : null
             })()}
-            <Text style={styles.addressLine}>Destination: {exportRecord.destination || '—'}</Text>
+            <Text style={styles.addressLine}>Destination: {transport.destination || '—'}</Text>
           </View>
         </View>
 
         {/* Meta */}
         <View style={styles.metaRow}>
           {[
-            { label: 'Invoice #',    value: exportRecord.export_number },
+            { label: 'Invoice #',    value: order.order_number },
+            { label: 'Transport #',  value: transport.transport_number },
             { label: 'Order Ref',    value: order?.order_number ?? '—' },
             { label: 'Export Date',  value: exportDate },
             { label: 'Currency',     value: currency },
             { label: 'Country of Origin', value: 'Curaçao' },
-            { label: 'Carrier',      value: exportRecord.carrier?.name ?? '—' },
+            { label: 'Carrier',      value: transport.carrier?.name ?? '—' },
           ].map(({ label, value }) => (
             <View key={label} style={styles.metaBlock}>
               <Text style={styles.metaLabel}>{label}</Text>
@@ -172,7 +176,7 @@ export function CommercialInvoicePDF({ exportRecord, company = DEFAULT_COMPANY }
               <Text style={styles.tdText}>{item.name}</Text>
               {(item as any).tht_date && (
                 <Text style={{ fontSize: 7, color: GRAY, marginTop: 1 }}>
-                  THT: {new Date((item as any).tht_date + 'T12:00:00').toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  THT: {formatTht((item as any).tht_date)}
                 </Text>
               )}
             </View>

@@ -196,11 +196,26 @@ export interface Order {
   quote_id: string | null
   customer_id: string
   order_number: string
+  /** The transport this order travels in. Null = not on a transport number yet. */
+  transport_id?: string | null
+  /**
+   * One entry per package, in packing order. The array LENGTH is the number of
+   * colli — there is no separate count, so the two can never disagree. Summed
+   * across a transport for the shipping label QR.
+   */
+  colli_contents?: Colli[]
+  transport?: Transport
   payment_type: PaymentType
   order_type: OrderType
   // Stamped from the customer at creation (DB trigger). Consignment orders are
   // kept out of the overdue/te-betalen chase but still count as revenue.
   is_consignment: boolean
+  /**
+   * Print this invoice as a cash sale: the Bill To block reads "Cash Payment"
+   * instead of the customer's company details. The order itself stays attached
+   * to the customer — this only changes what leaves the building on paper.
+   */
+  cash_invoice?: boolean
   currency: OrderCurrency
   items: QuoteItem[]
   total: number
@@ -272,7 +287,7 @@ export interface Carrier {
   id: string
   name: string
   route: string
-  bol_template: 'don_andres' | 'generic'
+  bl_template: 'don_andres' | 'generic'
   created_at: string
 }
 
@@ -295,6 +310,110 @@ export interface Export {
   order?: Order
   customer?: Customer
   carrier?: Carrier
+}
+
+/**
+ * A batch of filled bottles. Created at Stock, chosen on an order, carried by a
+ * transport, signed for by the customer or received into the warehouse. One
+ * thread through the whole business — not to be confused with a production run,
+ * which is only litres of oil per month.
+ */
+export interface Batch {
+  id: string
+  /** Entered by hand, e.g. 'SPGE22'. */
+  batch_number: string
+  tht_date: string | null
+  notes: string
+  created_by: string | null
+  created_at: string
+}
+
+export type StockReason =
+  | 'filled' | 'transport_out' | 'received' | 'order'
+  | 'shopify' | 'handover' | 'return' | 'adjustment'
+
+/** Every bottle in and out. Stock is the sum of these, never a stored total. */
+export interface StockMovement {
+  id: string
+  batch_id: string
+  sku: string
+  /** Positive puts bottles in, negative takes them out. Never zero. */
+  qty: number
+  /** Null = Curaçao. Anything else is a warehouse from transport_locations. */
+  location_id: string | null
+  reason: StockReason
+  order_id: string | null
+  transport_id: string | null
+  note: string
+  created_by: string | null
+  created_at: string
+}
+
+/** A row of the `batch_stock` view: what is where, right now. */
+export interface BatchStock {
+  batch_id: string
+  batch_number: string
+  tht_date: string | null
+  sku: string
+  product_name: string
+  location_id: string | null
+  qty: number
+}
+
+/** What is physically inside one package. */
+export interface ColliItem {
+  sku: string
+  name: string
+  qty: number
+}
+
+/** One package of an order. An order's colli count is how many of these it has. */
+export interface Colli {
+  items: ColliItem[]
+  /** Gross weight of this one package in kg. Optional — null = not weighed. */
+  weight_kg?: number | null
+}
+
+export type TransportStatus = 'draft' | 'ready' | 'submitted' | 'cleared' | 'delivered'
+
+/** One of our own warehouse / drop addresses, used when a transport does not go straight to the customer. */
+export interface TransportLocation {
+  id: string
+  name: string
+  street: string
+  zip: string
+  city: string
+  country: string
+  created_at: string
+}
+
+/**
+ * A transport is the journey. Orders hang on it — one transport can carry
+ * several, and everything about the trip (carrier, where to, ETD, ETA, freight)
+ * lives here rather than on each order, because they travel together and the
+ * freight is paid once.
+ */
+export interface Transport {
+  id: string
+  transport_number: string
+  carrier_id: string | null
+  ship_to: 'customer' | 'warehouse'
+  location_id: string | null
+  destination: string
+  etd: string | null
+  eta: string | null
+  /** Gross weight of the whole load in kg, entered by hand. */
+  total_weight_kg: number | null
+  freight_cost: number | null
+  other_costs: number | null
+  notes: string
+  status: TransportStatus
+  created_by: string | null
+  created_at: string
+  updated_at: string
+  carrier?: Carrier
+  location?: TransportLocation
+  orders?: Order[]
 }
 
 export interface ExportDocument {

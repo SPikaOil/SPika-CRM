@@ -8,9 +8,11 @@ import {
   Svg,
   Image,
 } from '@react-pdf/renderer'
-import { Export, QuoteItem } from '@/types'
+import { Transport, Order, QuoteItem } from '@/types'
 import { CompanyInfo } from '../delivery-note-pdf'
 import { addressLines, isEuropeanAddress } from '@/lib/address'
+import { formatTht } from '@/lib/utils'
+import { orderColli, orderColliWeight } from '@/lib/transport-cargo'
 
 const RED = '#CC0000'
 const DARK = '#1a1a1a'
@@ -65,34 +67,31 @@ const DEFAULT_COMPANY: CompanyInfo = {
   coc_number: '145141',
 }
 
-const BOTTLES_PER_CARTON = 12
-const KG_PER_CARTON = 5
-
 interface Props {
-  exportRecord: Export
+  transport: Transport
+  order: Order
   company?: CompanyInfo
 }
 
-export function PackingListPDF({ exportRecord, company = DEFAULT_COMPANY }: Props) {
-  const order = exportRecord.order as any
-  const customer = (order?.customer ?? (exportRecord as any).customer) as any
-  const items: QuoteItem[] = (order?.items ?? exportRecord.items ?? []) as QuoteItem[]
+export function PackingListPDF({ transport, order, company = DEFAULT_COMPANY }: Props) {
+  const customer = order.customer as any
+  const items: QuoteItem[] = (order.items ?? []) as QuoteItem[]
   const activeItems = items.filter(i => i.qty > 0)
 
   const fmt = (d: Date) =>
     d.toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })
 
-  const exportDate = exportRecord.export_date
-    ? fmt(new Date(exportRecord.export_date + 'T12:00:00'))
+  const exportDate = transport.etd
+    ? fmt(new Date(transport.etd + 'T12:00:00'))
     : fmt(new Date())
 
-  const thtDate = (exportRecord as any).tht_date
-    ? fmt(new Date((exportRecord as any).tht_date + 'T12:00:00'))
-    : '—'
+  const thtDate = '—'
 
   const totalQty = activeItems.reduce((sum, i) => sum + i.qty, 0)
-  const totalCartons = Math.ceil(totalQty / BOTTLES_PER_CARTON)
-  const totalWeight = totalCartons * KG_PER_CARTON
+  // Real packing, not an estimate from bottle counts: these are the packages
+  // somebody actually filled, with the weights they were given.
+  const colli = orderColli(order)
+  const colliWeight = orderColliWeight(order)
 
   return (
     <Document>
@@ -130,20 +129,19 @@ export function PackingListPDF({ exportRecord, company = DEFAULT_COMPANY }: Prop
             {addressLines(customer?.billing_address as any, isEuropeanAddress(customer?.billing_address as any)).map((line, i) => (
               <Text key={`p${i}`} style={styles.addressLine}>{line}</Text>
             ))}
-            <Text style={styles.addressLine}>Destination: {exportRecord.destination || '—'}</Text>
+            <Text style={styles.addressLine}>Destination: {transport.destination || '—'}</Text>
           </View>
         </View>
 
         {/* Meta */}
         <View style={styles.metaRow}>
           {[
-            { label: 'Packing List #', value: exportRecord.export_number },
-            { label: 'Order Ref',      value: order?.order_number ?? '—' },
-            { label: 'Export Date',    value: exportDate },
-            { label: 'THT / Best Before', value: thtDate },
-            { label: 'Carrier',        value: exportRecord.carrier?.name ?? '—' },
-            { label: 'Total Cartons',  value: `${totalCartons} ctns` },
-            { label: 'Gross Weight',   value: `${totalWeight} kg` },
+            { label: 'Transport #',    value: transport.transport_number },
+            { label: 'Order #',        value: order.order_number },
+            { label: 'ETD',            value: exportDate },
+            { label: 'Carrier',        value: transport.carrier?.name ?? '—' },
+            { label: 'Total Colli',    value: `${colli.length} colli` },
+            { label: 'Gross Weight',   value: colliWeight > 0 ? `${colliWeight.toFixed(2)} kg` : '—' },
           ].map(({ label, value }) => (
             <View key={label} style={styles.metaBlock}>
               <Text style={styles.metaLabel}>{label}</Text>
@@ -152,28 +150,42 @@ export function PackingListPDF({ exportRecord, company = DEFAULT_COMPANY }: Prop
           ))}
         </View>
 
-        {/* Items table */}
+        {/* One row per colli — a packing list should say what is in each box,
+            not what the total happens to divide into. */}
         <View style={styles.tableHeader}>
-          <Text style={[styles.thText, styles.colDesc]}>PRODUCT DESCRIPTION</Text>
+          <Text style={[styles.thText, styles.colDesc]}>COLLI / CONTENTS</Text>
           <Text style={[styles.thText, styles.colTht]}>THT / BEST BEFORE</Text>
-          <Text style={[styles.thText, styles.colQty]}>TOTAL QTY</Text>
-          <Text style={[styles.thText, styles.colCartons]}>CARTONS</Text>
+          <Text style={[styles.thText, styles.colQty]}>QTY</Text>
           <Text style={[styles.thText, styles.colWeight]}>GROSS WEIGHT</Text>
         </View>
 
-        {activeItems.map((item, i) => {
-          const cartons = Math.ceil(item.qty / BOTTLES_PER_CARTON)
-          const weight = cartons * KG_PER_CARTON
-          const itemTht = (item as any).tht_date
-            ? fmt(new Date((item as any).tht_date + 'T12:00:00'))
-            : thtDate
+        {colli.length === 0 ? (
+          <View style={styles.tableRow}>
+            <Text style={[styles.tdText, styles.colDesc]}>Not packed out yet</Text>
+            <Text style={[styles.tdText, styles.colTht]}>—</Text>
+            <Text style={[styles.tdText, styles.colQty]}>—</Text>
+            <Text style={[styles.tdText, styles.colWeight]}>—</Text>
+          </View>
+        ) : colli.map((c, i) => {
+          const qty = c.items.reduce((sum, it) => sum + it.qty, 0)
+          const contents = c.items.length
+            ? c.items.map(it => `${it.name} x${it.qty}`).join(', ')
+            : 'Empty'
+          // The THT belongs to the product, so it is looked up on the order line
+          // this package was filled from.
+          const tht = c.items
+            .map(it => formatTht(items.find(x => x.sku === it.sku)?.tht_date))
+            .filter(Boolean)[0] ?? thtDate
           return (
             <View key={i} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]}>
-              <Text style={[styles.tdText, styles.colDesc]}>{item.name}</Text>
-              <Text style={[styles.tdText, styles.colTht]}>{itemTht}</Text>
-              <Text style={[styles.tdText, styles.colQty]}>{item.qty} btls</Text>
-              <Text style={[styles.tdText, styles.colCartons]}>{cartons} ctns</Text>
-              <Text style={[styles.tdText, styles.colWeight]}>{weight} kg</Text>
+              <Text style={[styles.tdText, styles.colDesc]}>Colli {i + 1} — {contents}</Text>
+              <Text style={[styles.tdText, styles.colTht]}>{tht}</Text>
+              <Text style={[styles.tdText, styles.colQty]}>{qty} btls</Text>
+              <Text style={[styles.tdText, styles.colWeight]}>
+                {c.weight_kg === null || c.weight_kg === undefined
+                  ? '—'
+                  : `${Number(c.weight_kg).toFixed(2)} kg`}
+              </Text>
             </View>
           )
         })}
@@ -185,12 +197,14 @@ export function PackingListPDF({ exportRecord, company = DEFAULT_COMPANY }: Prop
             <Text style={styles.summaryValue}>{totalQty} bottles</Text>
           </View>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Total Cartons ({BOTTLES_PER_CARTON} btls/ctn)</Text>
-            <Text style={styles.summaryValue}>{totalCartons} cartons</Text>
+            <Text style={styles.summaryLabel}>Total Colli</Text>
+            <Text style={styles.summaryValue}>{colli.length} colli</Text>
           </View>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Gross Weight ({KG_PER_CARTON} kg/ctn)</Text>
-            <Text style={styles.summaryValue}>{totalWeight} kg</Text>
+            <Text style={styles.summaryLabel}>Gross Weight</Text>
+            <Text style={styles.summaryValue}>
+              {colliWeight > 0 ? `${colliWeight.toFixed(2)} kg` : '—'}
+            </Text>
           </View>
         </View>
 
@@ -201,8 +215,8 @@ export function PackingListPDF({ exportRecord, company = DEFAULT_COMPANY }: Prop
           </Text>
           <Text style={{ fontSize: 8, color: GRAY }}>
             {customer?.company_name ?? ''}{'\n'}
-            {exportRecord.destination || ''}{'\n'}
-            {exportRecord.export_number} · {order?.order_number ?? ''}
+            {transport.destination || ''}{'\n'}
+            {transport.transport_number} · {order.order_number}
           </Text>
         </View>
 

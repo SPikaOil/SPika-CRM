@@ -37,3 +37,38 @@ export function fmtXcg(amount: number): string {
 export function fmtOwnCurrency(order: MoneyOrder): string {
   return `${(order?.currency as string) ?? 'XCG'} ${Number(order?.total ?? 0).toFixed(2)}`
 }
+
+/**
+ * What the QR code on a shipping label encodes: the transport number and how
+ * many packages travel under it, e.g. "20260701-3colli". Colli is the sum of
+ * the colli on every order in that transport. One helper, so the label, the
+ * screen and whatever scans it can never disagree.
+ */
+export function transportQrPayload(transportNumber: string, colli: number): string {
+  return `${transportNumber}-${colli}colli`
+}
+
+/**
+ * THT (Tenminste Houdbaar Tot / best before) is a MONTH, never a day.
+ *
+ * The `exports.tht_date` column and the `tht_date` field on order/export items
+ * stay a real date, so the day is pinned to the 1st — it is neither shown nor
+ * entered anywhere. These three functions are the only way THT is read or
+ * written; before this, eight screens and PDFs each formatted their own day.
+ */
+export function formatTht(value?: string | null): string | null {
+  if (!value) return null
+  const d = new Date(`${value.slice(0, 7)}-01T12:00:00`)
+  if (Number.isNaN(d.getTime())) return null
+  return d.toLocaleDateString('en', { month: 'long', year: 'numeric' })
+}
+
+/** Stored value ("2027-03-01") → what an `<Input type="month">` expects ("2027-03"). */
+export function thtToMonthInput(value?: string | null): string {
+  return value ? value.slice(0, 7) : ''
+}
+
+/** `<Input type="month">` value ("2027-03") → what we store ("2027-03-01"). */
+export function monthInputToTht(value: string): string | null {
+  return value ? `${value.slice(0, 7)}-01` : null
+}

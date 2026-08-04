@@ -46,6 +46,24 @@ export function documentFilename(
   return `${num || customer || 'document'}.pdf`
 }
 
+/**
+ * The filename for an order's own documents.
+ *
+ * A cash sale drops the customer name: the invoice itself says "Cash Payment",
+ * so leaving the buyer in the filename would hand over on the file system
+ * exactly what the document deliberately leaves out. One helper for all six
+ * download paths, because a rule that lives in six places is a rule that will
+ * be forgotten in one of them.
+ */
+export function orderDocumentFilename(
+  order: { order_number?: string | null; cash_invoice?: boolean | null; customer?: { company_name?: string | null } | null } | null | undefined,
+  fallbackNumber?: string,
+): string {
+  const number = order?.order_number ?? fallbackNumber
+  if (order?.cash_invoice) return documentFilename(number, null)
+  return documentFilename(number, order?.customer?.company_name)
+}
+
 export function isMobileDevice() {
   return typeof navigator !== 'undefined' && /Android|iPad|iPhone|iPod/.test(navigator.userAgent)
 }

@@ -8,9 +8,10 @@ import {
   Line,
   Image,
 } from '@react-pdf/renderer'
-import { Export } from '@/types'
+import { Transport } from '@/types'
 import { formatPostcode, countryLabel } from '@/lib/address'
 import { CompanyInfo } from '../delivery-note-pdf'
+import { LabelPage } from '@/lib/transport-cargo'
 
 const RED = '#CC0000'
 const DARK = '#1a1a1a'
@@ -27,11 +28,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
 
-  // Header logo
-  logoWrap: { alignItems: 'center', marginBottom: 10 },
-
-  // From row
-  fromRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
+  fromRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
   fromBlock: { flex: 1 },
   fromLabel: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: GRAY, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 3 },
   fromLine: { fontSize: 8.5, color: DARK, marginBottom: 1 },
@@ -40,14 +37,27 @@ const styles = StyleSheet.create({
   refBox: { backgroundColor: DARK, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 3 },
   refText: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#ffffff', letterSpacing: 1 },
 
-  // Divider
-  divider: { marginVertical: 10 },
+  // The colli counter is the first thing someone unloading needs to see.
+  colliBox: {
+    backgroundColor: RED,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 3,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+  },
+  colliText: { fontSize: 22, fontFamily: 'Helvetica-Bold', color: '#ffffff', letterSpacing: 1 },
 
-  // Large ship-to
-  shipToLabel: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: RED, textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 8 },
-  shipToName: { fontSize: 48, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 4, lineHeight: 1.1 },
-  shipToLine: { fontSize: 40, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 2, lineHeight: 1.15 },
+  divider: { marginVertical: 8 },
 
+  shipToLabel: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: RED, textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 6 },
+  shipToName: { fontSize: 34, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 3, lineHeight: 1.1 },
+  shipToLine: { fontSize: 26, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 2, lineHeight: 1.15 },
+
+  contentsLabel: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: GRAY, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 3 },
+  contentsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 1 },
+  contentsText: { fontSize: 9, color: DARK },
+  contentsWeight: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: DARK, marginTop: 2 },
 })
 
 const DEFAULT_COMPANY: CompanyInfo = {
@@ -61,88 +71,124 @@ const DEFAULT_COMPANY: CompanyInfo = {
 }
 
 interface Props {
-  exportRecord: Export
+  transport: Transport
+  /** One entry per package. Each becomes its own page — three colli, three labels. */
+  pages: LabelPage[]
   company?: CompanyInfo
-  qrCodeDataUrl?: string
 }
 
-
-export function ShippingLabelPDF({ exportRecord, company = DEFAULT_COMPANY, qrCodeDataUrl }: Props) {
-  const order = exportRecord.order as any
-  const customer = (order?.customer ?? (exportRecord as any).customer) as any
-
-  const billingAddr = customer?.billing_address ?? {}
-  const deliveryAddr = customer?.delivery_address ?? {}
-  const shipToAddr = deliveryAddr?.street ? deliveryAddr : billingAddr
-  // Spelled the same way as on the invoice and the quotation, so the label and
-  // the paperwork inside the parcel do not name the country differently.
-  const destination = countryLabel(exportRecord.destination || billingAddr?.country || '')
-
-  const carrier = (exportRecord as any).carrier
-
-  // Build address lines. Shared with the invoice and the quotation so a parcel
-  // is addressed exactly as the paperwork inside it reads.
-  const nameLine = customer?.company_name ?? '—'
-  const streetLine = shipToAddr?.street ?? ''
-  const cityLine = [formatPostcode((shipToAddr?.zip ?? '').trim()), shipToAddr?.city].filter(Boolean).join(' ')
-
+/**
+ * One label per package: "Colli 2/3", the address, what is in this box and a QR
+ * holding that same contents as plain text.
+ *
+ * The QR deliberately does NOT hold the transport number on its own — that is
+ * printed on the label in readable letters, so encoding it again would be a
+ * second copy of something you can already read. It holds what you cannot see
+ * without opening the box.
+ */
+export function ShippingLabelPDF({ transport, pages, company = DEFAULT_COMPANY }: Props) {
   return (
     <Document>
-      <Page size="A4" style={styles.page}>
+      {pages.map((page) => {
+        const customer = page.order.customer as any
+        const location = transport.location
 
-        {/* Logo + QR code side by side */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-          <Image src="/spika-banner.png" style={{ flex: 1, height: 56, objectFit: 'contain' }} />
-          {qrCodeDataUrl ? (
-            <View style={{ alignItems: 'center', marginLeft: 12 }}>
-              <Image src={qrCodeDataUrl} style={{ width: 70, height: 70 }} />
-              <Text style={{ fontSize: 6, color: GRAY, marginTop: 2 }}>SCAN FOR DETAILS</Text>
+        // Where the box is actually going: our own warehouse when the transport
+        // is routed there, otherwise the customer's own delivery address.
+        const toWarehouse = transport.ship_to === 'warehouse' && location
+        const addr = toWarehouse
+          ? location
+          : (customer?.delivery_address?.street ? customer.delivery_address : customer?.billing_address) ?? {}
+
+        const nameLine = toWarehouse ? location!.name : (customer?.company_name ?? '—')
+        const streetLine = addr?.street ?? ''
+        const cityLine = [formatPostcode((addr?.zip ?? '').trim()), addr?.city].filter(Boolean).join(' ')
+        const destination = countryLabel(
+          transport.destination || addr?.country || ''
+        )
+
+        return (
+          <Page key={page.colliNumber} size="A4" style={styles.page}>
+            {/* Logo + the QR holding this box's contents */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+              <Image src="/spika-banner.png" style={{ flex: 1, height: 48, objectFit: 'contain' }} />
+              {page.qrCodeDataUrl ? (
+                <View style={{ alignItems: 'center', marginLeft: 12 }}>
+                  <Image src={page.qrCodeDataUrl} style={{ width: 78, height: 78 }} />
+                  <Text style={{ fontSize: 6, color: GRAY, marginTop: 2 }}>SCAN FOR CONTENTS</Text>
+                </View>
+              ) : null}
             </View>
-          ) : null}
-        </View>
 
-        {/* From + ref */}
-        <View style={styles.fromRow}>
-          <View style={styles.fromBlock}>
-            <Text style={styles.fromLabel}>From</Text>
-            <Text style={styles.fromName}>{company.name}</Text>
-            <Text style={styles.fromLine}>{company.address_line1}</Text>
-            <Text style={styles.fromLine}>{company.address_line2}</Text>
-          </View>
-          <View style={styles.refBox}>
-            <Text style={styles.refText}>{exportRecord.export_number}</Text>
-          </View>
-        </View>
+            {/* From + transport number */}
+            <View style={styles.fromRow}>
+              <View style={styles.fromBlock}>
+                <Text style={styles.fromLabel}>From</Text>
+                <Text style={styles.fromName}>{company.name}</Text>
+                <Text style={styles.fromLine}>{company.address_line1}</Text>
+                <Text style={styles.fromLine}>{company.address_line2}</Text>
+              </View>
+              <View style={styles.refBox}>
+                <Text style={styles.refText}>{transport.transport_number}</Text>
+              </View>
+            </View>
 
-        {/* Red divider */}
-        <Svg height={2} style={styles.divider}>
-          <Line x1={0} y1={0} x2={531} y2={0} strokeWidth={2} stroke={RED} />
-        </Svg>
+            <View style={styles.colliBox}>
+              <Text style={styles.colliText}>
+                COLLI {page.colliNumber} / {page.totalColli}
+              </Text>
+            </View>
 
-        {/* Large ship-to address */}
-        <View style={{ marginTop: 8 }}>
-          <Text style={styles.shipToLabel}>Ship To</Text>
-          <Text style={styles.shipToName}>{nameLine}</Text>
-          {streetLine ? <Text style={styles.shipToLine}>{streetLine}</Text> : null}
-          {cityLine ? <Text style={styles.shipToLine}>{cityLine}</Text> : null}
-          {destination ? (
-            <Text style={[styles.shipToLine, { color: RED, fontSize: 36, marginTop: 4 }]}>
-              {destination.toUpperCase()}
-            </Text>
-          ) : null}
-        </View>
+            <Svg height={2} style={styles.divider}>
+              <Line x1={0} y1={0} x2={531} y2={0} strokeWidth={2} stroke={RED} />
+            </Svg>
 
-        {/* Handling icons + FRAGILE */}
-        <Image src="/fragile-icons.jpg" style={{ width: '100%', height: 220, objectFit: 'contain' }} />
+            {/* Ship to */}
+            <View style={{ marginTop: 4 }}>
+              <Text style={styles.shipToLabel}>
+                {toWarehouse ? 'Ship To — Warehouse' : 'Ship To'}
+              </Text>
+              <Text style={styles.shipToName}>{nameLine}</Text>
+              {streetLine ? <Text style={styles.shipToLine}>{streetLine}</Text> : null}
+              {cityLine ? <Text style={styles.shipToLine}>{cityLine}</Text> : null}
+              {destination ? (
+                <Text style={[styles.shipToLine, { color: RED, fontSize: 24, marginTop: 3 }]}>
+                  {destination.toUpperCase()}
+                </Text>
+              ) : null}
+            </View>
 
-        {/* Carrier note at bottom if present */}
-        {carrier ? (
-          <Text style={{ fontSize: 9, color: GRAY, marginTop: 10 }}>
-            Carrier: {carrier.name}{carrier.route ? `  ·  ${carrier.route}` : ''}
-          </Text>
-        ) : null}
+            {/* What is in THIS box */}
+            <View style={{ marginTop: 10 }}>
+              <Text style={styles.contentsLabel}>
+                Contents · Order {page.order.order_number}
+              </Text>
+              {page.colli.items.length === 0 ? (
+                <Text style={styles.contentsText}>Not packed out</Text>
+              ) : page.colli.items.map((item) => (
+                <View key={item.sku} style={styles.contentsRow}>
+                  <Text style={styles.contentsText}>{item.name}</Text>
+                  <Text style={styles.contentsText}>{item.qty}</Text>
+                </View>
+              ))}
+              {page.colli.weight_kg !== null && page.colli.weight_kg !== undefined ? (
+                <Text style={styles.contentsWeight}>
+                  {Number(page.colli.weight_kg).toFixed(2)} kg
+                </Text>
+              ) : null}
+            </View>
 
-      </Page>
+            <Image src="/fragile-icons.jpg" style={{ width: '100%', height: 150, objectFit: 'contain' }} />
+
+            {transport.carrier ? (
+              <Text style={{ fontSize: 9, color: GRAY, marginTop: 6 }}>
+                Carrier: {transport.carrier.name}
+                {transport.carrier.route ? `  ·  ${transport.carrier.route}` : ''}
+              </Text>
+            ) : null}
+          </Page>
+        )
+      })}
     </Document>
   )
 }

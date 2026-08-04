@@ -11,6 +11,7 @@ import {
 import { Order, QuoteItem } from '@/types'
 import { formatTaxId } from '@/lib/tax-id'
 import { addressLines, isEuropeanAddress } from '@/lib/address'
+import { formatTht } from '@/lib/utils'
 
 const RED = '#CC0000'
 const DARK = '#1a1a1a'
@@ -209,6 +210,9 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
   const isConsignment = !!(order as any).is_consignment
 
   const isInvoice = documentType === 'INVOICE'
+  // A cash sale: the paper says "Cash Payment" instead of naming the buyer.
+  // The order stays attached to the customer everywhere else in the app.
+  const isCashInvoice = (order as any).cash_invoice === true
   // Only the INVOICE of a consignment order changes character. A delivery note
   // is already an afleverbon and keeps its own title and wording.
   const isConsignmentInvoice = isConsignment && isInvoice
@@ -264,24 +268,33 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
                 <Text style={styles.addressLine}>{company.phone}</Text>
                 <Text style={styles.addressLine}>Crib#{company.crib_number} | CoC#{company.coc_number}</Text>
               </View>
-              {/* Bill To */}
+              {/* Bill To — or, for a cash sale, nothing about the buyer at all.
+                  Naming the customer in one place and hiding them in another
+                  would defeat the point, so the whole block is replaced and the
+                  Ship To block below is dropped as well. */}
               <View style={styles.addressBlock}>
                 <Text style={styles.addressLabel}>Bill To</Text>
-                <Text style={[styles.addressRed, { fontFamily: 'Helvetica-Bold' }]}>SPika Reseller</Text>
-                <Text style={[styles.addressLine, { fontFamily: 'Helvetica-Bold' }]}>{customer?.company_name ?? ''}</Text>
-                {/* No contact person on the invoice — company, address and e-mail only */}
-                {addressLines(ba, europeanAddress).map((line, i) => (
-                  <Text key={`b${i}`} style={styles.addressLine}>{line}</Text>
-                ))}
-                {taxId ? <Text style={styles.addressLine}>{taxId}</Text> : null}
-                {customer?.coc_number ? <Text style={styles.addressLine}>CoC: {customer.coc_number}</Text> : null}
-                {customer?.email ? <Text style={styles.addressRed}>{customer.email}</Text> : null}
-                {(customer?.billing_emails ?? []).map((email: string) => (
-                  <Text key={email} style={styles.addressRed}>{email}</Text>
-                ))}
+                {isCashInvoice ? (
+                  <Text style={[styles.addressLine, { fontFamily: 'Helvetica-Bold' }]}>Cash Payment</Text>
+                ) : (
+                  <>
+                    <Text style={[styles.addressRed, { fontFamily: 'Helvetica-Bold' }]}>SPika Reseller</Text>
+                    <Text style={[styles.addressLine, { fontFamily: 'Helvetica-Bold' }]}>{customer?.company_name ?? ''}</Text>
+                    {/* No contact person on the invoice — company, address and e-mail only */}
+                    {addressLines(ba, europeanAddress).map((line, i) => (
+                      <Text key={`b${i}`} style={styles.addressLine}>{line}</Text>
+                    ))}
+                    {taxId ? <Text style={styles.addressLine}>{taxId}</Text> : null}
+                    {customer?.coc_number ? <Text style={styles.addressLine}>CoC: {customer.coc_number}</Text> : null}
+                    {customer?.email ? <Text style={styles.addressRed}>{customer.email}</Text> : null}
+                    {(customer?.billing_emails ?? []).map((email: string) => (
+                      <Text key={email} style={styles.addressRed}>{email}</Text>
+                    ))}
+                  </>
+                )}
               </View>
-              {/* Ship To — only when different from billing */}
-              {hasDifferentDelivery && (
+              {/* Ship To — only when different from billing, and never on a cash sale */}
+              {hasDifferentDelivery && !isCashInvoice && (
                 <View style={styles.addressBlock}>
                   <Text style={styles.addressLabel}>Ship To</Text>
                   <Text style={[styles.addressLine, { fontFamily: 'Helvetica-Bold' }]}>{customer?.company_name ?? ''}</Text>
@@ -339,7 +352,7 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
                 <Text style={styles.tdText}>{item.name}</Text>
                 {item.tht_date && (
                   <Text style={{ fontSize: 7, color: GRAY, marginTop: 1 }}>
-                    THT: {new Date(item.tht_date + 'T12:00:00').toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    THT: {formatTht(item.tht_date)}
                   </Text>
                 )}
               </View>
@@ -486,7 +499,7 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
             <Line x1={0} y1={0} x2={515} y2={0} strokeWidth={1} stroke={RED} />
           </Svg>
           <View style={{ marginTop: 12, marginBottom: 8 }}>
-            <Text style={{ fontSize: 9, color: GRAY }}>Order: {order.order_number} · {order.customer?.company_name ?? ''} · {new Date().toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })}</Text>
+            <Text style={{ fontSize: 9, color: GRAY }}>Order: {order.order_number}{isCashInvoice ? '' : ` · ${order.customer?.company_name ?? ''}`} · {new Date().toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })}</Text>
             {signerName && <Text style={{ fontSize: 9, color: GRAY, marginTop: 2 }}>Signed by: {signerName}</Text>}
           </View>
           <Image

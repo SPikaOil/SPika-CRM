@@ -8,7 +8,8 @@ import {
   Svg,
   Image,
 } from '@react-pdf/renderer'
-import { Export, QuoteItem } from '@/types'
+import { Transport, QuoteItem } from '@/types'
+import { transportCargo, transportItemTotals } from '@/lib/transport-cargo'
 import { CompanyInfo } from '../delivery-note-pdf'
 import { addressLines, isEuropeanAddress } from '@/lib/address'
 
@@ -67,33 +68,35 @@ const DEFAULT_COMPANY: CompanyInfo = {
   coc_number: '145141',
 }
 
-const BOTTLES_PER_CARTON = 12
-const KG_PER_CARTON = 5
-
 interface Props {
-  exportRecord: Export
+  /** One B/L per transport — the carrier receives the whole load, not one order. */
+  transport: Transport
   company?: CompanyInfo
 }
 
-export function DonAndresBolPDF({ exportRecord, company = DEFAULT_COMPANY }: Props) {
-  const order = exportRecord.order as any
-  const customer = (order?.customer ?? (exportRecord as any).customer) as any
-  const items: QuoteItem[] = (order?.items ?? exportRecord.items ?? []) as QuoteItem[]
+export function DonAndresBLPDF({ transport, company = DEFAULT_COMPANY }: Props) {
+  // A transport goes to one address, so the consignee is taken from its first
+  // order; the cargo is every order on board, added up.
+  const order = (transport.orders ?? [])[0] as any
+  const customer = order?.customer as any
+  const items = transportItemTotals(transport) as unknown as QuoteItem[]
+  const cargo = transportCargo(transport)
   const activeItems = items.filter(i => i.qty > 0)
 
   const fmt = (d: Date) =>
     d.toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })
 
-  const exportDate = exportRecord.export_date
-    ? fmt(new Date(exportRecord.export_date + 'T12:00:00'))
+  const exportDate = transport.etd
+    ? fmt(new Date(transport.etd + 'T12:00:00'))
     : fmt(new Date())
 
   const totalQty = activeItems.reduce((sum, i) => sum + i.qty, 0)
-  const totalCartons = Math.ceil(totalQty / BOTTLES_PER_CARTON)
-  const totalWeight = totalCartons * KG_PER_CARTON
+  // Packages and weight come from the real packing, never from a bottle count.
+  const totalColli = cargo.colli
+  const totalWeight = cargo.weight
 
-  const isDonAndres = exportRecord.carrier?.bol_template === 'don_andres'
-  const portOfDischarge = exportRecord.destination || (isDonAndres ? 'Bonaire' : '—')
+  const isDonAndres = transport.carrier?.bl_template === 'don_andres'
+  const portOfDischarge = transport.destination || (isDonAndres ? 'Bonaire' : '—')
 
   return (
     <Document>
@@ -106,7 +109,7 @@ export function DonAndresBolPDF({ exportRecord, company = DEFAULT_COMPANY }: Pro
         <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 2 }}>
           <View>
             <Text style={styles.title}>BILL OF LADING</Text>
-            <Text style={styles.subtitle}>{exportRecord.carrier?.name ?? 'Carrier'}</Text>
+            <Text style={styles.subtitle}>{transport.carrier?.name ??'Carrier'}</Text>
           </View>
         </View>
 
@@ -154,12 +157,12 @@ export function DonAndresBolPDF({ exportRecord, company = DEFAULT_COMPANY }: Pro
         {/* Voyage meta */}
         <View style={styles.metaGrid}>
           {[
-            { label: 'B/L Number',        value: exportRecord.export_number },
+            { label: 'B/L Number',        value: transport.transport_number },
             { label: 'Export Date',        value: exportDate },
             { label: 'Order Reference',    value: order?.order_number ?? '—' },
             { label: 'Port of Loading',    value: 'Willemstad, Curaçao' },
             { label: 'Port of Discharge',  value: portOfDischarge },
-            { label: 'Carrier',            value: exportRecord.carrier?.name ?? '—' },
+            { label: 'Carrier',            value: transport.carrier?.name ?? '—' },
           ].map(({ label, value }) => (
             <View key={label} style={styles.metaBlock}>
               <Text style={styles.metaLabel}>{label}</Text>
@@ -175,19 +178,17 @@ export function DonAndresBolPDF({ exportRecord, company = DEFAULT_COMPANY }: Pro
           <Text style={[styles.thText, styles.colWeight]}>GROSS WEIGHT</Text>
         </View>
 
-        {activeItems.map((item, i) => {
-          const cartons = Math.ceil(item.qty / BOTTLES_PER_CARTON)
-          const weight = cartons * KG_PER_CARTON
-          return (
-            <View key={i} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]}>
-              <Text style={[styles.tdText, styles.colDesc]}>
-                {item.name} ({item.qty} bottles)
-              </Text>
-              <Text style={[styles.tdText, styles.colPkgs]}>{cartons} ctns</Text>
-              <Text style={[styles.tdText, styles.colWeight]}>{weight} kg</Text>
-            </View>
-          )
-        })}
+        {/* Goods are listed per product; packages and weight are properties of
+            the load as a whole, so they are stated once in the totals row. */}
+        {activeItems.map((item, i) => (
+          <View key={i} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]}>
+            <Text style={[styles.tdText, styles.colDesc]}>
+              {item.name} ({item.qty} bottles)
+            </Text>
+            <Text style={[styles.tdText, styles.colPkgs]}>—</Text>
+            <Text style={[styles.tdText, styles.colWeight]}>—</Text>
+          </View>
+        ))}
 
         {/* Totals row */}
         <View style={[styles.tableRow, { backgroundColor: LIGHT }]}>
@@ -195,10 +196,10 @@ export function DonAndresBolPDF({ exportRecord, company = DEFAULT_COMPANY }: Pro
             TOTAL — {totalQty} bottles
           </Text>
           <Text style={[styles.tdText, styles.colPkgs, { fontFamily: 'Helvetica-Bold' }]}>
-            {totalCartons} ctns
+            {totalColli} colli
           </Text>
           <Text style={[styles.tdText, styles.colWeight, { fontFamily: 'Helvetica-Bold' }]}>
-            {totalWeight} kg
+            {totalWeight === null ? '—' : `${totalWeight.toFixed(2)} kg`}
           </Text>
         </View>
 
@@ -216,7 +217,7 @@ export function DonAndresBolPDF({ exportRecord, company = DEFAULT_COMPANY }: Pro
           <View style={styles.signBlock}>
             <Text style={styles.sectionLabel}>Signed for the Carrier</Text>
             <View style={[styles.box, { minHeight: 60 }]}>
-              <Text style={styles.boxLine}>{exportRecord.carrier?.name ?? '—'}</Text>
+              <Text style={styles.boxLine}>{transport.carrier?.name ??'—'}</Text>
               <View style={{ marginTop: 24 }}>
                 <Svg height={1}><Line x1={0} y1={0} x2={160} y2={0} strokeWidth={0.5} stroke={BORDER} /></Svg>
                 <Text style={styles.signLabel}>Authorised Signature</Text>

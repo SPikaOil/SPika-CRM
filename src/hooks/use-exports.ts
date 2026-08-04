@@ -180,16 +180,16 @@ export function useUploadExportDocument() {
         .upload(path, file, { upsert: true })
       if (uploadError) throw uploadError
 
-      const { data: urlData } = supabase.storage
-        .from('export-documents')
-        .getPublicUrl(path)
-
+      // Store the storage PATH, not a public URL. These are customs papers and
+      // customer data; they are served through a short-lived signed URL by
+      // openExportDocument() below. Rows written before 2026-08-03 hold a full
+      // https:// URL and are still opened as-is.
       const { data, error } = await supabase
         .from('export_documents')
         .insert({
           export_id: exportId,
           document_type: documentType,
-          file_url: urlData.publicUrl,
+          file_url: path,
           file_name: file.name,
         })
         .select()
@@ -203,6 +203,30 @@ export function useUploadExportDocument() {
     },
     onError: (err: Error) => toast.error(err.message),
   })
+}
+
+/**
+ * Open an uploaded export document. New rows hold a storage path and get a
+ * 10-minute signed URL; legacy rows hold a full public URL and are opened as
+ * they are. Same-tab navigation on purpose — the proven pattern from
+ * openStoredPdfInViewer, because opening a tab after an await freezes iOS
+ * Safari and leaves a blank page behind.
+ */
+export async function openExportDocument(fileUrl: string, fileName?: string): Promise<boolean> {
+  if (/^https?:\/\//i.test(fileUrl)) {
+    window.location.href = fileUrl
+    return true
+  }
+  const supabase = createClient()
+  const { data, error } = await supabase.storage
+    .from('export-documents')
+    .createSignedUrl(fileUrl, 600, fileName ? { download: fileName } : undefined)
+  if (error || !data?.signedUrl) {
+    toast.error(error?.message ?? 'Could not open this document')
+    return false
+  }
+  window.location.href = data.signedUrl
+  return true
 }
 
 export function useDeleteExportDocument() {

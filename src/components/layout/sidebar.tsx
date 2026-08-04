@@ -23,6 +23,7 @@ import {
   Sprout,
   Mail,
   ShieldCheck,
+  Ship,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
@@ -48,6 +49,7 @@ const allNavItems = [
 ]
 
 const adminOnlyItems = [
+  { href: '/exports',           label: 'Export',      icon: Ship        },
   { href: '/portal-management', label: 'Portal',      icon: Globe       },
   { href: '/team',              label: 'Team',        icon: UserCog     },
   { href: '/permissions',       label: 'Permissions', icon: ShieldCheck },

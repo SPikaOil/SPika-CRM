@@ -25,11 +25,12 @@ import {
   Sprout,
   Mail,
   ShieldCheck,
+  Ship,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
 import { createClient } from '@/lib/supabase/client'
-import { useState } from 'react'
+import { useState, type ComponentType } from 'react'
 
 const adminMainItems = [
   { href: '/dashboard',      label: 'Home',    icon: LayoutDashboard },
@@ -46,7 +47,16 @@ const salesMainItems = [
 ]
 
 // `permission: null` = visible to anyone signed in; `adminOnly` = owner only.
-const adminMoreItems = [
+type MoreItem = {
+  href: string
+  label: string
+  icon: ComponentType<{ className?: string }>
+  permission: string | null
+  adminOnly?: boolean
+}
+
+const adminMoreItems: MoreItem[] = [
+  { href: '/exports',             label: 'Export',      icon: Ship,          permission: null, adminOnly: true },
   { href: '/leads',               label: 'Leads',       icon: Sprout,        permission: 'leads.view'        },
   { href: '/agenda',              label: 'Agenda',      icon: CalendarDays,  permission: null                },
   { href: '/quotations',          label: 'Quotations',  icon: ReceiptText,   permission: 'quotations.view'   },
@@ -86,7 +96,9 @@ export function BottomNav() {
   // Driven by permission, not by "is this the owner" — otherwise a Manager
   // silently drops into the sales layout and loses tabs they may use.
   const mainItems = can('orders.view') ? adminMainItems : salesMainItems
-  const moreItems = adminMoreItems.filter(i => !i.permission || can(i.permission))
+  const moreItems = adminMoreItems.filter(i =>
+    (!i.adminOnly || isAdmin) && (!i.permission || can(i.permission))
+  )
 
   // Check if current path is in the "more" menu to highlight the button
   const moreActive = moreItems.some(i => pathname.startsWith(i.href))
