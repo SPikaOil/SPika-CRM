@@ -45,7 +45,7 @@ export function ContactLog({ customerId, log }: { customerId: string; log: Conta
   }
 
   return (
-    <Card className="py-0">
+    <Card size="sm" className="py-0">
       <CardHeader className="pt-3 pb-2 flex-row items-center justify-between space-y-0">
         <CardTitle className="text-sm">Contact log</CardTitle>
         {!open && (

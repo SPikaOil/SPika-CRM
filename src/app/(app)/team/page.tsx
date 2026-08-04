@@ -257,7 +257,7 @@ export default function TeamPage() {
       </div>
 
       {/* My Account */}
-      <Card>
+      <Card size="sm">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
             <Lock className="h-4 w-4 text-red-600" /> My Account

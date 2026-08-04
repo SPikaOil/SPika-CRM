@@ -220,7 +220,7 @@ export default function HandoverPage() {
 
       {/* New batch — admin only */}
       {isAdmin && (
-      <Card className="py-3 gap-2">
+      <Card size="sm" className="py-3 gap-2">
         <CardHeader><CardTitle className="text-sm">New handover</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <div className="flex gap-2">

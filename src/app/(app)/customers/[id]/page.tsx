@@ -54,7 +54,7 @@ function OrderRhythmCard({ rhythm }: { rhythm: OrderRhythm }) {
   const lastPct = rhythm.lastOrderDate ? pct(rhythm.lastOrderDate) : 100
 
   return (
-    <Card className="py-0">
+    <Card size="sm" className="py-0">
       <CardHeader className="pt-3 pb-2">
         <CardTitle className="text-sm flex items-center gap-2">
           <CalendarClock className="h-4 w-4 text-muted-foreground" /> Order rhythm
@@ -407,7 +407,7 @@ export default function CustomerDetailPage({
 
         <TabsContent value="details" className="space-y-2.5 mt-3">
           <ContactLog customerId={id} log={(customer as any).contact_log ?? []} />
-          <Card className="py-0">
+          <Card size="sm" className="py-0">
             <CardHeader className="pt-3 pb-2"><CardTitle className="text-sm">Contact</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 pb-3">
               {customer.phone && <Row label="Phone" value={customer.phone} />}
@@ -429,7 +429,7 @@ export default function CustomerDetailPage({
           {/* Also render when the only entries left are removed ones, so an
               admin can always get back to the restore list */}
           {((signers && signers.length > 0) || (isAdmin && hiddenSigners && hiddenSigners.length > 0)) && (
-            <Card className="py-0">
+            <Card size="sm" className="py-0">
               <CardHeader className="pt-3 pb-2"><CardTitle className="text-sm">Contact people who sign</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
                 {(signers ?? []).map((s) => (
@@ -489,7 +489,7 @@ export default function CustomerDetailPage({
           )}
 
           {portalUsers && portalUsers.length > 0 && (
-            <Card className="py-0">
+            <Card size="sm" className="py-0">
               <CardHeader className="pt-3 pb-2"><CardTitle className="text-sm">Portal team members</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
                 {portalUsers.map((u) => (
@@ -509,7 +509,7 @@ export default function CustomerDetailPage({
             </Card>
           )}
 
-          <Card className="py-0">
+          <Card size="sm" className="py-0">
             <CardHeader className="pt-3 pb-2"><CardTitle className="text-sm">Delivery</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 pb-3">
               {customer.delivery_time_window && (
@@ -553,7 +553,7 @@ export default function CustomerDetailPage({
 
           {/* Table Bottle Schedule */}
           {customer.track_table_bottles && isAdmin && (
-            <Card className={daysUntilRefresh !== null && daysUntilRefresh <= 7 ? 'border-orange-300' : ''}>
+            <Card size="sm" className={daysUntilRefresh !== null && daysUntilRefresh <= 7 ? 'border-orange-300' : ''}>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <RefreshCw className="h-4 w-4 text-blue-500" />
@@ -665,7 +665,7 @@ export default function CustomerDetailPage({
 
           {/* OB Form */}
           {customer.ob_form_required && (
-            <Card className={customer.ob_form_signed ? 'border-green-200' : 'border-red-300 bg-red-50 dark:bg-red-950/20'}>
+            <Card size="sm" className={customer.ob_form_signed ? 'border-green-200' : 'border-red-300 bg-red-50 dark:bg-red-950/20'}>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <FileSignature className={`h-4 w-4 ${customer.ob_form_signed ? 'text-green-600' : 'text-red-600'}`} />
@@ -725,7 +725,7 @@ export default function CustomerDetailPage({
           )}
 
           {(billingAddr?.street || deliveryAddr?.street) && (
-            <Card className="py-0">
+            <Card size="sm" className="py-0">
               <CardHeader className="pt-3 pb-2"><CardTitle className="text-sm">Addresses</CardTitle></CardHeader>
               <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 pb-3">
                 {billingAddr?.street && (
@@ -750,7 +750,7 @@ export default function CustomerDetailPage({
 
           {/* Business / Tax Details */}
           {(customer.vat_number || customer.crib_number || customer.coc_number || customer.is_international) && (
-            <Card className="py-0">
+            <Card size="sm" className="py-0">
               <CardHeader className="pt-3 pb-2"><CardTitle className="text-sm">Business Details</CardTitle></CardHeader>
               <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 pb-3">
                 {(() => {
@@ -773,7 +773,7 @@ export default function CustomerDetailPage({
           )}
 
           {(customer.internal_notes || customer.quickbooks_customer_id) && (
-            <Card className="py-0">
+            <Card size="sm" className="py-0">
               <CardHeader className="pt-3 pb-2"><CardTitle className="text-sm">Internal</CardTitle></CardHeader>
               <CardContent className="space-y-1 pb-3">
                 {customer.quickbooks_customer_id && (
@@ -858,7 +858,7 @@ export default function CustomerDetailPage({
       {/* Remove signer confirmation — admin only */}
       {signerToRemove && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <Card className="w-full max-w-md">
+          <Card size="sm" className="w-full max-w-md">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <FileSignature className="h-5 w-5 text-muted-foreground" />
@@ -900,7 +900,7 @@ export default function CustomerDetailPage({
       {/* Delete confirmation modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <Card className="w-full max-w-md">
+          <Card size="sm" className="w-full max-w-md">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2 text-red-600">
                 <Trash2 className="h-5 w-5" />

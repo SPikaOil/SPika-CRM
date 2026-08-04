@@ -187,7 +187,7 @@ export default function QuotationDetailPage({
     : '—'
 
   return (
-    <div className="p-4 lg:p-6 space-y-4 max-w-3xl mx-auto">
+    <div className="p-3 lg:p-6 space-y-3 max-w-3xl mx-auto w-full">
       {/* Header */}
       <div className="flex items-start gap-3">
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="mt-0.5">
@@ -219,7 +219,7 @@ export default function QuotationDetailPage({
 
       {/* Actions */}
       {isAdmin && (
-        <Card>
+        <Card size="sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Actions</CardTitle>
           </CardHeader>
@@ -285,7 +285,7 @@ export default function QuotationDetailPage({
 
       {/* Convert to order dialog */}
       {showConvertDialog && (
-        <Card className="border-red-200 bg-red-50 dark:bg-red-950/20">
+        <Card size="sm" className="border-red-200 bg-red-50 dark:bg-red-950/20">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <ShoppingCart className="h-4 w-4 text-red-600" />
@@ -347,7 +347,7 @@ export default function QuotationDetailPage({
       )}
 
       {/* Quote details */}
-      <Card>
+      <Card size="sm">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Quote Details</CardTitle>
         </CardHeader>
@@ -394,7 +394,7 @@ export default function QuotationDetailPage({
       </Card>
 
       {/* Items */}
-      <Card>
+      <Card size="sm">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Items</CardTitle>
         </CardHeader>

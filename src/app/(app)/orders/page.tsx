@@ -374,7 +374,7 @@ function OrdersPageInner() {
       {/* Mark as Paid modal */}
       {paidTarget && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <Card className="w-full max-w-md">
+          <Card size="sm" className="w-full max-w-md">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2 text-emerald-600">
                 <CheckCircle2 className="h-5 w-5" />
@@ -414,7 +414,7 @@ function OrdersPageInner() {
       {/* Delete confirmation modal */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <Card className="w-full max-w-md">
+          <Card size="sm" className="w-full max-w-md">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2 text-red-600">
                 <Trash2 className="h-5 w-5" />

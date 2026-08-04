@@ -76,7 +76,7 @@ export default function QuoteDetailPage({
 
   if (isLoading) {
     return (
-      <div className="p-4 lg:p-6 space-y-4 max-w-2xl mx-auto">
+      <div className="p-3 lg:p-6 space-y-3 max-w-3xl mx-auto w-full">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-40 rounded-xl" />
         <Skeleton className="h-60 rounded-xl" />
@@ -97,7 +97,7 @@ export default function QuoteDetailPage({
   const items = quote.items as QuoteItem[]
 
   return (
-    <div className="p-4 lg:p-6 space-y-4 max-w-2xl mx-auto">
+    <div className="p-3 lg:p-6 space-y-3 max-w-3xl mx-auto w-full">
       {/* Header */}
       <div className="flex items-start gap-3">
         <Button variant="ghost" size="icon" onClick={() => router.back()}>
@@ -184,7 +184,7 @@ export default function QuoteDetailPage({
       </div>
 
       {/* Details */}
-      <Card>
+      <Card size="sm">
         <CardHeader><CardTitle className="text-base">Delivery Note Details</CardTitle></CardHeader>
         <CardContent className="space-y-2 text-sm">
           <Row label="Customer" value={quote.customer?.company_name ?? '—'} />
@@ -198,7 +198,7 @@ export default function QuoteDetailPage({
       </Card>
 
       {/* Line Items */}
-      <Card>
+      <Card size="sm">
         <CardHeader><CardTitle className="text-base">Line Items</CardTitle></CardHeader>
         <CardContent className="space-y-2">
           {items.map((item, i) => (

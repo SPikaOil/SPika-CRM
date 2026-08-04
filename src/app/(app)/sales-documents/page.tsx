@@ -267,7 +267,7 @@ export default function SalesDocumentsPage() {
       {/* Upload modal */}
       {showUpload && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <Card className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl">
+          <Card size="sm" className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl">
             <CardContent className="pt-5 space-y-4">
               <div className="flex items-center justify-between">
                 <p className="font-semibold flex items-center gap-2">
@@ -354,7 +354,7 @@ export default function SalesDocumentsPage() {
       {/* New folder modal */}
       {showNewFolder && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <Card className="w-full max-w-sm">
+          <Card size="sm" className="w-full max-w-sm">
             <CardContent className="pt-5 space-y-4">
               <p className="font-semibold flex items-center gap-2"><FolderPlus className="h-4 w-4" /> New Folder</p>
               <Input
@@ -382,7 +382,7 @@ export default function SalesDocumentsPage() {
       {/* Move document modal */}
       {movingDoc && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <Card className="w-full max-w-sm">
+          <Card size="sm" className="w-full max-w-sm">
             <CardContent className="pt-5 space-y-4">
               <p className="font-semibold flex items-center gap-2"><MoveRight className="h-4 w-4" /> Move "{movingDoc.name}"</p>
               <div className="space-y-1">
@@ -420,7 +420,7 @@ export default function SalesDocumentsPage() {
       {/* Delete folder confirmation */}
       {deleteFolderTarget && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <Card className="w-full max-w-sm">
+          <Card size="sm" className="w-full max-w-sm">
             <CardContent className="pt-6 space-y-4">
               <p className="font-semibold">Delete folder "{deleteFolderTarget.name}"?</p>
               <p className="text-sm text-muted-foreground">Files inside will be moved to root. The folder will be removed.</p>
@@ -442,7 +442,7 @@ export default function SalesDocumentsPage() {
       {/* Delete document confirmation */}
       {deleteDocTarget && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <Card className="w-full max-w-sm">
+          <Card size="sm" className="w-full max-w-sm">
             <CardContent className="pt-6 space-y-4">
               <p className="font-semibold">Delete this document?</p>
               <p className="text-sm text-muted-foreground">This cannot be undone.</p>

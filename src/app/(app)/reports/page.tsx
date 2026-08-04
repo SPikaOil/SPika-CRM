@@ -241,7 +241,7 @@ export default function ReportsPage() {
       </div>
 
       {/* Period picker */}
-      <Card className="py-0">
+      <Card size="sm" className="py-0">
         <CardContent className="pt-2.5 pb-2.5 space-y-2">
           <div className="flex flex-wrap gap-1.5">
             {[
@@ -283,7 +283,7 @@ export default function ReportsPage() {
       </Card>
 
       {/* Full CRM export */}
-      <Card className="py-3 gap-2">
+      <Card size="sm" className="py-3 gap-2">
         <CardHeader>
           <CardTitle className="text-sm">Full Report</CardTitle>
         </CardHeader>
@@ -345,7 +345,7 @@ export default function ReportsPage() {
       </div>
 
       {/* Sales per customer */}
-      <Card className="py-3 gap-2">
+      <Card size="sm" className="py-3 gap-2">
         <CardHeader>
           <CardTitle className="text-sm">Sales per Customer</CardTitle>
         </CardHeader>
@@ -379,7 +379,7 @@ export default function ReportsPage() {
       </Card>
 
       {/* Sales per product */}
-      <Card className="py-3 gap-2">
+      <Card size="sm" className="py-3 gap-2">
         <CardHeader>
           <CardTitle className="text-sm">Sales per Product</CardTitle>
         </CardHeader>
@@ -420,7 +420,7 @@ export default function ReportsPage() {
       </Card>
 
       {/* Sales flow per customer */}
-      <Card className="py-3 gap-2">
+      <Card size="sm" className="py-3 gap-2">
         <CardHeader>
           <CardTitle className="text-sm">Sales Flow per Customer</CardTitle>
         </CardHeader>
@@ -453,7 +453,7 @@ export default function ReportsPage() {
       </Card>
 
       {/* Oil stock per month */}
-      <Card className="py-3 gap-2">
+      <Card size="sm" className="py-3 gap-2">
         <CardHeader>
           <CardTitle className="text-sm">SPika Oil Stock per Month</CardTitle>
         </CardHeader>

@@ -129,7 +129,7 @@ export default function TasksPage() {
 
       {/* New Task Form */}
       {showForm && (
-        <Card className="border-red-200 dark:border-red-900">
+        <Card size="sm" className="border-red-200 dark:border-red-900">
           <CardHeader><CardTitle className="text-base">New Task</CardTitle></CardHeader>
           <CardContent>
             <form onSubmit={handleCreate} className="space-y-3">

@@ -179,7 +179,7 @@ export default function StockPage() {
       )}
 
       {/* Current oil stock */}
-      <Card className="py-3 gap-2">
+      <Card size="sm" className="py-3 gap-2">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm">
             <Droplets className="h-4 w-4" /> Ready-to-bottle Oil — {monthOptions().find(o => o.value === month)?.label}
@@ -225,7 +225,7 @@ export default function StockPage() {
       </Card>
 
       {/* Safety stock (IJzeren Voorraad) */}
-      <Card className="py-3 gap-2">
+      <Card size="sm" className="py-3 gap-2">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm">
             <Shield className="h-4 w-4" /> Safety Stock (IJzeren Voorraad)

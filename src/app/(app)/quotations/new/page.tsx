@@ -179,12 +179,12 @@ function NewQuotationInner() {
   }
 
   return (
-    <div className="p-4 lg:p-6 max-w-2xl mx-auto space-y-4">
+    <div className="p-3 lg:p-6 max-w-3xl mx-auto w-full space-y-3">
       <h1 className="text-2xl font-bold">New Quotation</h1>
 
       <form onSubmit={onSubmit} className="space-y-4">
         {/* Setup */}
-        <Card>
+        <Card size="sm">
           <CardHeader><CardTitle className="text-base">Quotation Details</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-1.5">
@@ -252,7 +252,7 @@ function NewQuotationInner() {
 
         {/* Products */}
         {items.length > 0 && (
-          <Card>
+          <Card size="sm">
             <CardHeader>
               <CardTitle className="text-base">Products</CardTitle>
               <p className="text-xs text-muted-foreground">

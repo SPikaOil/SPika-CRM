@@ -96,11 +96,11 @@ function StatCard({
   if (href) {
     return (
       <Link href={href}>
-        <Card className="py-0 hover:bg-accent transition-colors cursor-pointer">{inner}</Card>
+        <Card size="sm" className="py-0 hover:bg-accent transition-colors cursor-pointer">{inner}</Card>
       </Link>
     )
   }
-  return <Card className="py-0">{inner}</Card>
+  return <Card size="sm" className="py-0">{inner}</Card>
 }
 
 // One delivery in the sales agenda — links to the delivery screen
@@ -263,7 +263,7 @@ function BottlesCard({
   const fmtMoney = (n: number) => `XCG ${Math.round(n).toLocaleString('en')}`
 
   return (
-    <Card className="py-0 gap-0">
+    <Card size="sm" className="py-0 gap-0">
       <CardContent className="p-2.5 space-y-1.5">
         {/* The month picker lives in the page header — see the header row */}
 
@@ -1216,7 +1216,7 @@ export default function DashboardPage() {
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
               <Package className="h-3.5 w-3.5" /> Bottles you picked up
             </p>
-            <Card className="py-0">
+            <Card size="sm" className="py-0">
               <CardContent className="p-3">
                 {myHandover.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-2">No bottles handed over to you yet</p>
@@ -1241,13 +1241,13 @@ export default function DashboardPage() {
             </p>
 
             {isLoading && (
-              <Card className="py-0"><CardContent className="p-3 space-y-2">
+              <Card size="sm" className="py-0"><CardContent className="p-3 space-y-2">
                 {[0,1].map(i => <Skeleton key={i} className="h-8 w-full" />)}
               </CardContent></Card>
             )}
 
             {!isLoading && myDeliveries.length === 0 && (
-              <Card className="py-0"><CardContent>
+              <Card size="sm" className="py-0"><CardContent>
                 <p className="text-sm text-muted-foreground text-center py-6">No deliveries assigned to you</p>
               </CardContent></Card>
             )}
@@ -1266,7 +1266,7 @@ export default function DashboardPage() {
                         {isToday && <Badge className="bg-red-600 text-white text-[10px] px-1.5 py-0">Today</Badge>}
                         {isPast && <Badge className="bg-red-100 text-red-700 text-[10px] px-1.5 py-0">Overdue</Badge>}
                       </p>
-                      <Card className="py-0"><CardContent className="p-0 divide-y">
+                      <Card size="sm" className="py-0"><CardContent className="p-0 divide-y">
                         {list.map(o => <DeliveryRow key={o.id} o={o} />)}
                       </CardContent></Card>
                     </div>
@@ -1276,7 +1276,7 @@ export default function DashboardPage() {
                 {deliveryGroups.undated.length > 0 && (
                   <div>
                     <p className="text-xs font-semibold text-muted-foreground mb-1.5">No date yet</p>
-                    <Card className="py-0"><CardContent className="p-0 divide-y">
+                    <Card size="sm" className="py-0"><CardContent className="p-0 divide-y">
                       {deliveryGroups.undated.map(o => <DeliveryRow key={o.id} o={o} />)}
                     </CardContent></Card>
                   </div>
@@ -1296,7 +1296,7 @@ export default function DashboardPage() {
             All orders <ArrowRight className="h-3 w-3" />
           </Link>
         </div>
-        <Card className="py-0">
+        <Card size="sm" className="py-0">
           <CardContent className="p-0 divide-y">
             {isLoading && [0,1,2].map(i => (
               <div key={i} className="flex items-center gap-3 px-3 py-2">
@@ -1348,7 +1348,7 @@ export default function DashboardPage() {
               All tasks <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
-          <Card className="py-0">
+          <Card size="sm" className="py-0">
             <CardContent className="p-0 divide-y">
               {isLoading && [0,1,2].map(i => (
                 <div key={i} className="flex items-center gap-3 px-3 py-2">

@@ -385,7 +385,7 @@ export default function PortalManagementPage() {
       {tab === 'customers' && <>
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-2">
-        <Card className="py-0">
+        <Card size="sm" className="py-0">
           <CardContent className="py-2 flex items-center gap-2.5 min-w-0">
             <div className="h-8 w-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center shrink-0">
               <MailCheck className="h-4 w-4 text-green-600" />
@@ -396,7 +396,7 @@ export default function PortalManagementPage() {
             </div>
           </CardContent>
         </Card>
-        <Card className="py-0">
+        <Card size="sm" className="py-0">
           <CardContent className="py-2 flex items-center gap-2.5 min-w-0">
             <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
               <ShieldOff className="h-4 w-4 text-muted-foreground" />

@@ -279,7 +279,7 @@ export default function DeliveryNoteDetailPage({
   const podPhotoUrl = delivery?.pod_file_url
 
   return (
-    <div className="p-4 lg:p-6 space-y-4 max-w-2xl mx-auto">
+    <div className="p-3 lg:p-6 space-y-3 max-w-3xl mx-auto w-full">
       {/* Hard copy warning */}
       {order.customer?.hardcopy_required && (
         <div className="flex items-start gap-3 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-xl p-3">
@@ -315,7 +315,7 @@ export default function DeliveryNoteDetailPage({
 
       {/* Status Timeline */}
       {order.status !== 'invoice_blocked' && (
-        <Card>
+        <Card size="sm">
           <CardHeader>
             <CardTitle className="text-base">Status Timeline</CardTitle>
           </CardHeader>
@@ -361,8 +361,8 @@ export default function DeliveryNoteDetailPage({
 
       {/* Planned Delivery Date (read-only) */}
       {order.planned_date && (
-        <Card>
-          <CardContent className="pt-4 pb-4">
+        <Card size="sm">
+          <CardContent>
             <div className="flex items-center gap-3">
               <Calendar className="h-5 w-5 text-muted-foreground shrink-0" />
               <div>
@@ -399,8 +399,8 @@ export default function DeliveryNoteDetailPage({
       )}
 
       {/* PDF Actions */}
-      <Card>
-        <CardContent className="pt-4 pb-4 space-y-3">
+      <Card size="sm">
+        <CardContent className="space-y-3">
           <p className="text-sm font-medium">Delivery Note PDF</p>
           <div className="flex flex-wrap gap-2">
             <Button
@@ -477,7 +477,7 @@ export default function DeliveryNoteDetailPage({
       </Card>
 
       {/* Items — no prices */}
-      <Card>
+      <Card size="sm">
         <CardHeader>
           <CardTitle className="text-base">Order Items</CardTitle>
         </CardHeader>
@@ -501,7 +501,7 @@ export default function DeliveryNoteDetailPage({
 
       {/* POD photo */}
       {podPhotoUrl && (
-        <Card>
+        <Card size="sm">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <ImageIcon className="h-4 w-4" />
@@ -525,7 +525,7 @@ export default function DeliveryNoteDetailPage({
       )}
 
       {/* Details */}
-      <Card>
+      <Card size="sm">
         <CardHeader>
           <CardTitle className="text-base">Details</CardTitle>
         </CardHeader>

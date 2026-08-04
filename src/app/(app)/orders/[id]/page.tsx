@@ -525,7 +525,7 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
   const items = order.items as QuoteItem[]
 
   return (
-    <div className="p-4 lg:p-6 space-y-4 max-w-2xl mx-auto">
+    <div className="p-3 lg:p-6 space-y-3 max-w-3xl mx-auto w-full">
       {/* Hard copy warning */}
       {order.customer?.hardcopy_required && (
         <div className="flex items-start gap-3 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-xl p-3">
@@ -601,7 +601,7 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
 
       {/* Status Timeline */}
       {order.status !== 'invoice_blocked' && (
-        <Card>
+        <Card size="sm">
           <CardHeader><CardTitle className="text-base">Status Timeline</CardTitle></CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
@@ -636,7 +636,7 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
       )}
 
       {order.status === 'invoice_blocked' && (
-        <Card className="border-red-200 bg-red-50 dark:bg-red-950/20">
+        <Card size="sm" className="border-red-200 bg-red-50 dark:bg-red-950/20">
           <CardContent className="flex items-center gap-3 py-4">
             <AlertCircle className="h-5 w-5 text-red-600 shrink-0" />
             <div>
@@ -649,7 +649,7 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
 
       {/* Pending Approval — admin action card */}
       {order.status === 'pending_approval' && isAdmin && (
-        <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950/20">
+        <Card size="sm" className="border-orange-200 bg-orange-50 dark:bg-orange-950/20">
           <CardHeader><CardTitle className="text-base text-orange-700 dark:text-orange-400">Customer Order — Awaiting Approval</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             {order.customer?.ob_form_required && !(order.customer as any).ob_form_signed && (
@@ -775,8 +775,8 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
         }
 
         return (
-          <Card>
-            <CardContent className="pt-4 pb-4 space-y-3">
+          <Card size="sm">
+            <CardContent className="space-y-3">
               <div className="flex items-center gap-3">
                 <PackageCheck className="h-5 w-5 text-muted-foreground shrink-0" />
                 <div className="flex-1">
@@ -823,8 +823,8 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
 
       {/* Planned Delivery Date */}
       {(order.status === 'processing' || order.status === 'out_for_delivery') && (
-        <Card>
-          <CardContent className="pt-4 pb-4">
+        <Card size="sm">
+          <CardContent>
             <div className="flex items-center gap-3">
               <Calendar className="h-5 w-5 text-muted-foreground shrink-0" />
               <div className="flex-1">
@@ -860,8 +860,8 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
           itself stays attached to the customer: revenue, history and the chase
           are all unaffected, only the printed document changes. */}
       {isAdmin && (
-        <Card>
-          <CardContent className="pt-4 pb-4">
+        <Card size="sm">
+          <CardContent>
             <label className="flex items-start gap-3 cursor-pointer">
               <input
                 type="checkbox"
@@ -886,8 +886,8 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
 
       {/* Invoice Date (admin only) */}
       {isAdmin && (
-        <Card>
-          <CardContent className="pt-4 pb-4">
+        <Card size="sm">
+          <CardContent>
             <div className="flex items-center gap-3">
               <Calendar className="h-5 w-5 text-muted-foreground shrink-0" />
               <div className="flex-1">
@@ -917,8 +917,8 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
 
       {/* Payment Type (admin only) */}
       {isAdmin && (
-        <Card>
-          <CardContent className="pt-4 pb-4">
+        <Card size="sm">
+          <CardContent>
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-medium">Payment Type</p>
@@ -982,8 +982,8 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
           is created FROM the order so the link between the two is never in
           doubt. */}
       {isAdmin && (
-        <Card>
-          <CardContent className="pt-4 pb-4 space-y-3">
+        <Card size="sm">
+          <CardContent className="space-y-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-sm font-medium">Credit Note</p>
@@ -1135,8 +1135,8 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
       )}
 
       {/* PDF Actions */}
-      <Card>
-        <CardContent className="pt-4 pb-4 space-y-3">
+      <Card size="sm">
+        <CardContent className="space-y-3">
           <p className="text-sm font-medium">Documents</p>
 
           {/* Invoice */}
@@ -1258,8 +1258,8 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
         const startLoc = (order.delivery as any)?.gps_location
         if (!sigLoc && !startLoc) return null
         return (
-          <Card className="border-blue-100">
-            <CardContent className="pt-4 pb-4 space-y-3">
+          <Card size="sm" className="border-blue-100">
+            <CardContent className="space-y-3">
               <p className="text-sm font-medium flex items-center gap-1.5">
                 <MapPin className="h-4 w-4 text-blue-500" />
                 Signature Location
@@ -1354,7 +1354,7 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
       )}
 
       {/* Items */}
-      <Card>
+      <Card size="sm">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-base">Order Items</CardTitle>
           {isAdmin && !editingItems && (
@@ -1576,7 +1576,7 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
 
       {/* Edit Log — shown when post-signature changes have been made */}
       {isAdmin && (order.edit_log ?? []).length > 0 && (
-        <Card className="border-orange-200">
+        <Card size="sm" className="border-orange-200">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <AlertCircle className="h-4 w-4 text-orange-500" />
@@ -1617,8 +1617,8 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
 
       {/* PO Number — admin editable */}
       {isAdmin && (
-        <Card>
-          <CardContent className="pt-4 pb-4">
+        <Card size="sm">
+          <CardContent>
             <div className="flex items-center gap-3">
               <div className="flex-1">
                 <p className="text-sm font-medium mb-1">PO Number <span className="text-muted-foreground font-normal">(optional)</span></p>
@@ -1656,7 +1656,7 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
       )}
 
       {/* Details */}
-      <Card>
+      <Card size="sm">
         <CardHeader><CardTitle className="text-base">Details</CardTitle></CardHeader>
         <CardContent className="space-y-2 text-sm">
           <Row label="Assigned To" value={order.assigned_user?.name ?? '—'} />
@@ -1906,7 +1906,7 @@ function ExportOrderSection({ order }: { order: Order & { customer?: any } }) {
   const colli = (order.colli_contents ?? []).length
 
   return (
-    <Card>
+    <Card size="sm">
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <Ship className="h-4 w-4" />

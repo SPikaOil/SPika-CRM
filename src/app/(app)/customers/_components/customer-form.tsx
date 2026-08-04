@@ -448,7 +448,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
 
         {/* ── Tab: Info ── */}
         <TabsContent value="info" className="space-y-4 mt-4">
-          <Card>
+          <Card size="sm">
             <CardHeader><CardTitle className="text-base">Basic Information</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
@@ -561,7 +561,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card size="sm">
             <CardHeader><CardTitle className="text-base">Contact Details</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
@@ -630,7 +630,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
 
         {/* ── Tab: Address ── */}
         <TabsContent value="address" className="space-y-4 mt-4">
-          <Card>
+          <Card size="sm">
             <CardHeader><CardTitle className="text-base">Address</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Billing Address</p>
@@ -696,7 +696,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
 
         {/* ── Tab: Settings ── */}
         <TabsContent value="settings" className="space-y-4 mt-4">
-          <Card>
+          <Card size="sm">
             <CardHeader><CardTitle className="text-base">Delivery</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
@@ -767,7 +767,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card size="sm">
             <CardHeader><CardTitle className="text-base">Business Details</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               {category !== 'b2c' && (
@@ -841,7 +841,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card size="sm">
             <CardHeader><CardTitle className="text-base">Store Locator</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
@@ -868,7 +868,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
 
         {/* ── Tab: Products ── */}
         <TabsContent value="products" className="space-y-4 mt-4">
-          <Card>
+          <Card size="sm">
             <CardHeader>
               <CardTitle className="text-base">Products & Pricing</CardTitle>
               <p className="text-xs text-muted-foreground">

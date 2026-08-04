@@ -158,7 +158,7 @@ export default function StoreLocatorAdminPage() {
       </div>
 
       {/* Add / edit */}
-      <Card className="py-3 gap-2">
+      <Card size="sm" className="py-3 gap-2">
         <CardHeader>
           <CardTitle className="text-sm">{editingId ? 'Edit location' : 'Add location'}</CardTitle>
         </CardHeader>
@@ -230,7 +230,7 @@ export default function StoreLocatorAdminPage() {
       </Card>
 
       {/* Embed instructions */}
-      <Card className="py-3 gap-2">
+      <Card size="sm" className="py-3 gap-2">
         <CardHeader><CardTitle className="text-sm">Put the map on your website</CardTitle></CardHeader>
         <CardContent className="space-y-2">
           <p className="text-xs text-muted-foreground">

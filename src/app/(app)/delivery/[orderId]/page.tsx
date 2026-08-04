@@ -425,7 +425,7 @@ export default function DeliveryPage({
 
         {/* Step 1: Start */}
         {step === 'start' && (
-          <Card>
+          <Card size="sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <MapPin className="h-5 w-5 text-red-600" />
@@ -516,7 +516,7 @@ export default function DeliveryPage({
         {/* Step 2: Table Bottles */}
         {/* Known contacts at this customer — shown after GPS so you arrive knowing their names */}
         {(step === 'table_bottles' || step === 'pod') && knownSigners && knownSigners.length > 0 && (
-          <Card className="border-red-200 bg-red-50/50 dark:bg-red-950/20">
+          <Card size="sm" className="border-red-200 bg-red-50/50 dark:bg-red-950/20">
             <CardContent className="py-3">
               <p className="text-xs font-semibold text-red-700 dark:text-red-400 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
                 <PenLine className="h-3.5 w-3.5" /> Usually signs here
@@ -548,7 +548,7 @@ export default function DeliveryPage({
         )}
 
         {step === 'table_bottles' && (
-          <Card>
+          <Card size="sm">
             <CardHeader>
               <CardTitle>Step 2 — Table Bottles Return</CardTitle>
             </CardHeader>
@@ -584,7 +584,7 @@ export default function DeliveryPage({
           <div className="space-y-4">
 
             {/* Invoice Preview */}
-            <Card>
+            <Card size="sm">
               <CardHeader>
                 <CardTitle className="text-base">Invoice for Customer</CardTitle>
                 <p className="text-xs text-muted-foreground">Show this to the customer before signing</p>
@@ -623,7 +623,7 @@ export default function DeliveryPage({
             </Card>
 
             {/* Signature */}
-            <Card>
+            <Card size="sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <PenLine className="h-5 w-5 text-red-600" />
@@ -766,7 +766,7 @@ export default function DeliveryPage({
 
         {/* Step 4: Done */}
         {step === 'done' && (
-          <Card className="border-green-200 bg-green-50 dark:bg-green-950/20">
+          <Card size="sm" className="border-green-200 bg-green-50 dark:bg-green-950/20">
             <CardContent className="py-10 flex flex-col items-center gap-4 text-center">
               <CheckCircle className="h-16 w-16 text-green-600" />
               <div>
@@ -785,7 +785,7 @@ export default function DeliveryPage({
         {/* Remove signer confirmation — admin only */}
         {signerToRemove && (
           <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-            <Card className="w-full max-w-md">
+            <Card size="sm" className="w-full max-w-md">
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                   <PenLine className="h-5 w-5 text-muted-foreground" />

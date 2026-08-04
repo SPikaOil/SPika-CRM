@@ -166,7 +166,7 @@ export default function OBSignPage({
       <div className="p-4 max-w-lg mx-auto space-y-4 pb-28">
 
         {/* ── Section 1: Company details ── */}
-        <Card>
+        <Card size="sm">
           <CardHeader>
             <CardTitle className="text-base">Company Details</CardTitle>
             <p className="text-xs text-muted-foreground">Pre-filled from customer — edit if needed</p>
@@ -194,7 +194,7 @@ export default function OBSignPage({
         </Card>
 
         {/* ── Section 2: Document preview ── */}
-        <Card className="border-dashed">
+        <Card size="sm" className="border-dashed">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-mono underline">OB DECLARATIE FORMULIER 2026</CardTitle>
           </CardHeader>
@@ -239,7 +239,7 @@ export default function OBSignPage({
         </Card>
 
         {/* ── Section 3: Signer ── */}
-        <Card>
+        <Card size="sm">
           <CardHeader>
             <CardTitle className="text-base">Signer</CardTitle>
           </CardHeader>
@@ -258,7 +258,7 @@ export default function OBSignPage({
         </Card>
 
         {/* ── Section 4: Signature ── */}
-        <Card>
+        <Card size="sm">
           <CardHeader>
             <CardTitle className="text-base">Signature <span className="text-red-500">*</span></CardTitle>
             <p className="text-xs text-muted-foreground">Sign in the box below</p>
