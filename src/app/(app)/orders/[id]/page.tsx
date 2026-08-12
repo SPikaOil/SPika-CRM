@@ -23,7 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Order, OrderCurrency, OrderEditLogEntry, OrderStatus, QuoteItem } from '@/types'
 import { SPIKA_PRODUCTS } from '@/lib/products'
 import { getNextCashOrderNumber, getNextOrderNumber, getCreditNoteNumber } from '@/lib/order-number'
-import { formatCurrency, formatTht, thtToMonthInput, monthInputToTht } from '@/lib/utils'
+import { formatCurrency, formatTht, thtToMonthInput, monthInputToTht, currentMonthInput } from '@/lib/utils'
 
 const statusColors: Record<OrderStatus, string> = {
   pending_approval: 'bg-orange-100 text-orange-700',
@@ -1531,9 +1531,19 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                             <span className={`text-xs ${item.tht_date ? 'text-muted-foreground' : 'text-red-600 font-medium'}`}>THT</span>
                             <Input
                               type="month"
+                              // A best-before in the past is always a typo. `min`
+                              // greys out earlier months in the picker; the check
+                              // below catches a typed one, which the picker does
+                              // not prevent on every browser.
+                              min={currentMonthInput()}
                               value={thtToMonthInput(item.tht_date)}
                               onChange={e => {
-                                const newItems = items.map((it, idx) => idx === i ? { ...it, tht_date: monthInputToTht(e.target.value) ?? undefined } : it)
+                                const month = e.target.value
+                                if (month && month < currentMonthInput()) {
+                                  toast.error('THT cannot be in the past')
+                                  return
+                                }
+                                const newItems = items.map((it, idx) => idx === i ? { ...it, tht_date: monthInputToTht(month) ?? undefined } : it)
                                 updateOrder.mutate({ id: order.id, values: { items: newItems } as any })
                               }}
                               className={`h-7 w-36 text-xs px-2 ${!item.tht_date ? 'border-red-300' : ''}`}

@@ -23,7 +23,7 @@ import { toast } from 'sonner'
 import { useOrder } from '@/hooks/use-orders'
 import { useCustomerSigners, useHideCustomerSigner } from '@/hooks/use-customer-signers'
 import { createClient } from '@/lib/supabase/client'
-import { thtToMonthInput, monthInputToTht } from '@/lib/utils'
+import { thtToMonthInput, monthInputToTht, currentMonthInput } from '@/lib/utils'
 import { queuePodUpload, processQueue } from '@/lib/offline-queue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -142,6 +142,13 @@ export default function DeliveryPage({
   const missingTht = deliveryItems.some(i => !i.tht_date)
 
   async function updateItemTht(sku: string, thtMonth: string) {
+    // A best-before in the past is always a typo. The `min` on the input greys
+    // out earlier months in the picker; this catches a typed one, which not
+    // every browser blocks.
+    if (thtMonth && thtMonth < currentMonthInput()) {
+      toast.error('THT cannot be in the past')
+      return
+    }
     const newItems = ((order?.items as any[]) ?? []).map(i => i.sku === sku ? { ...i, tht_date: monthInputToTht(thtMonth) ?? undefined } : i)
     await supabase.from('orders').update({ items: newItems }).eq('id', orderId)
     refetch()
@@ -473,6 +480,7 @@ export default function DeliveryPage({
                     <span className="text-sm truncate">{item.name}</span>
                     <Input
                       type="month"
+                      min={currentMonthInput()}
                       value={thtToMonthInput(item.tht_date)}
                       onChange={e => updateItemTht(item.sku, e.target.value)}
                       className={`h-8 w-40 text-sm px-2 shrink-0 ${!item.tht_date ? 'border-red-400' : ''}`}

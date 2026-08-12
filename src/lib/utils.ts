@@ -72,3 +72,22 @@ export function thtToMonthInput(value?: string | null): string {
 export function monthInputToTht(value: string): string | null {
   return value ? `${value.slice(0, 7)}-01` : null
 }
+
+/**
+ * The earliest month a THT may be set to: this one.
+ *
+ * A best-before in the past means the bottle is already expired, so it can only
+ * be a typing mistake — and one that would travel all the way onto a packing
+ * list and a customs document before anyone noticed. Fed to the `min` attribute
+ * of every THT input.
+ */
+export function currentMonthInput(): string {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+
+/** True when a stored THT lies before the current month. */
+export function isThtInPast(value?: string | null): boolean {
+  if (!value) return false
+  return value.slice(0, 7) < currentMonthInput()
+}
