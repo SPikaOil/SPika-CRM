@@ -225,7 +225,13 @@ export async function buildPeriodSnapshot(
     }
   })
 
-  const revenueOrders = orders.filter(o => REVENUE_STATUSES.includes(o.status))
+  // A consignment invoice settles a period of a consignment note that was
+  // already counted in full when it was created. Counting it here as well would
+  // book the same bottles twice — once as stock placed, once as stock sold.
+  // It is a payable invoice, not new revenue.
+  const revenueOrders = orders.filter(o =>
+    REVENUE_STATUSES.includes(o.status) && o.order_type !== 'consignment_invoice'
+  )
   const openOrders = orders.filter(o => OPEN_STATUSES.includes(o.status))
 
   // ── Customers ────────────────────────────────────────────────────────────

@@ -188,7 +188,13 @@ export interface OrderEditLogEntry {
 }
 
 export type PaymentType = 'invoice' | 'cash'
-export type OrderType = 'normal' | 'free_bottle_service'
+/**
+ * `consignment_invoice` settles a period of a consignment note (art. 9.2 of the
+ * consignment agreement): a real, payable invoice for the quantities reported
+ * sold. It never counts as revenue — revenue was already booked on the
+ * consignment note itself when it was created.
+ */
+export type OrderType = 'normal' | 'free_bottle_service' | 'credit_note' | 'consignment_invoice'
 export type OrderCurrency = 'XCG' | 'USD' | 'EUR'
 
 export interface Order {
@@ -210,6 +216,10 @@ export interface Order {
   // Stamped from the customer at creation (DB trigger). Consignment orders are
   // kept out of the overdue/te-betalen chase but still count as revenue.
   is_consignment: boolean
+  /** For a consignment_invoice: the consignment note whose period it settles. */
+  consignment_of?: string | null
+  /** Set once the consignment contract has been settled and closed. */
+  consignment_closed_at?: string | null
   /**
    * Print this invoice as a cash sale: the Bill To block reads "Cash Payment"
    * instead of the customer's company details. The order itself stays attached

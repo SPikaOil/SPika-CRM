@@ -721,6 +721,20 @@ export default function DashboardPage() {
       .gte('sales_date', start)
       .lt('sales_date', end)
 
+    // A consignment invoice settles a period of a consignment note that was
+    // already counted in full. Counting it here as well books the same bottles
+    // twice — once as stock placed, once as stock sold.
+    //
+    // Read from the orders TABLE, not the view: orders_with_sales_date was
+    // created with `o.*` in migration 048 and is frozen at that column list, so
+    // order_type (added in 052) is not in it. Filtering on it there returns 400
+    // and silently zeroes this figure — the same trap as fx_rate below.
+    const { data: settlementRows } = await supabase
+      .from('orders')
+      .select('id')
+      .eq('order_type', 'consignment_invoice')
+    const settlementIds = new Set((settlementRows ?? []).map(r => r.id as string))
+
     // Exchange rates come from the orders TABLE, not the view: the view was
     // frozen with `o.*` in migration 048 and therefore has no fx_rate column.
     // Only non-XCG orders are fetched — everything else is rate 1 by definition,
@@ -737,6 +751,7 @@ export default function DashboardPage() {
     const byWorker: Record<string, number> = {}
 
     for (const order of data ?? []) {
+      if (settlementIds.has(order.id as string)) continue
       const items: { sku: string; qty: number }[] = order.items ?? []
       const count = items
         .filter(item => COUNTED_SKUS.includes(item.sku))
