@@ -69,14 +69,16 @@ create table if not exists public.batches (
 comment on table public.batches is
   'A batch of filled bottles. Created at Stock, chosen on an order, follows the goods to the warehouse or the customer.';
 
--- ── Orders come out of a batch ───────────────────────────────────────────────
-alter table public.orders
-  add column if not exists batch_id uuid references public.batches(id);
-
-create index if not exists orders_batch_id_idx on public.orders (batch_id);
-
-comment on column public.orders.batch_id is
-  'The batch this order is served from. Null = not allocated yet.';
+-- ── Orders are NOT tied to one batch ─────────────────────────────────────────
+-- There is deliberately no orders.batch_id. An order can be picked from two
+-- batches when one runs out mid-pick, and a single box can hold bottles from
+-- both — Danique, 2026-08-14. A column on the order would force a lie.
+--
+-- The link already exists where it belongs: in stock_movements. Picking for an
+-- order writes one row per batch, so "50x 100ml" can honestly read as 30 from
+-- SPGE22 and 20 from SPGE23. Which batches an order carries is therefore a
+-- question you ask the movements, and that is also where the documents read
+-- their batch numbers from.
 
 -- ── Handover comes out of a batch too ────────────────────────────────────────
 -- Migration 040 gave handover_batches a free-text batch_number. It becomes a
