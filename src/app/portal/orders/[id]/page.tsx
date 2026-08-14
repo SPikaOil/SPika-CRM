@@ -66,11 +66,8 @@ export default function PortalOrderDetailPage({ params }: { params: Promise<{ id
       .select('*, customer:customers(*), deliveries:deliveries(*)')
       .eq('id', id)
       .single()
-    // TEMPORARY: an admin with ?preview=1 may look at this page to check what a
-    // customer sees. Remove together with the layout bypass.
-    const adminPreview = profile?.role === 'admin'
-      && new URLSearchParams(window.location.search).get('preview') === '1'
-    if (data && (data.customer_id === profile?.customer_id || adminPreview)) {
+
+    if (data && data.customer_id === profile?.customer_id) {
       setOrder(data as Order)
       setCustomer((data as any).customer)
     }
