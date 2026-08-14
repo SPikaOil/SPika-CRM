@@ -222,6 +222,10 @@ export interface Order {
   consignment_of?: string | null
   /** Set once the consignment contract has been settled and closed. */
   consignment_closed_at?: string | null
+  /** First day of the consignment term (art. 12.1). Null = no term agreed. */
+  consignment_start?: string | null
+  /** Last day of the term. Drives the closing report and collection deadlines. */
+  consignment_end?: string | null
   /**
    * Print this invoice as a cash sale: the Bill To block reads "Cash Payment"
    * instead of the customer's company details. The order itself stays attached

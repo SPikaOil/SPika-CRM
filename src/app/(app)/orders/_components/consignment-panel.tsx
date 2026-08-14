@@ -103,6 +103,38 @@ export function ConsignmentPanel({ order }: { order: Order }) {
   const totalOpen = totalAgreed - totalInvoiced
   const closed = !!(order as any).consignment_closed_at
 
+  /**
+   * What the term means today. Counted in whole days from midnight so a
+   * contract ending tomorrow never reads "0 days left" because of the hour.
+   */
+  const termNotice = (() => {
+    const end = (order as any).consignment_end as string | null
+    if (!end || closed) return null
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const last = new Date(`${end}T00:00:00`)
+    const days = Math.round((last.getTime() - today.getTime()) / 864e5)
+    const pretty = last.toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })
+
+    if (days < 0) {
+      const over = Math.abs(days)
+      return {
+        tone: 'text-red-600 font-medium',
+        text: `Term ended ${pretty} — ${over} ${over === 1 ? 'day' : 'days'} ago. `
+          + 'The closing report was due within 7 days and the remaining stock is collected within 14.',
+      }
+    }
+    if (days === 0) return { tone: 'text-red-600 font-medium', text: `Last day of the term — ends ${pretty}.` }
+    if (days <= 14) return { tone: 'text-amber-600', text: `${days} days left — term ends ${pretty}.` }
+    return { tone: 'text-muted-foreground', text: `${days} days left — term ends ${pretty}.` }
+  })()
+
+  /** Write one field on the consignment note itself. */
+  async function save(values: Record<string, unknown>) {
+    const { error } = await supabase.from('orders').update(values).eq('id', order.id)
+    if (error) { toast.error(error.message); return }
+    queryClient.invalidateQueries({ queryKey: ['orders', order.id] })
+  }
+
   function reset() {
     setMode('none')
     setQty({})
@@ -225,6 +257,28 @@ export function ConsignmentPanel({ order }: { order: Order }) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
+        {/* The term. Art. 12.4 gives the customer 7 days after it ends to report
+            the last sales, and art. 12.5 gives us 14 days to collect what is
+            left — deadlines nobody can watch for if the app does not know when
+            the contract ends. */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Term starts</Label>
+            <Input type="date" className="h-8"
+              defaultValue={(order as any).consignment_start ?? ''}
+              onBlur={e => save({ consignment_start: e.target.value || null })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Term ends</Label>
+            <Input type="date" className="h-8"
+              defaultValue={(order as any).consignment_end ?? ''}
+              onBlur={e => save({ consignment_end: e.target.value || null })} />
+          </div>
+        </div>
+        {termNotice && (
+          <p className={`text-xs ${termNotice.tone}`}>{termNotice.text}</p>
+        )}
+
         {/* Progress per product — agreed, invoiced, still open */}
         <div className="space-y-1">
           {rows.map(r => (
