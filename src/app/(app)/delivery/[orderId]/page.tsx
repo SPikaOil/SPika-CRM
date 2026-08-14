@@ -10,6 +10,7 @@ import {
   CheckCircle,
   Loader2,
   MapPin,
+  PackageCheck,
   Info,
   PenLine,
   Trash2,
@@ -22,6 +23,8 @@ import SignaturePad from 'signature_pad'
 import { toast } from 'sonner'
 import { useOrder } from '@/hooks/use-orders'
 import { useCustomerSigners, useHideCustomerSigner } from '@/hooks/use-customer-signers'
+import { useUsers } from '@/hooks/use-users'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { createClient } from '@/lib/supabase/client'
 import { thtToMonthInput, monthInputToTht, currentMonthInput } from '@/lib/utils'
 import { queuePodUpload, processQueue } from '@/lib/offline-queue'
@@ -47,6 +50,7 @@ export default function DeliveryPage({
   const { data: order, isLoading, refetch } = useOrder(orderId)
   const { data: knownSigners } = useCustomerSigners((order as any)?.customer_id)
   const { isAdmin } = useAuth()
+  const { data: users } = useUsers()
   const router = useRouter()
   const supabase = createClient()
   const hideSigner = useHideCustomerSigner()
@@ -68,6 +72,16 @@ export default function DeliveryPage({
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState('')
   const [deliveryNotes, setDeliveryNotes] = useState('')
+  // How much of each product goes out in THIS run, and who runs it. Empty means
+  // "everything still open", which is the normal single-delivery case.
+  const [runQty, setRunQty] = useState<Record<string, number>>({})
+  const [runAssignee, setRunAssignee] = useState('')
+  // A run can go somewhere other than the customer's own address without
+  // changing the customer. Off means "the customer address", as always.
+  const [useOtherAddress, setUseOtherAddress] = useState(false)
+  const [runAddress, setRunAddress] = useState({ street: '', zip: '', city: '', country: '' })
+  /** The delivery row for THIS run. Finishing targets it by id, not by order. */
+  const [deliveryId, setDeliveryId] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [signerName, setSignerName] = useState('')
 
@@ -141,6 +155,26 @@ export default function DeliveryPage({
   const deliveryItems = ((order?.items as any[]) ?? []).filter(i => (i.qty ?? 0) > 0 && !String(i.sku).includes('return'))
   const missingTht = deliveryItems.some(i => !i.tht_date)
 
+  // Already handed over on earlier runs, so this run only offers what is left.
+  const alreadyOut = new Map<string, number>()
+  for (const d of (order as any)?.deliveries ?? []) {
+    const lines = (d.items ?? []) as { sku: string; qty: number }[]
+    const source = lines.length > 0 ? lines : deliveryItems
+    for (const it of source) alreadyOut.set(it.sku, (alreadyOut.get(it.sku) ?? 0) + it.qty)
+  }
+  const openPerSku = new Map<string, number>(
+    deliveryItems.map(i => [i.sku, Math.max(0, i.qty - (alreadyOut.get(i.sku) ?? 0))])
+  )
+  const totalOpen = Array.from(openPerSku.values()).reduce((s, n) => s + n, 0)
+
+  /** The lines going out in this run — what was typed, else everything still open. */
+  const runItems = deliveryItems
+    .map(i => ({ ...i, qty: runQty[i.sku] ?? openPerSku.get(i.sku) ?? 0 }))
+    .filter(i => i.qty > 0)
+  const runTotal = runItems.reduce((s, i) => s + i.qty, 0)
+  /** True when this run empties the order — then it is delivered, not partly. */
+  const runCompletesOrder = runTotal >= totalOpen
+
   async function updateItemTht(sku: string, thtMonth: string) {
     // A best-before in the past is always a typo. The `min` on the input greys
     // out earlier months in the picker; this catches a typed one, which not
@@ -183,13 +217,17 @@ export default function DeliveryPage({
       // Create delivery record
       // insert, not upsert: an order can be delivered in parts since migration
       // 058, so a second run is a new delivery and must not overwrite the first.
-      await supabase.from('deliveries').insert({
+      // The id is kept: from here on this run is finished by ID, never by
+      // order_id — an order can have several runs and updating by order_id
+      // would overwrite every one of them.
+      const { data: created } = await supabase.from('deliveries').insert({
         order_id: orderId,
         delivery_started_at: new Date().toISOString(),
         gps_location: coords
           ? { lat: coords.latitude, lng: coords.longitude, accuracy: coords.accuracy }
           : null,
-      })
+      }).select('id').single()
+      if (created?.id) setDeliveryId(created.id as string)
 
       toast.success('Delivery started!')
       if (order?.customer?.track_table_bottles) {
@@ -278,6 +316,13 @@ export default function DeliveryPage({
         pod_type: podMode,
         delivered_at: new Date().toISOString(),
         notes: deliveryNotes,
+        // What went out in THIS run, and who took it. An order can go out in
+        // parts with different people, so neither belongs on the order alone.
+        items: runItems,
+        assigned_to: runAssignee || order?.assigned_to || null,
+        // Only when this run went somewhere else. Null keeps the customer's own
+        // address, and the customer record is never touched by a run.
+        delivery_address: useOtherAddress && runAddress.street.trim() ? runAddress : null,
         signer_name: signerName.trim(),
         gps_location: gps
           ? { lat: gps.latitude, lng: gps.longitude, accuracy: gps.accuracy }
@@ -336,13 +381,19 @@ export default function DeliveryPage({
           }
         }
 
-        await supabase.from('deliveries').update({
+        // By id, not by order_id: with several runs on one order the latter
+        // would finish every run at once with this run's signature.
+        const finish = supabase.from('deliveries').update({
           ...deliveryData,
           pod_file_url: podUrl,
-        }).eq('order_id', orderId)
+        })
+        await (deliveryId
+          ? finish.eq('id', deliveryId)
+          : finish.eq('order_id', orderId).is('delivered_at', null))
 
         await supabase.from('orders').update({
-          status: 'delivered',
+          // Partly delivered until the runs together cover the whole order.
+          status: runCompletesOrder ? 'delivered' : 'partly_delivered',
           ...(signedPdfUrl ? { signed_pdf_url: signedPdfUrl } : {}),
           ...(signatureDataUrl ? { signature_data_url: signatureDataUrl } : {}),
         } as any).eq('id', orderId)
@@ -442,8 +493,20 @@ export default function DeliveryPage({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* The order, as it reads on the order page. A delivery run is a
+                  normal delivery of this order for this customer, so whoever is
+                  standing at the door sees the same facts. */}
               <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-                <p className="font-medium">{order.customer?.company_name}</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-mono text-sm font-medium">{order.order_number}</p>
+                  <p className="font-medium">{order.customer?.company_name}</p>
+                  {(order as any).is_consignment && (
+                    <Badge className="text-xs bg-amber-100 text-amber-700">📦 Consignment</Badge>
+                  )}
+                  {(order as any).payment_type === 'cash' && (
+                    <Badge className="text-xs bg-green-100 text-green-700">Cash</Badge>
+                  )}
+                </div>
                 {(() => {
                   const addr = order.customer?.delivery_address as any
                   return addr?.street ? (
@@ -456,6 +519,60 @@ export default function DeliveryPage({
                   <p className="text-sm text-muted-foreground">
                     Window: {order.customer.delivery_time_window}
                   </p>
+                )}
+                {order.customer?.phone && (
+                  <p className="text-sm text-muted-foreground">{order.customer.phone}</p>
+                )}
+
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-1 text-sm border-t">
+                  {order.po_number && (
+                    <>
+                      <span className="text-muted-foreground">PO number</span>
+                      <span className="text-right font-medium">{order.po_number}</span>
+                    </>
+                  )}
+                  {order.planned_date && (
+                    <>
+                      <span className="text-muted-foreground">Planned</span>
+                      <span className="text-right font-medium">
+                        {new Date(order.planned_date + 'T12:00:00').toLocaleDateString('en', {
+                          weekday: 'short', day: 'numeric', month: 'short',
+                        })}
+                      </span>
+                    </>
+                  )}
+                  <span className="text-muted-foreground">Assigned to</span>
+                  <span className="text-right font-medium">
+                    {(order as any).assigned_user?.name ?? '—'}
+                  </span>
+                  {isAdmin && (
+                    <>
+                      <span className="text-muted-foreground">Total</span>
+                      <span className="text-right font-medium">
+                        {(order as any).currency ?? 'XCG'} {Number(order.total).toFixed(2)}
+                      </span>
+                    </>
+                  )}
+                  {(order as any).transport?.transport_number && (
+                    <>
+                      <span className="text-muted-foreground">Transport</span>
+                      <span className="text-right font-mono font-medium">
+                        {(order as any).transport.transport_number}
+                      </span>
+                    </>
+                  )}
+                  {((order as any).deliveries ?? []).length > 0 && (
+                    <>
+                      <span className="text-muted-foreground">Earlier runs</span>
+                      <span className="text-right font-medium">
+                        {((order as any).deliveries ?? []).length}
+                      </span>
+                    </>
+                  )}
+                </div>
+
+                {order.delivery_notes && (
+                  <p className="text-sm bg-background rounded p-2 border">{order.delivery_notes}</p>
                 )}
               </div>
 
@@ -489,6 +606,75 @@ export default function DeliveryPage({
                     />
                   </div>
                 ))}
+              </div>
+
+              {/* What goes out in THIS run. Pre-filled with everything still
+                  open, so a normal one-off delivery needs no thought at all. */}
+              <div className="rounded-lg border p-3 space-y-2">
+                <p className="text-sm font-semibold flex items-center gap-1.5">
+                  <PackageCheck className="h-4 w-4" />
+                  Taking along this run
+                </p>
+                {deliveryItems.map((item: any) => {
+                  const open = openPerSku.get(item.sku) ?? 0
+                  const already = alreadyOut.get(item.sku) ?? 0
+                  return (
+                    <div key={item.sku} className="flex items-center justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm truncate">{item.name}</p>
+                        {already > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            {already} already delivered · {open} left
+                          </p>
+                        )}
+                      </div>
+                      <Input
+                        type="number"
+                        min="0"
+                        max={open}
+                        className="h-8 w-24 text-sm text-right px-2 shrink-0"
+                        value={runQty[item.sku] ?? open}
+                        onChange={e => {
+                          const v = Math.min(Math.max(Number(e.target.value) || 0, 0), open)
+                          setRunQty(q => ({ ...q, [item.sku]: v }))
+                        }}
+                      />
+                    </div>
+                  )
+                })}
+                <div className="flex justify-between text-sm font-semibold border-t pt-1.5">
+                  <span>This run</span>
+                  <span>
+                    {runTotal} of {totalOpen}
+                    {!runCompletesOrder && <span className="text-amber-600"> · partial</span>}
+                  </span>
+                </div>
+              </div>
+
+              {/* Who runs it, and anything worth recording about this run only */}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Delivered by</Label>
+                  <Select value={runAssignee} onValueChange={v => v && setRunAssignee(v)}>
+                    <SelectTrigger className="h-8 w-full">
+                      <SelectValue placeholder="Select team member" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(users ?? []).map(u => (
+                        <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Comments for this run</Label>
+                  <Input
+                    className="h-8"
+                    placeholder="Anything about this delivery"
+                    value={deliveryNotes}
+                    onChange={e => setDeliveryNotes(e.target.value)}
+                  />
+                </div>
               </div>
 
               {gpsError && (
@@ -592,6 +778,117 @@ export default function DeliveryPage({
         {/* Step 3: Invoice Preview + Customer Signature */}
         {step === 'pod' && (
           <div className="space-y-4">
+
+            {/* How much of the order goes out in THIS run. It lives here and
+                not on step 1, because an order that is already out_for_delivery
+                skips step 1 entirely — which is exactly the case for every
+                second and third run. */}
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <PackageCheck className="h-4 w-4" />
+                  Taking along this run
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {deliveryItems.map((item: any) => {
+                  const open = openPerSku.get(item.sku) ?? 0
+                  const already = alreadyOut.get(item.sku) ?? 0
+                  return (
+                    <div key={item.sku} className="flex items-center justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm truncate">{item.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {already > 0 ? `${already} already delivered · ` : ''}{open} left
+                        </p>
+                      </div>
+                      <Input
+                        type="number"
+                        min="0"
+                        max={open}
+                        className="h-8 w-24 text-sm text-right px-2 shrink-0"
+                        value={runQty[item.sku] ?? open}
+                        onChange={e => {
+                          const v = Math.min(Math.max(Number(e.target.value) || 0, 0), open)
+                          setRunQty(q => ({ ...q, [item.sku]: v }))
+                        }}
+                      />
+                    </div>
+                  )
+                })}
+                <div className="flex justify-between text-sm font-semibold border-t pt-1.5">
+                  <span>This run</span>
+                  <span>
+                    {runTotal} of {totalOpen}
+                    {!runCompletesOrder && <span className="text-amber-600"> · partial</span>}
+                  </span>
+                </div>
+                {/* Where this run goes. Defaults to the customer's own address;
+                    a single run can go elsewhere without changing the customer. */}
+                <div className="space-y-1.5 pt-1 border-t">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label className="text-xs">Delivery address</Label>
+                    <button
+                      type="button"
+                      onClick={() => setUseOtherAddress(v => !v)}
+                      className="text-xs text-red-600 hover:underline"
+                    >
+                      {useOtherAddress ? 'Use customer address' : 'Different address'}
+                    </button>
+                  </div>
+                  {useOtherAddress ? (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <Input className="h-8" placeholder="Street"
+                        value={runAddress.street}
+                        onChange={e => setRunAddress(a => ({ ...a, street: e.target.value }))} />
+                      <Input className="h-8" placeholder="Postcode"
+                        value={runAddress.zip}
+                        onChange={e => setRunAddress(a => ({ ...a, zip: e.target.value }))} />
+                      <Input className="h-8" placeholder="City"
+                        value={runAddress.city}
+                        onChange={e => setRunAddress(a => ({ ...a, city: e.target.value }))} />
+                      <Input className="h-8" placeholder="Country"
+                        value={runAddress.country}
+                        onChange={e => setRunAddress(a => ({ ...a, country: e.target.value }))} />
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      {(() => {
+                        const a = order.customer?.delivery_address as any
+                        return a?.street
+                          ? `${a.street}, ${a.zip ?? ''} ${a.city ?? ''}`.trim()
+                          : 'No address on the customer'
+                      })()}
+                    </p>
+                  )}
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 pt-1">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Delivered by</Label>
+                    <Select value={runAssignee} onValueChange={v => v && setRunAssignee(v)}>
+                      <SelectTrigger className="h-8 w-full">
+                        <SelectValue placeholder="Select team member" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(users ?? []).map(u => (
+                          <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Comments for this run</Label>
+                    <Input
+                      className="h-8"
+                      placeholder="Anything about this delivery"
+                      value={deliveryNotes}
+                      onChange={e => setDeliveryNotes(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
             {/* Invoice Preview */}
             <Card size="sm">
