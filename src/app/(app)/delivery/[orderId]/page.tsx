@@ -362,6 +362,7 @@ export default function DeliveryPage({
             const pdfBlob = await (pdf as any)(
               React.createElement(DeliveryNotePDF as any, {
                 order,
+                batches: await (await import('@/lib/order-batches')).fetchOrderBatches(orderId),
                 signatureDataUrl,
                 tableBottlesReturned: tablBottlesReturned,
                 tableBottlesNotes,

@@ -192,7 +192,11 @@ export async function downloadDeliveryNotePDF(
   const { DeliveryNotePDF } = await import('@/components/pdf/delivery-note-pdf')
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const element = React.createElement(DeliveryNotePDF as any, { order, showPrices, documentType })
+  // Batch numbers come from the stock movements, not from the order: one order
+  // can be picked from two batches. Missing batches simply print nothing.
+  const { fetchOrderBatches } = await import('@/lib/order-batches')
+  const batches = await fetchOrderBatches(order.id)
+  const element = React.createElement(DeliveryNotePDF as any, { order, showPrices, documentType, batches })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const blob = await (pdf as any)(element).toBlob()
 

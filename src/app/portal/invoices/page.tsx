@@ -50,6 +50,7 @@ export default function PortalInvoicesPage() {
       const blob = await (pdf as any)(
         React.createElement(DeliveryNotePDF as any, {
           order: { ...order, customer },
+          batches: await (await import('@/lib/order-batches')).fetchOrderBatches(order?.id),
           showPrices: true,
           company: companyData ?? undefined,
           documentType: 'INVOICE',

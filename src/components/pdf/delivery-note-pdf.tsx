@@ -12,6 +12,7 @@ import { Order, QuoteItem } from '@/types'
 import { formatTaxId } from '@/lib/tax-id'
 import { addressLines, isEuropeanAddress } from '@/lib/address'
 import { formatTht } from '@/lib/utils'
+import { batchLabel, type OrderBatches } from '@/lib/order-batches'
 
 const RED = '#CC0000'
 const DARK = '#1a1a1a'
@@ -153,9 +154,11 @@ interface Props {
   documentType?: 'DELIVERY NOTE' | 'INVOICE' | 'CREDIT NOTE'
   /** The invoice this credit note corrects — printed on the document. */
   creditOfNumber?: string
+  /** Batch numbers per sku, read from the stock movements. Empty prints nothing. */
+  batches?: OrderBatches
 }
 
-export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned, tableBottlesNotes, signerName, deliveryPhotoDataUrl, showPrices = true, company = DEFAULT_COMPANY, documentType = 'DELIVERY NOTE', creditOfNumber }: Props) {
+export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned, tableBottlesNotes, signerName, deliveryPhotoDataUrl, showPrices = true, company = DEFAULT_COMPANY, documentType = 'DELIVERY NOTE', creditOfNumber, batches }: Props) {
   const currency = (order as any).currency ?? 'XCG'
   const fmtCur = (amount: number) => `${currency} ${amount.toFixed(2)}`
 
@@ -350,9 +353,19 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
             <View key={i} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]}>
               <View style={styles.colProduct}>
                 <Text style={styles.tdText}>{item.name}</Text>
-                {item.tht_date && (
+                {/* THT and batch on ONE line under the product, not stacked:
+                    two thin lines per row pushed a long invoice onto a second
+                    page for nothing.
+                    Batch traceability is ours to carry (art. 10.3), and a
+                    customer can only quote the batch on a complaint (art. 2.5)
+                    if it is printed. One product can name two batches when the
+                    first ran out mid-pick. */}
+                {(item.tht_date || batchLabel(batches, item.sku)) && (
                   <Text style={{ fontSize: 7, color: GRAY, marginTop: 1 }}>
-                    THT: {formatTht(item.tht_date)}
+                    {[
+                      item.tht_date ? `THT: ${formatTht(item.tht_date)}` : '',
+                      batchLabel(batches, item.sku) ? `Batch: ${batchLabel(batches, item.sku)}` : '',
+                    ].filter(Boolean).join('   ·   ')}
                   </Text>
                 )}
               </View>
