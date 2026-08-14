@@ -181,13 +181,15 @@ export default function DeliveryPage({
       await supabase.from('orders').update({ status: 'out_for_delivery' }).eq('id', orderId)
 
       // Create delivery record
-      await supabase.from('deliveries').upsert({
+      // insert, not upsert: an order can be delivered in parts since migration
+      // 058, so a second run is a new delivery and must not overwrite the first.
+      await supabase.from('deliveries').insert({
         order_id: orderId,
         delivery_started_at: new Date().toISOString(),
         gps_location: coords
           ? { lat: coords.latitude, lng: coords.longitude, accuracy: coords.accuracy }
           : null,
-      }, { onConflict: 'order_id' })
+      })
 
       toast.success('Delivery started!')
       if (order?.customer?.track_table_bottles) {

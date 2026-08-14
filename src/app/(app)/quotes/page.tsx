@@ -13,6 +13,8 @@ const statusColors: Record<OrderStatus, string> = {
   pending_approval:  'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300',
   processing:        'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300',
   out_for_delivery:  'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
+  partly_delivered:         'bg-amber-100 text-amber-700',
+
   delivered:         'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300',
   invoice_ready:     'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
   invoice_blocked:   'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300',
@@ -24,6 +26,8 @@ const statusLabels: Record<OrderStatus, string> = {
   pending_approval: 'Pending Approval',
   processing:       'Pending',
   out_for_delivery: 'Out for Delivery',
+  partly_delivered:        'Partly Delivered',
+
   delivered:        'Delivered',
   invoice_ready:    'Send Invoice',
   invoice_blocked:  'Blocked',

@@ -10,6 +10,8 @@ export type OrderStatus =
   | 'pending_approval'
   | 'processing'
   | 'out_for_delivery'
+  /** Some of the order has arrived and been signed for, but not all of it. */
+  | 'partly_delivered'
   | 'delivered'
   | 'invoice_ready'
   | 'invoice_blocked'
@@ -246,12 +248,21 @@ export interface Order {
   updated_at: string
   customer?: Customer
   assigned_user?: User
+  /** The LAST delivery — what "the delivery date" and the proof of delivery mean. */
   delivery?: Delivery
+  /** Every run, oldest first. An order can be delivered in parts since migration 058. */
+  deliveries?: Delivery[]
 }
 
 export interface Delivery {
   id: string
   order_id: string
+  /**
+   * The lines handed over in this run. An order can be delivered in parts since
+   * migration 058; an empty array means the whole order, which is how every
+   * delivery made before that behaves.
+   */
+  items?: QuoteItem[]
   delivery_started_at: string
   gps_location: GpsLocation
   table_bottles_returned: number

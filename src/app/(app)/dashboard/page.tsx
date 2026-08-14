@@ -714,10 +714,14 @@ export default function DashboardPage() {
       ? `${year + 1}-01-01`
       : `${year}-${String(month + 1).padStart(2, '0')}-01`
 
+    // Consignment counts from creation, not from delivery, so those orders are
+    // included whatever their status — a shipment still at sea is revenue the
+    // moment the note exists. Everything else follows the normal rule.
     const { data } = await supabase
       .from('orders_with_sales_date')
-      .select('id, items, assigned_to, total')
-      .in('status', ['delivered', 'invoice_ready', 'invoice_blocked', 'paid'])
+      .select('id, items, assigned_to, total, status, is_consignment')
+      .or('status.in.(delivered,invoice_ready,invoice_blocked,paid),is_consignment.eq.true')
+      .neq('status', 'deleted')
       .gte('sales_date', start)
       .lt('sales_date', end)
 

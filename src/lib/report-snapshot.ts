@@ -229,8 +229,14 @@ export async function buildPeriodSnapshot(
   // already counted in full when it was created. Counting it here as well would
   // book the same bottles twice — once as stock placed, once as stock sold.
   // It is a payable invoice, not new revenue.
+  // Consignment counts from the moment the note is created, not from delivery —
+  // Danique's rule, and the contract's: the goods are placed, the value is
+  // booked, and payment follows the reported sales later. Without this an admin
+  // has to mark a shipment "delivered" while it is still at sea just to get the
+  // month right, which is exactly what happened to 729134.
   const revenueOrders = orders.filter(o =>
-    REVENUE_STATUSES.includes(o.status) && o.order_type !== 'consignment_invoice'
+    (REVENUE_STATUSES.includes(o.status) || (o.is_consignment && o.status !== 'deleted'))
+    && o.order_type !== 'consignment_invoice'
   )
   const openOrders = orders.filter(o => OPEN_STATUSES.includes(o.status))
 

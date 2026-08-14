@@ -79,13 +79,26 @@ export function ConsignmentPanel({ order }: { order: Order }) {
     }
   }
 
+  // What has physically gone out, per product. A delivery with no lines is a
+  // whole-order run — every delivery from before migration 058 behaves that way.
+  const delivered = new Map<string, number>()
+  for (const d of order.deliveries ?? []) {
+    const lines = (d.items ?? []) as QuoteItem[]
+    const source = lines.length > 0 ? lines : contractItems
+    for (const it of source) {
+      delivered.set(it.sku, (delivered.get(it.sku) ?? 0) + it.qty)
+    }
+  }
+
   const rows = contractItems.map(i => ({
     ...i,
+    delivered: delivered.get(i.sku) ?? 0,
     invoiced: invoiced.get(i.sku) ?? 0,
     open: i.qty - (invoiced.get(i.sku) ?? 0),
   }))
 
   const totalAgreed = rows.reduce((s, r) => s + r.qty, 0)
+  const totalDelivered = rows.reduce((s, r) => s + r.delivered, 0)
   const totalInvoiced = rows.reduce((s, r) => s + r.invoiced, 0)
   const totalOpen = totalAgreed - totalInvoiced
   const closed = !!(order as any).consignment_closed_at
@@ -217,17 +230,20 @@ export function ConsignmentPanel({ order }: { order: Order }) {
           {rows.map(r => (
             <div key={r.sku} className="flex items-center justify-between gap-3 text-sm">
               <span className="flex-1 min-w-0 truncate">{r.name}</span>
-              <span className="text-muted-foreground text-xs shrink-0">
-                {r.invoiced} of {r.qty} invoiced
+              <span className="text-xs shrink-0 w-24 text-right">
+                <span className={r.delivered < r.qty ? 'text-amber-600' : ''}>{r.delivered}</span>
+                <span className="text-muted-foreground">/{r.qty} delivered</span>
               </span>
-              <span className={`text-xs font-semibold shrink-0 w-16 text-right ${r.open > 0 ? '' : 'text-muted-foreground'}`}>
-                {r.open} open
+              <span className="text-xs shrink-0 w-24 text-right text-muted-foreground">
+                {r.invoiced}/{r.qty} invoiced
               </span>
             </div>
           ))}
           <div className="flex justify-between text-sm font-semibold border-t pt-1.5">
             <span>Total</span>
-            <span>{totalInvoiced} of {totalAgreed} invoiced · {totalOpen} open</span>
+            <span>
+              {totalDelivered} of {totalAgreed} delivered · {totalInvoiced} invoiced
+            </span>
           </div>
         </div>
 
