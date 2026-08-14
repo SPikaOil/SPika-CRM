@@ -20,6 +20,12 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const { isCustomer, isLoading, profile, session } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
+  // TEMPORARY: ?preview=1 lets an admin look at the portal as a customer sees it.
+  // Read straight from the URL, not via useSearchParams: that hook forces every
+  // portal page behind a Suspense boundary and breaks the static build.
+  const adminPreview = profile?.role === 'admin'
+    && typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).get('preview') === '1'
 
   // Exchange PKCE code for session if present in URL
   useEffect(() => {
@@ -41,10 +47,15 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     if (isLoading) return
     if (!session) return
     const role = profile?.role
-    if (role && INTERNAL_ROLES.includes(role)) {
+    // TEMPORARY: an admin may look at the portal to check what a customer sees,
+    // by adding ?preview=1 to the URL. Read-only — the pages themselves still
+    // load nothing a customer could not see, and RLS is unchanged. Remove once
+    // there is a real portal login to test with.
+    if (role && INTERNAL_ROLES.includes(role) && !adminPreview) {
       router.replace('/dashboard')
       return
     }
+    if (adminPreview) return
     if (!isCustomer) {
       if (role === 'prospect') {
         if (pathname !== '/portal/pending') router.replace('/portal/pending')
@@ -82,10 +93,10 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   }
 
   // Internal staff — blank while redirecting to /dashboard
-  if (profile?.role && INTERNAL_ROLES.includes(profile.role)) return null
+  if (profile?.role && INTERNAL_ROLES.includes(profile.role) && !adminPreview) return null
 
   // Prospect or new user — pass through to onboarding/pending (those pages handle their own layout)
-  if (!isCustomer) return <>{children}</>
+  if (!isCustomer && !adminPreview) return <>{children}</>
 
   const navItems = [
     { href: '/portal/dashboard', label: 'Dashboard', icon: LayoutDashboard },

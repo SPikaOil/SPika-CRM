@@ -25,6 +25,7 @@ import { SPIKA_PRODUCTS } from '@/lib/products'
 import { getNextCashOrderNumber, getNextOrderNumber, getCreditNoteNumber } from '@/lib/order-number'
 import { formatCurrency, formatTht, thtToMonthInput, monthInputToTht, currentMonthInput } from '@/lib/utils'
 import { ConsignmentPanel } from '../_components/consignment-panel'
+import { DefectReportsPanel } from '../_components/defect-reports-panel'
 
 const statusColors: Record<OrderStatus, string> = {
   pending_approval: 'bg-orange-100 text-orange-700',
@@ -858,6 +859,8 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
           </CardContent>
         </Card>
       )}
+
+      {isAdmin && <DefectReportsPanel orderId={order.id} />}
 
       {/* Consignment — the note itself is not payable; the period invoices are */}
       {isAdmin && (order as any).is_consignment && (order as any).order_type !== 'credit_note' && (

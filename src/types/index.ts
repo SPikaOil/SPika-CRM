@@ -254,6 +254,61 @@ export interface Order {
   deliveries?: Delivery[]
 }
 
+export type DefectReason =
+  | 'damaged' | 'missing' | 'wrong_product' | 'tht_too_short'
+  | 'leaking' | 'not_sealed' | 'dirty' | 'quality' | 'other'
+
+/** Seen when the box is opened — only accepted within 48 hours (art. 2.4). */
+export const VISIBLE_DEFECT_REASONS: DefectReason[] =
+  ['damaged', 'missing', 'wrong_product', 'tht_too_short']
+
+/** Only surfaces when a bottle is handled or opened — reportable any time (art. 2.5). */
+export const HIDDEN_DEFECT_REASONS: DefectReason[] =
+  ['leaking', 'not_sealed', 'dirty', 'quality', 'other']
+
+export const DEFECT_REASON_LABELS: Record<DefectReason, string> = {
+  damaged:       'Damaged or broken',
+  missing:       'Missing — fewer than expected',
+  wrong_product: 'Wrong product',
+  tht_too_short: 'Best-before date too short',
+  leaking:       'Bottle leaking',
+  not_sealed:    'Not sealed properly',
+  dirty:         'Bottle dirty',
+  quality:       'Quality of the oil',
+  other:         'Something else — describe it',
+}
+
+/** Who carries the loss. Only staff decide this — art. 4.3 vs 4.4. */
+export type DefectLiability = 'spika' | 'customer' | 'carrier'
+
+export type DefectStatus = 'open' | 'accepted' | 'rejected'
+
+/**
+ * Something wrong with what was received. The customer states what and how
+ * many, with the batch number and a photo (art. 2.5). SPika decides whose risk
+ * it is — that single choice is the difference between a write-off and an
+ * invoice line.
+ */
+export interface DefectReport {
+  id: string
+  order_id: string
+  customer_id: string
+  delivery_id: string | null
+  sku: string
+  qty: number
+  batch_number: string
+  reason: DefectReason
+  note: string
+  photo_url: string | null
+  status: DefectStatus
+  liability: DefectLiability | null
+  resolution: string
+  reported_by: string | null
+  reported_at: string
+  reviewed_by: string | null
+  reviewed_at: string | null
+}
+
 export interface Delivery {
   id: string
   order_id: string
