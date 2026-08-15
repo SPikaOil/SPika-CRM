@@ -307,6 +307,32 @@ export default function OrderDetailPage({
   // only baked into the signed PDF captured at delivery time (pod_file_url is
   // the SIGNATURE, not a photo). The Signed Invoice therefore serves that
   // stored PDF; this function is only for the plain Invoice / Delivery Note.
+  /**
+   * Put a wrong name right, on the order and on the runs that carried it.
+   *
+   * Only the deliveries that were on the OLD name move across. An order can go
+   * out in parts with different people (migration 059), and overwriting all of
+   * them would erase a split that actually happened in order to fix a typo.
+   */
+  async function reassign(userId: string) {
+    const previous = order?.assigned_to ?? null
+    if (!order || userId === previous) return
+    try {
+      await updateOrder.mutateAsync({ id: order.id, values: { assigned_to: userId } as never })
+
+      const runs = supabase.from('deliveries').update({ assigned_to: userId }).eq('order_id', order.id)
+      const { error } = previous
+        ? await runs.eq('assigned_to', previous)
+        : await runs.is('assigned_to', null)
+      if (error) throw error
+
+      const name = (users ?? []).find(u => u.id === userId)?.name ?? 'them'
+      toast.success(`Reassigned to ${name} — order and its delivery runs`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not reassign this order')
+    }
+  }
+
   async function buildDeliveryPdfBlob(docType: 'INVOICE' | 'DELIVERY NOTE'): Promise<Blob> {
     const delivery = (order as any).delivery
     const React = await import('react')
@@ -1689,7 +1715,36 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
       <Card size="sm">
         <CardHeader><CardTitle className="text-base">Details</CardTitle></CardHeader>
         <CardContent className="space-y-2 text-sm">
-          <Row label="Assigned To" value={order.assigned_user?.name ?? '—'} />
+          {/* Correctable, because a wrong name could not be put right anywhere.
+              It is set at Approve & Assign and again when a run goes out, and
+              once an order is delivered both those screens are gone for good —
+              so 729147 sat there saying Djamy with no way to change it.
+              Admin only: who did the work is a payroll-adjacent fact. */}
+          {isAdmin ? (
+            <div className="flex justify-between gap-4 items-center">
+              <span className="text-muted-foreground">Assigned To</span>
+              <Select
+                value={order.assigned_to ?? undefined}
+                onValueChange={v => v && reassign(v)}
+              >
+                <SelectTrigger className="h-7 w-44 text-xs px-2">
+                  <SelectValue placeholder="Nobody">
+                    {(v: string) => (users ?? []).find(u => u.id === v)?.name ?? 'Nobody'}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {(users ?? [])
+                    .filter(u => ['admin', 'manager', 'sales', 'warehouse', 'staff'].includes(u.role)
+                      && (u as { is_active?: boolean }).is_active !== false)
+                    .map(u => (
+                      <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <Row label="Assigned To" value={order.assigned_user?.name ?? '—'} />
+          )}
           <Row label="Created" value={new Date(order.created_at).toLocaleString()} />
           {order.delivery_notes && <Row label="Notes" value={order.delivery_notes} />}
           {order.delivery?.delivered_at && (
