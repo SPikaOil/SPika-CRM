@@ -117,10 +117,15 @@ function OrdersPageInner() {
     })
   }
 
+  // 'active' toont het lopende werk, 'all' toont alles inclusief betaald.
+  // Verwijderde orders blijven eruit: die hebben hun eigen blok onderaan en
+  // horen niet tussen je lopende werk te staan.
   const filteredActive = applySortOrders(
-    (status === 'active'
+    (status === 'all'
+      ? [...activeOrders, ...paidOrders]
+      : status === 'active'
       ? activeOrders
-      : activeOrders.filter(o => o.status === status)
+      : [...activeOrders, ...paidOrders].filter(o => o.status === status)
     ).filter(matchesSearch)
   )
 
@@ -222,7 +227,14 @@ function OrdersPageInner() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Orders</h1>
-          <p className="text-muted-foreground text-sm">{filteredActive.length} active orders</p>
+          <p className="text-muted-foreground text-sm">
+            {filteredActive.length}{' '}
+            {status === 'all'
+              ? 'orders'
+              : status === 'active'
+              ? 'active orders'
+              : `${statusLabels[status as OrderStatus] ?? status} orders`}
+          </p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="icon" title="Export CSV"
@@ -257,7 +269,10 @@ function OrdersPageInner() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="active">Active orders</SelectItem>
-            {ACTIVE_STATUSES.map((s) => (
+            <SelectItem value="all">All orders</SelectItem>
+            {/* Paid was missing entirely: it could only be reached through the
+                Archive block, never by filtering. */}
+            {[...ACTIVE_STATUSES, 'paid' as OrderStatus].map((s) => (
               <SelectItem key={s} value={s}>{statusLabels[s]}</SelectItem>
             ))}
           </SelectContent>

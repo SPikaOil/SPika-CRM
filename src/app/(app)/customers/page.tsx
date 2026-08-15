@@ -135,14 +135,20 @@ export default function CustomersPage() {
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('all')
   const [country, setCountry] = useState('all')
+  /** Active by default: a dormant customer should not clutter the daily list. */
+  const [customerStatus, setCustomerStatus] = useState('active')
   const { data: customers, isLoading } = useCustomers(search, category)
 
   // Country filter is applied client-side on normalized country codes
   const countryCodes = Array.from(
     new Set((customers ?? []).map(c => customerCountryCode(c)).filter(Boolean))
   ).sort() as string[]
+  // A customer without a status is treated as active: the field was added later
+  // and older rows were never stamped. Calling those inactive would make half
+  // the list disappear.
   const visibleCustomers = (customers ?? []).filter(
-    c => country === 'all' || customerCountryCode(c) === country
+    c => (country === 'all' || customerCountryCode(c) === country)
+      && (customerStatus === 'all' || (c.status ?? 'active') === customerStatus)
   )
   const { isAdmin } = useAuth()
   const queryClient = useQueryClient()
@@ -244,7 +250,11 @@ export default function CustomersPage() {
         <div>
           <h1 className="text-2xl font-bold">Customers</h1>
           <p className="text-muted-foreground text-sm">
-            {customers?.length ?? 0} total
+            {/* Counts what is on screen. It used to count everything, which read
+                as a lie the moment a filter hid half of them. */}
+            {visibleCustomers.length}
+            {customerStatus === 'active' ? ' active' : customerStatus === 'inactive' ? ' inactive' : ''}
+            {visibleCustomers.length === (customers?.length ?? 0) ? ' total' : ` of ${customers?.length ?? 0}`}
           </p>
         </div>
         {isAdmin && (
@@ -344,6 +354,18 @@ export default function CustomersPage() {
             {countryCodes.map(code => (
               <SelectItem key={code} value={code}>{code}</SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+        {/* A customer who has gone quiet stays in the system but not in the
+            way. Until now there was no way to see them at all. */}
+        <Select value={customerStatus} onValueChange={(v) => setCustomerStatus(v ?? 'active')}>
+          <SelectTrigger className="w-full sm:w-32">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="inactive">Inactive</SelectItem>
+            <SelectItem value="all">All statuses</SelectItem>
           </SelectContent>
         </Select>
       </div>

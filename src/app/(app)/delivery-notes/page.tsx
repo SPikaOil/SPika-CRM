@@ -88,10 +88,14 @@ export default function DeliveryNotesPage() {
     })
   }
 
+  // 'active' toont het lopende werk, 'all' toont alles inclusief betaald.
+  // Verwijderde notes blijven eruit: die hebben hun eigen blok onderaan.
   const filteredActive = applySortOrders(
-    (statusFilter === 'active'
+    (statusFilter === 'all'
+      ? [...activeOrders, ...archivedOrders]
+      : statusFilter === 'active'
       ? activeOrders
-      : activeOrders.filter((o) => o.status === statusFilter)
+      : [...activeOrders, ...archivedOrders].filter((o) => o.status === statusFilter)
     ).filter(matchesSearch)
   )
 
@@ -120,7 +124,13 @@ export default function DeliveryNotesPage() {
         <div>
           <h1 className="text-2xl font-bold">Delivery Notes</h1>
           <p className="text-muted-foreground text-sm">
-            {filteredActive.length} active{!isAdmin ? ' assigned' : ''} notes
+            {filteredActive.length}{' '}
+            {statusFilter === 'all'
+              ? ''
+              : statusFilter === 'active'
+              ? 'active '
+              : `${statusLabels[statusFilter as OrderStatus] ?? statusFilter} `}
+            {!isAdmin ? 'assigned ' : ''}notes
           </p>
         </div>
         <Button variant="outline" size="icon" title="Export CSV"
@@ -148,7 +158,10 @@ export default function DeliveryNotesPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="active">Active</SelectItem>
-            {ACTIVE_STATUSES.map((s) => (
+            <SelectItem value="all">All</SelectItem>
+            {/* Paid was missing entirely: it could only be reached through the
+                Archive block, never by filtering. */}
+            {[...ACTIVE_STATUSES, 'paid' as OrderStatus].map((s) => (
               <SelectItem key={s} value={s}>{statusLabels[s]}</SelectItem>
             ))}
           </SelectContent>
