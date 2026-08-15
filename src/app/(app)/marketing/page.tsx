@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import {
   Megaphone, Plus, Trash2, Pencil, Download, ExternalLink, Search,
-  AlertTriangle, Lock, Image as ImageIcon, Film, FileText, Package, X, Loader2, CheckCircle2,
+  AlertTriangle, Lock, Image as ImageIcon, Film, FileText, Package, X, Loader2, CheckCircle2, ShieldCheck,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
 import {
@@ -11,7 +11,7 @@ import {
   useDeleteMarketingAsset, isDemoAsset,
 } from '@/hooks/use-marketing-assets'
 import {
-  ASSET_CATEGORIES, ASSET_GRID, STANDARD_TERMS, USE_LABELS, categoryLabel, useLabel,
+  ASSET_CATEGORIES, ASSET_GRID, STANDARD_TERMS, USE_LABELS, DEFAULT_USE_BY_CATEGORY, categoryLabel, useLabel,
   parseDriveId, driveThumbnail, drivePreviewUrl, driveDownloadUrl,
 } from '@/lib/marketing'
 import { MarketingAsset } from '@/types'
@@ -31,14 +31,16 @@ import {
 import { toast } from 'sonner'
 
 function kindIcon(kind?: string | null) {
-  if (kind?.startsWith('video/')) return <Film className="h-4 w-4 text-muted-foreground shrink-0" />
-  if (kind?.startsWith('image/')) return <ImageIcon className="h-4 w-4 text-muted-foreground shrink-0" />
-  if (kind === 'application/zip') return <Package className="h-4 w-4 text-muted-foreground shrink-0" />
-  return <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+  if (kind?.startsWith("video/")) return <Film className="h-3 w-3 text-muted-foreground shrink-0" />
+  if (kind?.startsWith('image/')) return <ImageIcon className="h-3 w-3 text-muted-foreground shrink-0" />
+  if (kind === 'application/zip') return <Package className="h-3 w-3 text-muted-foreground shrink-0" />
+  return <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
 }
 
 const EMPTY = {
-  title: '', description: '', category: 'pos', use_label: 'print',
+  // Printables is the first category and by far the biggest, so it is the
+  // default. Defaulting to POS quietly filed everything as "we ship it".
+  title: '', description: '', category: 'prints', use_label: 'print' as string,
   driveInput: '', usage_terms: STANDARD_TERMS,
   visibility: 'all' as 'all' | 'staff',
   is_physical: false, physical_available: true,
@@ -59,12 +61,52 @@ export default function MarketingPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<MarketingAsset | null>(null)
   const [form, setForm] = useState(EMPTY)
+  // Once she picks a label herself, the category stops overwriting it.
+  const [useLabelTouched, setUseLabelTouched] = useState(false)
 
   // Is the pasted Drive file reachable without a Google account? Her own
   // browser is signed in to Google, so a closed file looks perfect to her and
   // shows a sign-in to every reseller. Checked server-side; see the route.
   const [linkStatus, setLinkStatus] = useState<'idle' | 'checking' | 'public' | 'private' | 'unknown' | 'invalid'>('idle')
   const [linkMessage, setLinkMessage] = useState('')
+
+  // Result of the sweep: asset id -> status. Sharing can be revoked in Drive
+  // long after an asset went live, and nothing else in the app would notice.
+  const [sweep, setSweep] = useState<Record<string, string>>({})
+  const [sweeping, setSweeping] = useState(false)
+
+  async function checkAllLinks() {
+    const driveAssets = (assets ?? []).filter(a => a.source === 'drive')
+    if (driveAssets.length === 0) { toast.info('No Drive links to check yet'); return }
+
+    setSweeping(true)
+    setSweep({})
+    const result: Record<string, string> = {}
+    let broken = 0
+
+    // One at a time on purpose: a burst of parallel requests to Google gets
+    // throttled, and a throttled answer reads as "not shared" — which would
+    // flag perfectly good assets as broken.
+    for (const asset of driveAssets) {
+      try {
+        const res = await fetch('/api/marketing/check-link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileId: asset.file_ref }),
+        })
+        const data = await res.json()
+        result[asset.id] = data.status ?? 'unknown'
+        if (data.status === 'private') broken++
+      } catch {
+        result[asset.id] = 'unknown'
+      }
+      setSweep({ ...result })
+    }
+
+    setSweeping(false)
+    if (broken === 0) toast.success(`All ${driveAssets.length} links work for resellers`)
+    else toast.error(`${broken} of ${driveAssets.length} are not shared — marked in red`)
+  }
 
   async function checkLink(input: string) {
     const id = parseDriveId(input)
@@ -111,6 +153,7 @@ export default function MarketingPage() {
   function openNew() {
     setEditing(null)
     setForm(EMPTY)
+    setUseLabelTouched(false)
     resetLinkCheck()
     setDialogOpen(true)
   }
@@ -121,13 +164,16 @@ export default function MarketingPage() {
       title: asset.title,
       description: asset.description ?? '',
       category: asset.category,
-      use_label: asset.use_label ?? 'print',
+      use_label: asset.use_label ?? '',
       driveInput: asset.source === 'drive' ? asset.file_ref : '',
       usage_terms: asset.usage_terms ?? '',
       visibility: asset.visibility,
       is_physical: asset.is_physical ?? false,
       physical_available: asset.physical_available ?? true,
     })
+    // An existing asset already carries a decision — changing its category
+    // must not quietly rewrite the label she chose earlier.
+    setUseLabelTouched(true)
     resetLinkCheck()
     setDialogOpen(true)
     // Re-check an asset that is already live. Sharing can be revoked in Drive
@@ -192,10 +238,16 @@ export default function MarketingPage() {
           </p>
         </div>
         {canManage && (
-          <Button onClick={openNew} size="sm" className="bg-red-600 hover:bg-red-700 gap-1.5 shrink-0">
-            <Plus className="h-4 w-4" />
-            Add asset
-          </Button>
+          <div className="flex gap-2 shrink-0">
+            <Button onClick={checkAllLinks} size="sm" variant="outline" className="gap-1.5" disabled={sweeping}>
+              {sweeping ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+              {sweeping ? 'Checking…' : 'Check links'}
+            </Button>
+            <Button onClick={openNew} size="sm" className="bg-red-600 hover:bg-red-700 gap-1.5">
+              <Plus className="h-4 w-4" />
+              Add asset
+            </Button>
+          </div>
         )}
       </div>
 
@@ -276,6 +328,7 @@ export default function MarketingPage() {
                     key={asset.id}
                     asset={asset}
                     canManage={canManage}
+                    linkState={sweep[asset.id]}
                     onEdit={() => openEdit(asset)}
                     onDelete={() => {
                       if (isDemoAsset(asset)) { toast.error('Example data cannot be removed'); return }
@@ -370,7 +423,20 @@ export default function MarketingPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Category</Label>
-                <Select value={form.category} onValueChange={v => setForm(f => ({ ...f, category: v ?? f.category }))}>
+                <Select
+                  value={form.category}
+                  onValueChange={v => setForm(f => {
+                    const category = v ?? f.category
+                    // Follow the category unless she has picked a label herself.
+                    // Without this a clip inherited "For print" from the form
+                    // default and went out telling a shop to print a video.
+                    return {
+                      ...f,
+                      category,
+                      use_label: useLabelTouched ? f.use_label : (DEFAULT_USE_BY_CATEGORY[category] ?? ''),
+                    }
+                  })}
+                >
                   {/* base-ui prints the raw value unless it is given a renderer,
                       so every Select here maps its key back to a label. */}
                   <SelectTrigger><SelectValue>{(v: string) => categoryLabel(v)}</SelectValue></SelectTrigger>
@@ -381,9 +447,17 @@ export default function MarketingPage() {
               </div>
               <div className="space-y-1.5">
                 <Label>What is it for?</Label>
-                <Select value={form.use_label} onValueChange={v => setForm(f => ({ ...f, use_label: v ?? f.use_label }))}>
-                  <SelectTrigger><SelectValue>{(v: string) => useLabel(v)?.label ?? v}</SelectValue></SelectTrigger>
+                <Select
+                  value={form.use_label}
+                  onValueChange={v => { setUseLabelTouched(true); setForm(f => ({ ...f, use_label: v ?? f.use_label })) }}
+                >
+                  <SelectTrigger>
+                    <SelectValue>{(v: string) => useLabel(v)?.label ?? 'Not shown'}</SelectValue>
+                  </SelectTrigger>
                   <SelectContent>
+                    {/* An empty option, because "what is it for" genuinely does
+                        not apply to something we print and ship. */}
+                    <SelectItem value="">Not shown</SelectItem>
                     {USE_LABELS.map(u => <SelectItem key={u.key} value={u.key}>{u.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -466,12 +540,14 @@ export default function MarketingPage() {
 }
 
 function AssetCard({
-  asset, canManage, onEdit, onDelete,
+  asset, canManage, onEdit, onDelete, linkState,
 }: {
   asset: MarketingAsset
   canManage: boolean
   onEdit: () => void
   onDelete: () => void
+  /** Set by the "Check links" sweep: 'public' | 'private' | 'unknown'. */
+  linkState?: string
 }) {
   const label = useLabel(asset.use_label)
   const isDrive = asset.source === 'drive'
@@ -481,11 +557,18 @@ function AssetCard({
     // h-full + flex column so every card in a row is the same height and the
     // Download buttons line up. A one-line title next to a two-line title
     // otherwise leaves the buttons at different heights across the row.
-    <Card className="py-0 overflow-hidden group h-full flex flex-col">
+    /* gap-0 as well as py-0: the Card component carries a built-in gap-4
+       between its children, so switching off the padding still left 16px of
+       air under the picture and only 4px under the button — visibly top-heavy
+       white. With both off, the block sits evenly, 4px above and 4px below. */
+    <Card className={`py-0 gap-0 overflow-hidden group h-full flex flex-col ${
+      linkState === 'private' ? 'ring-2 ring-red-500' : ''
+    }`}>
       {/* Preview */}
-      {/* 16:10 instead of 4:3 — a shorter preview, so more assets fit on one
-          screen without the thumbnail losing its shape. */}
-      <div className="relative aspect-[16/10] bg-muted flex items-center justify-center overflow-hidden shrink-0">
+      {/* 7:6 — the picture is the point of this card. The use label moved ONTO
+          the image and the padding below it was cut, which paid for the extra
+          height: the card as a whole stays the same size. */}
+      <div className="relative aspect-[7/6] bg-muted flex items-center justify-center overflow-hidden shrink-0">
         {hasThumb ? (
           // eslint-disable-next-line @next/next/no-img-element -- Drive's own CDN, no loader needed
           <img
@@ -499,6 +582,12 @@ function AssetCard({
             {kindIcon(asset.file_kind)}
             <span className="text-[10px]">no preview</span>
           </div>
+        )}
+
+        {linkState === 'private' && (
+          <Badge className="absolute bottom-1.5 left-1.5 right-1.5 bg-red-600 text-white text-[9px] px-1 py-0 justify-center">
+            Not shared — resellers can&apos;t open this
+          </Badge>
         )}
 
         {asset.visibility === 'staff' && (
@@ -529,24 +618,36 @@ function AssetCard({
       </div>
 
       {/* Body */}
-      <CardContent className="p-2 space-y-1 flex-1 flex flex-col">
-        <div className="flex items-start gap-1">
-          {kindIcon(asset.file_kind)}
-          <p className="font-semibold text-[11px] leading-tight line-clamp-2 flex-1">{asset.title}</p>
+      {/* Tight on purpose: every pixel not spent on padding is a pixel the
+          preview above can use. */}
+      {/* Everything below the picture is centred: title, label and the count
+          sit on the middle line of the white block instead of hugging the left
+          edge. */}
+      {/* Label and count read as an eyebrow above the title, the way a kicker
+          sits above a headline — you see WHAT it is for before you read WHICH
+          one it is. Everything centred on the white block. */}
+      <CardContent className="px-1.5 pt-1 pb-1 flex-1 flex flex-col items-center text-center">
+        {/* Label hard left, count hard right, title centred underneath. The
+            file-type icon rides with the label rather than sitting beside the
+            title, where next to a two-line title it pulled the centred block
+            off axis. */}
+        <div className="flex items-center justify-between gap-1 w-full">
+          <span className="flex items-center gap-1 min-w-0">
+            {kindIcon(asset.file_kind)}
+            {label && (
+              <span className={`text-[9px] px-1 py-0 rounded font-medium ${label.tone}`}>{label.label}</span>
+            )}
+          </span>
+          <span className="text-[9px] text-muted-foreground shrink-0">{asset.download_count}×</span>
         </div>
+
+        <p className="font-semibold text-[11px] leading-tight line-clamp-2 mt-0.5">{asset.title}</p>
 
         {asset.description && (
-          <p className="text-[10px] text-muted-foreground leading-snug line-clamp-2">{asset.description}</p>
+          <p className="text-[10px] text-muted-foreground leading-tight line-clamp-1 mt-0.5">{asset.description}</p>
         )}
 
-        <div className="flex items-center gap-1 flex-wrap">
-          {label && (
-            <span className={`text-[9px] px-1 py-0 rounded font-medium ${label.tone}`}>{label.label}</span>
-          )}
-          <span className="text-[9px] text-muted-foreground">{asset.download_count}×</span>
-        </div>
-
-        <div className="flex gap-1 pt-0.5 mt-auto">
+        <div className="flex gap-1 pt-1.5 mt-auto w-full">
           {isDrive && (
             <>
               <a

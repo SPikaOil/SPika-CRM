@@ -118,14 +118,46 @@ export type AssetCategory = (typeof ASSET_CATEGORIES)[number]['key']
  * They know they are printing a sign, or posting a story. Getting this wrong is
  * how a blurry shelf talker ends up in a store with our name on it.
  */
+/**
+ * `social` is the catch-all and the default for anything social — most assets
+ * work on every channel. The named platforms are there for the exception: a
+ * 9:16 cut that really is only right for TikTok, or a square that only suits
+ * Instagram. Naming the platform when it does not matter invites "so which one
+ * is the WhatsApp version?", so reach for 'For Socials' unless it is genuinely
+ * one channel.
+ */
 export const USE_LABELS = [
-  { key: 'print',    label: 'For print',    tone: 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200' },
-  { key: 'social',   label: 'For Instagram', tone: 'bg-pink-100 text-pink-900 dark:bg-pink-950 dark:text-pink-200'   },
-  { key: 'whatsapp', label: 'For WhatsApp',  tone: 'bg-green-100 text-green-900 dark:bg-green-950 dark:text-green-200' },
-  { key: 'share',    label: 'To forward',    tone: 'bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200'       },
+  { key: 'print',     label: 'For print',     tone: 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200'     },
+  { key: 'social',    label: 'For Socials',   tone: 'bg-pink-100 text-pink-900 dark:bg-pink-950 dark:text-pink-200'         },
+  { key: 'instagram', label: 'For Instagram', tone: 'bg-fuchsia-100 text-fuchsia-900 dark:bg-fuchsia-950 dark:text-fuchsia-200' },
+  { key: 'tiktok',    label: 'For TikTok',    tone: 'bg-slate-200 text-slate-900 dark:bg-slate-800 dark:text-slate-100'     },
+  { key: 'whatsapp',  label: 'For WhatsApp',  tone: 'bg-green-100 text-green-900 dark:bg-green-950 dark:text-green-200'     },
+  { key: 'share',     label: 'To Forward',    tone: 'bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200'             },
 ] as const
 
 export type UseLabel = (typeof USE_LABELS)[number]['key']
+
+/**
+ * What a category is normally FOR, used to pre-fill the use label.
+ *
+ * It used to default to 'print' for everything, so a video clip came out
+ * labelled "For print" — nonsense on the card and, worse, wrong advice to a
+ * shop. The category already says most of it, so it fills the label in and she
+ * only touches it when this asset is the exception.
+ *
+ * POS material gets none on purpose: we print and ship it, so "what do I do
+ * with the file" does not apply.
+ */
+export const DEFAULT_USE_BY_CATEGORY: Record<string, UseLabel | ''> = {
+  prints:  'print',
+  pos:     '',
+  photos:  'social',
+  clips:   'social',
+  recipes: 'social',
+  brand:   'share',
+  sales:   'share',
+  specs:   'share',
+}
 
 export function categoryLabel(key: string): string {
   return ASSET_CATEGORIES.find(c => c.key === key)?.label ?? key

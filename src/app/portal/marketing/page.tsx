@@ -40,7 +40,16 @@ export default function PortalMarketingPage() {
   function submitRequest() {
     if (!requesting || !profile?.customer_id) return
     createRequest.mutate(
-      { customer_id: profile.customer_id, asset_id: requesting.id, qty, note: note.trim() || undefined },
+      {
+        customer_id: profile.customer_id,
+        asset_id: requesting.id,
+        qty,
+        note: note.trim() || undefined,
+        // Carried for the admin e-mail only — not stored on the row.
+        customerName: profile.name || undefined,
+        assetTitle: requesting.title,
+        outOfStock: !requesting.physical_available,
+      },
       { onSuccess: closeRequest }
     )
   }
@@ -160,6 +169,17 @@ export default function PortalMarketingPage() {
               </p>
             </div>
 
+            {/* Said plainly rather than hiding the button: they still get to
+                ask, they just know it will not be on the very next delivery. */}
+            {!requesting.physical_available && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900 px-3 py-2">
+                <p className="text-xs leading-snug text-amber-900 dark:text-amber-200">
+                  We&apos;re out of this one right now. Send your request anyway — we&apos;ll
+                  put it aside for you and it goes out as soon as we have it again.
+                </p>
+              </div>
+            )}
+
             <div className="space-y-1.5">
               <Label className="text-xs">How many do you need?</Label>
               <Input
@@ -211,9 +231,12 @@ function PortalAssetCard({ asset, onDownload, onRequest }: {
   return (
     // Equal height per row so the Download buttons line up — titles run to one
     // or two lines and would otherwise leave the buttons stepped.
-    <Card className="py-0 overflow-hidden h-full flex flex-col">
-      {/* Same 16:10 as the CRM tab — shorter preview, more assets per screen. */}
-      <div className="relative aspect-[16/10] bg-muted flex items-center justify-center overflow-hidden shrink-0">
+    /* gap-0 as well as py-0 — see the note on the CRM card: the component's
+       built-in gap-4 left the white block top-heavy. */
+    <Card className="py-0 gap-0 overflow-hidden h-full flex flex-col">
+      {/* Same 7:6 as the CRM tab, with the label on the image for the same
+          reason: it buys the picture a whole text line at no cost in height. */}
+      <div className="relative aspect-[7/6] bg-muted flex items-center justify-center overflow-hidden shrink-0">
         {hasThumb ? (
           // eslint-disable-next-line @next/next/no-img-element -- served by Drive's CDN
           <img
@@ -228,24 +251,35 @@ function PortalAssetCard({ asset, onDownload, onRequest }: {
             <span className="text-[10px]">no preview</span>
           </div>
         )}
+
       </div>
 
-      <CardContent className="p-1.5 space-y-1 flex-1 flex flex-col">
-        <p className="font-semibold text-[11px] leading-tight line-clamp-2">{asset.title}</p>
+      {/* The use label describes the FILE ("For print", "For Socials"). On a
+          physical asset the reseller never gets the file — we print it and ship
+          it — so "For print" there would read as an instruction to print it
+          themselves. It says what we send instead. Rendered over the image. */}
+      {/* Centred like the CRM tab: title and label on the middle line of the
+          white block instead of against the left edge. */}
+      {/* Same as the CRM tab: the label reads as an eyebrow above the title. */}
+      <CardContent className="px-1.5 pt-1 pb-1 flex-1 flex flex-col items-center text-center">
+        {/* Label hard left like the CRM card; there is no count on this side. */}
+        <div className="flex items-center justify-start w-full">
+          {asset.is_physical ? (
+            <span className={`text-[9px] px-1 py-0 rounded font-medium ${
+              asset.physical_available
+                ? 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
+                : 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200'
+            }`}>
+              {asset.physical_available ? 'We send this to you' : 'Out of stock — ask anyway'}
+            </span>
+          ) : label && (
+            <span className={`text-[9px] px-1 py-0 rounded font-medium ${label.tone}`}>
+              {label.label}
+            </span>
+          )}
+        </div>
 
-        {/* The use label describes the FILE ("For print", "For Instagram").
-            On a physical asset the reseller never gets the file — we print it
-            and ship it — so "For print" there would read as an instruction to
-            print it themselves. It says what we send instead. */}
-        {asset.is_physical ? (
-          <span className="inline-block text-[9px] px-1 py-0 rounded font-medium w-fit bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300">
-            We send this to you
-          </span>
-        ) : label && (
-          <span className={`inline-block text-[9px] px-1 py-0 rounded font-medium w-fit ${label.tone}`}>
-            {label.label}
-          </span>
-        )}
+        <p className="font-semibold text-[11px] leading-tight line-clamp-2 mt-0.5">{asset.title}</p>
 
         {/* Only shown when this asset has its OWN terms. The standard line is
             identical on nearly every asset, and repeating it truncated on each
@@ -261,27 +295,20 @@ function PortalAssetCard({ asset, onDownload, onRequest }: {
             this" rather than adding a button next to it. Downloadable assets
             (photos, clips) keep Download. Staff still reach the file from the
             CRM tab, which is where it goes to the printer from. */}
-        <div className="mt-auto pt-0.5">
+        <div className="mt-auto pt-1.5 w-full">
           {asset.is_physical ? (
-            asset.physical_available ? (
-              <Button
-                size="sm"
-                onClick={() => onRequest(asset)}
-                className="w-full h-10 sm:h-6 text-xs sm:text-[10px] gap-1 px-1 bg-red-600 hover:bg-red-700"
-              >
-                <PackagePlus className="h-3 w-3" />
-                We need this
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled
-                className="w-full h-10 sm:h-6 text-xs sm:text-[10px] gap-1 px-1"
-              >
-                Out of stock
-              </Button>
-            )
+            /* Asking is allowed even when the print run is out. Hiding the
+               button lost the demand entirely — this way it queues and goes
+               out with a later order, and nobody has to maintain a date that
+               would be wrong the moment it passes. */
+            <Button
+              size="sm"
+              onClick={() => onRequest(asset)}
+              className="w-full h-10 sm:h-6 text-xs sm:text-[10px] gap-1 px-1 bg-red-600 hover:bg-red-700"
+            >
+              <PackagePlus className="h-3 w-3" />
+              We need this
+            </Button>
           ) : (
             /* Straight to Google — full resolution, nothing through the app. */
             <a

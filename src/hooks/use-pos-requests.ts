@@ -74,13 +74,40 @@ export function useCreatePosRequest() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (values: { customer_id: string; asset_id: string; qty: number; note?: string }) => {
-      const { error } = await supabase.from('pos_requests').insert({ ...values, status: 'open' })
+    mutationFn: async (values: {
+      customer_id: string
+      asset_id: string
+      qty: number
+      note?: string
+      // For the e-mail only — never written to the row.
+      customerName?: string
+      assetTitle?: string
+      outOfStock?: boolean
+    }) => {
+      const { customerName, assetTitle, outOfStock, ...row } = values
+      const { error } = await supabase.from('pos_requests').insert({ ...row, status: 'open' })
       if (error) throw error
+      return { customerName, assetTitle, outOfStock, qty: row.qty, note: row.note }
     },
-    onSuccess: () => {
+    onSuccess: (mail) => {
       queryClient.invalidateQueries({ queryKey: ['pos-requests'] })
       toast.success('Thank you — we will send it with your next order.')
+      // The row is written first, so a mail problem can never lose the request.
+      // The send itself is awaited inside the route.
+      fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'pos_request',
+          payload: {
+            customerName: mail.customerName ?? 'A reseller',
+            assetTitle: mail.assetTitle ?? 'POS material',
+            qty: mail.qty,
+            note: mail.note ?? '',
+            outOfStock: mail.outOfStock ?? false,
+          },
+        }),
+      }).catch(() => {})
     },
     // Never silent: a request that vanishes is worse than one that fails loudly.
     onError: (err: Error) => toast.error(err.message || 'Could not send your request'),

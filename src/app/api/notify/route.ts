@@ -6,7 +6,7 @@ import {
   emailOrderPlaced, emailOrderReceived, emailOutForDelivery,
   emailOrderDelivered, emailOBFormSigned,
   emailNewCustomer, emailTaskAssigned, emailTaskCompleted,
-  emailHandoverReceipt,
+  emailHandoverReceipt, emailPosRequest,
 } from '@/lib/resend'
 import { portalRecipients } from '@/lib/portal-recipients'
 
@@ -123,6 +123,27 @@ export async function POST(req: NextRequest) {
           to: ADMIN_EMAIL,
           subject: `OB form signed — ${customerName}`,
           html: emailOBFormSigned({ customerName, signerName }),
+        })
+        break
+      }
+
+      // ── Admin: reseller asked for physical POS material ────────
+      //
+      // Awaited like every other send here: on Vercel the function is frozen
+      // the moment the response returns, so a fire-and-forget send is cut off
+      // mid-flight and nobody is told.
+      case 'pos_request': {
+        const { customerName, assetTitle, qty, note, outOfStock } = payload
+        await sendEmail({
+          to: ADMIN_EMAIL,
+          subject: `POS material requested by ${customerName}`,
+          html: emailPosRequest({
+            customerName,
+            assetTitle,
+            qty: String(qty),
+            note: note ?? '',
+            outOfStock: outOfStock ? 'yes' : 'no',
+          }),
         })
         break
       }

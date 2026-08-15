@@ -384,3 +384,38 @@ export function emailOrderReceived(p: { customerName: string; total: string; ite
     ${button('View My Orders', APP_URL + '/portal')}
   `)
 }
+
+/**
+ * A reseller asked us to send physical POS material.
+ *
+ * Goes to the admin only. Without it the request sits on the dashboard until
+ * someone happens to log in — the same way the 27 July access request sat
+ * unseen for days.
+ */
+export function emailPosRequest(p: {
+  customerName: string
+  assetTitle: string
+  qty: string
+  note: string
+  outOfStock: string
+}) {
+  p = escProps(p)
+  return layout(`
+    <h2 style="margin:0 0 4px;font-size:20px;color:#111;">POS material requested</h2>
+    <p style="margin:0 0 20px;color:#6b7280;font-size:14px;">
+      ${p.customerName} would like shelf material sent with their next order.
+    </p>
+    ${badge('POS Request', '#ea580c')}
+    <table style="margin-top:16px;width:100%;border-collapse:collapse;">
+      ${row('Reseller', p.customerName)}
+      ${row('Material', p.assetTitle)}
+      ${row('Quantity', p.qty)}
+      ${row('Note', p.note || '—')}
+      ${row('Stock', p.outOfStock === 'yes' ? 'Currently out of stock — they know, and are waiting' : 'Available')}
+    </table>
+    <p style="margin:16px 0 0;color:#6b7280;font-size:13px;">
+      Open their next order to add it as a free line.
+    </p>
+    ${button('Open the CRM', APP_URL + '/dashboard')}
+  `)
+}
