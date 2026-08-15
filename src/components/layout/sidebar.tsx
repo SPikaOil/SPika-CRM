@@ -25,6 +25,7 @@ import {
   ShieldCheck,
   Ship,
   Warehouse,
+  Megaphone,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
@@ -40,6 +41,7 @@ const allNavItems = [
   { href: '/delivery-notes',  label: 'Delivery Notes',   icon: FileText,        permission: null                 },
   { href: '/orders',          label: 'Orders',           icon: ShoppingCart,    permission: 'orders.view'        },
   { href: '/products',         label: 'Products',         icon: Package,         permission: 'products.view'      },
+  { href: '/marketing',       label: 'Marketing',        icon: Megaphone,       permission: 'marketing.view'     },
   { href: '/sales-documents', label: 'Sales Docs',       icon: FolderOpen,      permission: 'salesdocs.view'     },
   { href: '/tasks',           label: 'Tasks',            icon: ClipboardList,   permission: 'tasks.view'         },
   { href: '/agenda',          label: 'Agenda',           icon: CalendarDays,    permission: null                 },

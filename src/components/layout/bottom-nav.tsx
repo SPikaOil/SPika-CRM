@@ -26,6 +26,7 @@ import {
   Mail,
   ShieldCheck,
   Ship,
+  Megaphone,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
@@ -61,6 +62,7 @@ const adminMoreItems: MoreItem[] = [
   { href: '/agenda',              label: 'Agenda',      icon: CalendarDays,  permission: null                },
   { href: '/quotations',          label: 'Quotations',  icon: ReceiptText,   permission: 'quotations.view'   },
   { href: '/products',            label: 'Products',    icon: Package,       permission: 'products.view'     },
+  { href: '/marketing',           label: 'Marketing',   icon: Megaphone,     permission: 'marketing.view'    },
   { href: '/sales-documents',     label: 'Sales Docs',  icon: FolderOpen,    permission: 'salesdocs.view'    },
   { href: '/tasks',               label: 'Tasks',       icon: ClipboardList, permission: 'tasks.view'        },
   { href: '/reports',              label: 'Reports',     icon: BarChart2,     permission: 'reports.view'      },

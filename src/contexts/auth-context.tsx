@@ -51,7 +51,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function loadPermissions() {
     const { data } = await supabase.from('role_permissions').select('role, permissions')
     if (!data?.length) return
-    const map: PermissionMap = {}
+    // Start from the defaults and let saved rows override them, instead of
+    // replacing the map wholesale. A role added later (Marketing) has no saved
+    // row yet, and a bare replace left it with NOTHING — the whole role silently
+    // dead until someone happened to press Save on the Permissions screen. A
+    // role that IS saved still wins completely, including a deliberately empty
+    // list, because its row is present.
+    const map: PermissionMap = { ...(DEFAULT_ROLE_PERMISSIONS as PermissionMap) }
     for (const row of data as any[]) map[row.role] = row.permissions ?? []
     setPermissions(map)
   }

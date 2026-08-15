@@ -16,7 +16,7 @@ import {
 
 // Roles you can actually edit. Admin is absent on purpose: it always holds
 // everything, so nobody can tick the owner out of her own system.
-const EDITABLE_ROLES = ['manager', 'sales', 'warehouse'] as const
+const EDITABLE_ROLES = ['manager', 'sales', 'warehouse', 'marketing'] as const
 
 // The column widths follow the number of roles instead of being hard-coded at
 // three. Adding Warehouse pushed a fourth column onto its own line, which put
@@ -90,6 +90,7 @@ export default function PermissionsPage() {
       manager: [...DEFAULT_ROLE_PERMISSIONS.manager],
       sales: [...DEFAULT_ROLE_PERMISSIONS.sales],
       warehouse: [...DEFAULT_ROLE_PERMISSIONS.warehouse],
+      marketing: [...DEFAULT_ROLE_PERMISSIONS.marketing],
     })
   }
 

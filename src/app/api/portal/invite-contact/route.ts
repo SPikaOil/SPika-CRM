@@ -1,3 +1,4 @@
+import { INTERNAL_ROLES } from '@/lib/permissions'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -38,7 +39,8 @@ export async function POST(req: NextRequest) {
     // this guard a portal owner could "invite" a SPika email address and the
     // link below would rewrite that account to role 'customer' — demoting an
     // admin out of their own system.
-    const INTERNAL_ROLES = ['admin', 'manager', 'sales', 'staff']
+    // Shared list, so a new team role can never be invited into the portal by
+    // accident — see lib/permissions.ts.
     if (existingProfile?.role && INTERNAL_ROLES.includes(existingProfile.role)) {
       return NextResponse.json({ error: 'This email cannot be added' }, { status: 409 })
     }

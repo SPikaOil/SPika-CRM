@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertCircle, CheckCircle, Clock, ShoppingBag, Truck, CreditCard, Copy, Check, X, Mail, ChevronDown, ChevronUp, ChevronRight, Package, Pencil, UserPlus, Building2, ArrowRight, Droplets, ClipboardList, CalendarDays, PhoneCall, Sprout, MessageCircle, Ship } from 'lucide-react'
+import { AlertCircle, CheckCircle, Clock, ShoppingBag, Truck, CreditCard, Copy, Check, X, Mail, ChevronDown, ChevronUp, ChevronRight, Package, Pencil, UserPlus, Building2, ArrowRight, Droplets, ClipboardList, CalendarDays, PhoneCall, Sprout, MessageCircle, Ship, PackagePlus } from 'lucide-react'
 import Link from 'next/link'
 import { isExportCustomer } from '@/lib/country'
 import { createClient } from '@/lib/supabase/client'
+import { usePosRequests } from '@/hooks/use-pos-requests'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
@@ -731,6 +732,8 @@ export default function DashboardPage() {
   const [workerBottles, setWorkerBottles] = useState<WorkerBottles[]>([])
   const [byWorker, setByWorker] = useState<Record<string, number>>({})
   const [pendingAccessRequests, setPendingAccessRequests] = useState(0)
+  const { data: posRequests } = usePosRequests('open')
+  const openPosRequests = (posRequests ?? []).length
   const [toProcess, setToProcess] = useState<any[]>([])
   const [refillRows, setRefillRows] = useState<RefillRow[]>([])
   const [weekTasks, setWeekTasks] = useState<Task[]>([])
@@ -1296,6 +1299,27 @@ export default function DashboardPage() {
             <Badge className="bg-blue-600 text-white text-sm px-2 shrink-0">{pendingAccessRequests}</Badge>
             <ChevronRight className="h-4 w-4 text-blue-500 shrink-0" />
           </Link>
+        </div>
+      )}
+
+      {/* Open POS material requests — resellers asking for shelf material.
+          Same shape as the reseller-request strip above it so the alert stack
+          stays one height. Granting happens on the order, not here. */}
+      {openPosRequests > 0 && (
+        <div className="rounded-xl border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/20 overflow-hidden">
+          <div className="w-full flex items-center gap-3 px-3 py-0.5 leading-tight">
+            <PackagePlus className="h-4 w-4 text-orange-600 shrink-0" />
+            <div className="flex-1 text-left">
+              <p className="font-semibold text-orange-700 dark:text-orange-400">
+                {openPosRequests} POS material request{openPosRequests > 1 ? 's' : ''}
+              </p>
+              <p className="text-xs text-orange-600/80 dark:text-orange-500">
+                Send with their next order
+                <span className="hidden sm:inline"> · Open the order to add it</span>
+              </p>
+            </div>
+            <Badge className="bg-orange-600 text-white text-sm px-2 shrink-0">{openPosRequests}</Badge>
+          </div>
         </div>
       )}
 

@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'manager' | 'sales' | 'warehouse' | 'staff' | 'customer' | 'prospect'
+export type UserRole = 'admin' | 'manager' | 'sales' | 'warehouse' | 'marketing' | 'staff' | 'customer' | 'prospect'
 
 export type CustomerCategory = string
 
@@ -541,4 +541,61 @@ export interface QuoteTemplate {
   items: TemplateItem[]
   created_at: string
   updated_at: string
+}
+
+/**
+ * A marketing asset shown in the Marketing tab and the customer portal.
+ *
+ * `file_ref` holds a Google Drive file id when source is 'drive', and a Supabase
+ * storage path when source is 'storage'. Drive carries the heavy public-facing
+ * material (photos, POS, clips); storage carries anything that must stay behind
+ * the login, such as price lists. See lib/marketing.ts for why.
+ */
+export interface MarketingAsset {
+  id: string
+  created_at: string
+  updated_at: string
+  title: string
+  description?: string | null
+  category: string
+  use_label?: string | null
+  source: 'drive' | 'storage'
+  file_ref: string
+  file_kind?: string | null
+  usage_terms?: string | null
+  visibility: 'all' | 'staff'
+  sort_order: number
+  is_active: boolean
+  download_count: number
+  /** Also exists as a physical item a reseller can request. Set per asset, not per category. */
+  is_physical: boolean
+  /** Switch off when the print run is out — the request button disappears. */
+  physical_available: boolean
+  created_by?: string | null
+}
+
+/**
+ * A reseller asking for physical POS material — a shelf talker, a poster.
+ *
+ * Free for resellers, so it rides along on the next order as a €0 line rather
+ * than being sold. The request survives on its own row because it is raised
+ * BEFORE there is an order to attach it to.
+ */
+export interface PosRequest {
+  id: string
+  created_at: string
+  updated_at: string
+  customer_id: string
+  asset_id: string
+  qty: number
+  note?: string | null
+  status: 'open' | 'planned' | 'sent' | 'declined'
+  decline_reason?: string | null
+  order_id?: string | null
+  requested_by?: string | null
+  handled_by?: string | null
+  handled_at?: string | null
+  // Joined for display, never written.
+  asset?: { id: string; title: string; category: string } | null
+  customer?: { id: string; company_name: string } | null
 }

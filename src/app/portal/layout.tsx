@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Flame, ShoppingBag, ClipboardList, LogOut, Loader2, Mail, KeyRound, LayoutDashboard, FileText, BookOpen, HeadphonesIcon, UserCircle } from 'lucide-react'
+import { Flame, ShoppingBag, ClipboardList, LogOut, Loader2, Mail, KeyRound, LayoutDashboard, FileText, BookOpen, HeadphonesIcon, UserCircle, Megaphone } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
@@ -14,7 +14,8 @@ import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 
 // Internal team roles belong in the CRM, never in the customer portal.
-const INTERNAL_ROLES = ['admin', 'manager', 'sales', 'staff']
+// One shared list — see the note in lib/permissions.ts for why.
+import { INTERNAL_ROLES } from '@/lib/permissions'
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   const { isCustomer, isLoading, profile, session } = useAuth()
@@ -90,6 +91,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     { href: '/portal/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/portal/orders', label: 'Orders', icon: ClipboardList },
     { href: '/portal/catalogue', label: 'Products', icon: BookOpen },
+    { href: '/portal/marketing', label: 'Marketing', icon: Megaphone },
     { href: '/portal/invoices', label: 'Invoices', icon: FileText },
     { href: '/portal/support', label: 'Support', icon: HeadphonesIcon },
     { href: '/portal/account', label: 'Account', icon: UserCircle },

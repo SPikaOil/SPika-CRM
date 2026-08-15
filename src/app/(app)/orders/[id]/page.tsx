@@ -30,6 +30,7 @@ import { BatchSelect } from '@/components/batch-select'
 import { useOrderPicks, useSetOrderPick } from '@/hooks/use-batches'
 import { ConsignmentPanel } from '../_components/consignment-panel'
 import { DefectReportsPanel } from '../_components/defect-reports-panel'
+import { PosRequestsPanel } from '../_components/pos-requests-panel'
 
 const statusColors: Record<OrderStatus, string> = {
   pending_approval: 'bg-orange-100 text-orange-700',
@@ -70,7 +71,7 @@ export default function OrderDetailPage({
   const { id } = use(params)
   const { data: order, isLoading } = useOrder(id)
   const updateOrder = useUpdateOrder()
-  const { isAdmin, profile } = useAuth()
+  const { isAdmin, profile, can } = useAuth()
   // The batch chosen per product. It lives in the stock movements, not on the
   // order, so the choice and the stock can never drift apart.
   const { data: picks = {} } = useOrderPicks(id)
@@ -887,6 +888,17 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
       )}
 
       {isAdmin && <DefectReportsPanel orderId={order.id} />}
+
+      {/* Free POS material this reseller asked for. Sales may grant it too —
+          they stand in the shop and know whether that shelf exists. */}
+      {order.customer_id && (order as any).order_type !== 'credit_note' && (
+        <PosRequestsPanel
+          customerId={order.customer_id}
+          orderId={order.id}
+          items={(order.items ?? []) as any}
+          canGrant={can('pos.grant')}
+        />
+      )}
 
       {/* Consignment — the note itself is not payable; the period invoices are */}
       {isAdmin && (order as any).is_consignment && (order as any).order_type !== 'credit_note' && (

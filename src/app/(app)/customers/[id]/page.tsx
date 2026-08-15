@@ -7,7 +7,7 @@ import { storagePath } from '@/lib/storage'
 import { fmtOwnCurrency } from '@/lib/utils'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Edit, Building2, Package, CheckCircle2, Clock, Truck, FileSignature, AlertTriangle, Download, Upload, Info, RefreshCw, CalendarClock, Trash2, Power, X, RotateCcw, UserCheck } from 'lucide-react'
+import { ArrowLeft, Edit, Building2, Package, CheckCircle2, Clock, Truck, FileSignature, AlertTriangle, Download, Upload, Info, RefreshCw, CalendarClock, Trash2, Power, X, RotateCcw, UserCheck, PackagePlus } from 'lucide-react'
 import { useRef } from 'react'
 import { useCustomer, useUpdateCustomer } from '@/hooks/use-customers'
 import { createClient } from '@/lib/supabase/client'
@@ -15,6 +15,8 @@ import { toast } from 'sonner'
 import { useCustomerOrders } from '@/hooks/use-orders'
 import { useCustomerSigners, useHideCustomerSigner, useHiddenSigners, useRestoreCustomerSigner } from '@/hooks/use-customer-signers'
 import { useCustomerPortalUsers } from '@/hooks/use-customer-portal-users'
+import { usePosRequests } from '@/hooks/use-pos-requests'
+import { POS_STATUS_LABELS, POS_STATUS_TONES } from '@/lib/marketing'
 import { useCreateTask } from '@/hooks/use-tasks'
 import { useAuth } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
@@ -150,6 +152,7 @@ export default function CustomerDetailPage({
   const { data: orders } = useCustomerOrders(id)
   const { data: signers } = useCustomerSigners(id)
   const { data: portalUsers } = useCustomerPortalUsers(id)
+  const { data: posRequests } = usePosRequests({ customerId: id })
   const updateCustomer = useUpdateCustomer()
   const { isAdmin, profile } = useAuth()
   const [editing, setEditing] = useState(false)
@@ -485,6 +488,35 @@ export default function CustomerDetailPage({
                     ))}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* POS material this reseller asked for. Read-only here — granting it
+              needs an order to put it on, so that button lives on the order. */}
+          {posRequests && posRequests.length > 0 && (
+            <Card size="sm" className="py-0">
+              <CardHeader className="pt-3 pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <PackagePlus className="h-4 w-4 text-orange-600" />
+                  POS material requested
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1.5 pb-3">
+                {posRequests.map(req => (
+                  <div key={req.id} className="flex items-start justify-between gap-3 text-sm">
+                    <div className="min-w-0">
+                      <p className="leading-tight">{req.qty}× {req.asset?.title ?? 'POS material'}</p>
+                      {req.note && <p className="text-[11px] text-muted-foreground leading-snug">{req.note}</p>}
+                    </div>
+                    <span className={`text-[10px] px-1.5 py-0 rounded font-medium shrink-0 ${POS_STATUS_TONES[req.status]}`}>
+                      {POS_STATUS_LABELS[req.status]}
+                    </span>
+                  </div>
+                ))}
+                <p className="text-[11px] text-muted-foreground pt-0.5">
+                  Add these to an order from that order&apos;s page.
+                </p>
               </CardContent>
             </Card>
           )}
