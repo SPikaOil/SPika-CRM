@@ -17,19 +17,33 @@ export async function POST(req: NextRequest) {
   const caller = await assertAdmin()
   if (!caller) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { customer_id } = await req.json()
+  const { customer_id, email } = await req.json()
   if (!customer_id) return NextResponse.json({ error: 'customer_id required' }, { status: 400 })
+
+  // The address is TYPED for this invitation, not taken off the customer card.
+  //
+  // Danique, 2026-08-15: "als ik bijv invite wil sturen voor Albert Heijn, dan
+  // moet er iets open komen te staan met email adres wat we nog moeten invullen
+  // — want billing is nooit degene die besteld."
+  //
+  // Exactly right: customers.email is an accounts-payable address somebody once
+  // wrote down. The person who logs in and places orders is a different human,
+  // and this invitation creates THEIR login. Inviting the billing address would
+  // hand the portal to the wrong person and make every later mail go there too.
+  const inviteEmail = typeof email === 'string' ? email.trim().toLowerCase() : ''
+  if (!inviteEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inviteEmail)) {
+    return NextResponse.json({ error: 'Fill in the e-mail address of the person who will order' }, { status: 400 })
+  }
 
   const admin = createAdminClient()
 
-  // Fetch the customer
+  // Fetch the customer. Its email is deliberately NOT read — see above.
   const { data: customer, error: custError } = await admin
     .from('customers')
-    .select('id, email, contact_person, company_name')
+    .select('id, contact_person, company_name')
     .eq('id', customer_id)
     .single()
   if (custError || !customer) return NextResponse.json({ error: 'Customer not found' }, { status: 404 })
-  if (!customer.email) return NextResponse.json({ error: 'Customer has no email address' }, { status: 400 })
 
   // Check if portal user already exists for this customer
   const { data: existing } = await admin
@@ -50,19 +64,19 @@ export async function POST(req: NextRequest) {
     authUserId = existing.id
   } else {
     // No portal profile yet — try to invite; if email already exists in auth, link them and send reset
-    const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(customer.email, {
+    const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(inviteEmail, {
       redirectTo: `${APP_URL}/portal`,
     })
 
     if (inviteError) {
       // User already exists in auth but has no portal profile — find them and send a reset link
       const { data: { users: authUsers } } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
-      const authUser = authUsers.find(u => u.email === customer.email)
+      const authUser = authUsers.find(u => u.email === inviteEmail)
       if (!authUser) return NextResponse.json({ error: inviteError.message }, { status: 400 })
       authUserId = authUser.id
 
       const serverClient = await createServerClient()
-      await serverClient.auth.resetPasswordForEmail(customer.email, {
+      await serverClient.auth.resetPasswordForEmail(inviteEmail, {
         redirectTo: `${APP_URL}/portal`,
       })
     } else {
@@ -74,7 +88,7 @@ export async function POST(req: NextRequest) {
     // primary key and the customer never gets portal access.
     const { error: profileError } = await admin.from('users').upsert({
       id: authUserId,
-      email: customer.email,
+      email: inviteEmail,
       name: customer.contact_person || customer.company_name,
       role: 'customer',
       phone: '',

@@ -24,6 +24,7 @@ import {
   Mail,
   ShieldCheck,
   Ship,
+  Warehouse,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
@@ -45,6 +46,7 @@ const allNavItems = [
   { href: '/reports',         label: 'Reports',          icon: BarChart2,       permission: 'reports.view'       },
   { href: '/stock',           label: 'Stock & Production',      icon: Droplets,        permission: 'stock.view'         },
   { href: '/handover',        label: 'Handover Btls',    icon: PackageCheck,    permission: null                 },
+  { href: '/warehouse',       label: 'Warehouse',        icon: Warehouse,       permission: 'warehouse.view'     },
   { href: '/store-locator',   label: 'Store Locator',    icon: MapPin,          permission: 'storelocator.view'  },
 ]
 

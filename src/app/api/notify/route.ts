@@ -3,11 +3,12 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   sendEmail, ADMIN_EMAIL, FROM,
-  emailOrderPlaced, emailOrderReceived, emailOrderConfirmed, emailOutForDelivery,
-  emailOrderDelivered, emailInvoiceReady, emailOBFormSigned,
-  emailNewCustomer, emailTaskAssigned, emailQuoteSent, emailTaskCompleted,
+  emailOrderPlaced, emailOrderReceived, emailOutForDelivery,
+  emailOrderDelivered, emailOBFormSigned,
+  emailNewCustomer, emailTaskAssigned, emailTaskCompleted,
   emailHandoverReceipt,
 } from '@/lib/resend'
+import { portalRecipients } from '@/lib/portal-recipients'
 
 export async function POST(req: NextRequest) {
   // Must be authenticated
@@ -18,11 +19,36 @@ export async function POST(req: NextRequest) {
   const { type, payload } = await req.json()
   const admin = createAdminClient()
 
+  // ── Nothing reaches a customer unless the customer asked for it ────────────
+  //
+  // Danique, 2026-08-14, after mail went out that should not have:
+  //   "de info in onze klantaanmaak in de app is voor ons intern gebruik!!!!
+  //    dus enkel als een klant via de portal gaat bestellen, dan pas kan hij
+  //    update mails krijgen van zn orders."
+  //
+  // The e-mail addresses on a customer card are OURS. They are there so we can
+  // look them up, not so the app can write to them. An address only becomes a
+  // mailbox we may use when that customer has a portal login and places orders
+  // through it themselves.
+  //
+  // This is a wall in the SERVER, not a condition at each button. Four screens
+  // used to mail customers directly, and the next screen somebody adds would
+  // have made it five. Refusing here means it cannot happen from anywhere.
+  const CUSTOMER_FACING = new Set([
+    'order_confirmed',   // approving an order is an internal act
+    'invoice_ready',     // "Send Invoice" is internal — the PDF goes by hand
+    'quote_sent',        // a quotation is internal too
+  ])
+  if (CUSTOMER_FACING.has(type)) {
+    console.warn(`[notify] refused "${type}" — internal action, customers are never mailed from the CRM`)
+    return NextResponse.json({ ok: false, refused: 'internal_only' })
+  }
+
   try {
     switch (type) {
       // ── Admin: new order placed via portal ─────────────────────
       case 'order_placed': {
-        const { customerName, customerEmail, billingEmails, total, items } = payload
+        const { customerName, customerId, total, items } = payload
         await sendEmail({
           to: ADMIN_EMAIL,
           subject: `New order request — ${customerName}`,
@@ -30,26 +56,15 @@ export async function POST(req: NextRequest) {
         })
         // Acknowledge to the customer as well, so they are not left guessing
         // until an admin gets round to approving.
-        const placedRecipients = [customerEmail, ...(billingEmails ?? [])].filter(Boolean)
+        //
+        // The address comes from their PORTAL LOGIN and nowhere else — never
+        // from customers.email, never from a payload. See portal-recipients.ts.
+        const placedRecipients = await portalRecipients(customerId)
         if (placedRecipients.length > 0) {
           await sendEmail({
             to: placedRecipients,
             subject: 'We received your order',
             html: emailOrderReceived({ customerName, total, items }),
-          })
-        }
-        break
-      }
-
-      // ── Customer: order confirmed (approved by admin) ──────────
-      case 'order_confirmed': {
-        const { orderNumber, customerEmail, customerName, plannedDate, billingEmails } = payload
-        const recipients = [customerEmail, ...(billingEmails ?? [])].filter(Boolean)
-        if (recipients.length > 0) {
-          await sendEmail({
-            to: recipients,
-            subject: `Your order #${orderNumber} is confirmed!`,
-            html: emailOrderConfirmed({ orderNumber, customerName, plannedDate }),
           })
         }
         break
@@ -87,36 +102,17 @@ export async function POST(req: NextRequest) {
         break
       }
 
-      // ── Admin + Customer: order delivered ──────────────────────
+      // ── Admin only: order delivered ────────────────────────────
+      // The customer half is gone on purpose. Somebody who just signed for a
+      // delivery does not need an e-mail telling them it was delivered, and the
+      // address on their card is ours for internal use.
       case 'order_delivered': {
-        const { orderNumber, customerName, customerEmail, billingEmails } = payload
+        const { orderNumber, customerName } = payload
         await sendEmail({
           to: ADMIN_EMAIL,
           subject: `Order #${orderNumber} delivered — ${customerName}`,
           html: emailOrderDelivered({ orderNumber, customerName, isAdmin: true }),
         })
-        const recipients = [customerEmail, ...(billingEmails ?? [])].filter(Boolean)
-        if (recipients.length > 0) {
-          await sendEmail({
-            to: recipients,
-            subject: `Your order #${orderNumber} has been delivered!`,
-            html: emailOrderDelivered({ orderNumber, customerName, isAdmin: false }),
-          })
-        }
-        break
-      }
-
-      // ── Customer: invoice ready ────────────────────────────────
-      case 'invoice_ready': {
-        const { orderNumber, customerName, customerEmail, billingEmails, total } = payload
-        const recipients = [customerEmail, ...(billingEmails ?? [])].filter(Boolean)
-        if (recipients.length > 0) {
-          await sendEmail({
-            to: recipients,
-            subject: `Invoice ready: #${orderNumber}`,
-            html: emailInvoiceReady({ orderNumber, customerName, total }),
-          })
-        }
         break
       }
 
@@ -154,20 +150,6 @@ export async function POST(req: NextRequest) {
               html: emailTaskAssigned({ workerName: worker.name, taskTitle, customerName, dueDate }),
             })
           }
-        }
-        break
-      }
-
-      // ── Customer: quotation sent ───────────────────────────────
-      case 'quote_sent': {
-        const { quoteNumber, customerEmail, customerName, validUntil, total, items, billingEmails } = payload
-        const recipients = [customerEmail, ...(billingEmails ?? [])].filter(Boolean)
-        if (recipients.length > 0) {
-          await sendEmail({
-            to: recipients,
-            subject: `Quotation #${quoteNumber} from SPika Oil`,
-            html: emailQuoteSent({ quoteNumber, customerName, validUntil, total, items }),
-          })
         }
         break
       }

@@ -711,23 +711,12 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                   values: { status: 'processing', assigned_to: selectedWorker, order_number: approveOrderNum.trim(), planned_date: approveDate } as any,
                 }, {
                   onSuccess: () => {
-                    // Notify customer their order is confirmed — including the delivery date
-                    if (order.customer?.email) {
-                      fetch('/api/notify', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          type: 'order_confirmed',
-                          payload: {
-                            orderNumber: approveOrderNum.trim(),
-                            plannedDate: new Date(approveDate + 'T12:00:00').toLocaleDateString('en', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
-                            customerEmail: order.customer.email,
-                            customerName: order.customer.company_name,
-                            billingEmails: order.customer.billing_emails ?? [],
-                          },
-                        }),
-                      }).catch(() => {})
-                    }
+                    // No mail to the customer. Danique, 2026-08-14: the e-mail
+                    // addresses on a customer card are OURS, for internal use —
+                    // approving an order here is an internal act and the
+                    // customer never asked to hear about it. Only somebody who
+                    // ordered through the B2B portal gets order updates, and
+                    // that mail is sent from the portal itself.
                     // Notify assigned worker
                     fetch('/api/notify', {
                       method: 'POST',
@@ -1329,24 +1318,11 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
             id: order.id,
             values: { status: 'invoice_ready' } as any,
           }, {
-            onSuccess: () => {
-              if (order.customer?.email) {
-                fetch('/api/notify', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    type: 'invoice_ready',
-                    payload: {
-                      orderNumber: order.order_number,
-                      customerEmail: order.customer.email,
-                      customerName: order.customer.company_name,
-                      billingEmails: order.customer.billing_emails ?? [],
-                      total: fmt(Number(order.total)),
-                    },
-                  }),
-                }).catch(() => {})
-              }
-            },
+            // "Send Invoice" moves the order to invoice_ready and NOTHING
+            // else. Danique, 2026-08-14: "als ik op send invoice klik, DAN MOET
+            // ER NOOIT EEN MAIL OF BERICHT gestuurd worden naar klant — dit is
+            // enkel voor intern gebruik". The invoice itself is downloaded and
+            // sent by hand.
           })}
         >
           <CheckCircle className="h-5 w-5" />

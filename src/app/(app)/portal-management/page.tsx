@@ -39,6 +39,9 @@ export default function PortalManagementPage() {
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [countryFilter, setCountryFilter] = useState('all')
   const [loading, setLoading] = useState<string | null>(null)
+  /** Which customer's invite form is open, and the address being typed. */
+  const [inviting, setInviting] = useState<string | null>(null)
+  const [inviteEmail, setInviteEmail] = useState('')
   const [tab, setTab] = useState<'customers' | 'requests'>('customers')
   const [requests, setRequests] = useState<AccessRequest[]>([])
   const [requestsLoading, setRequestsLoading] = useState(false)
@@ -87,23 +90,28 @@ export default function PortalManagementPage() {
 
   const countryCode = (customer: Customer) => customerCountryCode(customer)
 
-  async function handleInvite(customer: Customer) {
-    if (!customer.email) {
-      toast.error('This customer has no email address — add one first')
-      return
-    }
+  /**
+   * Invite the person who will actually order — an address typed here, now.
+   *
+   * Danique, 2026-08-15: "billing is nooit degene die besteld". The address on
+   * the customer card is where invoices go; the portal login belongs to whoever
+   * places the orders, and that is usually somebody else entirely. So the button
+   * opens a field instead of quietly using what happens to be on the card.
+   */
+  async function sendInvite(customer: Customer, email: string) {
     setLoading(customer.id)
     try {
       const res = await fetch('/api/admin/portal-invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customer_id: customer.id }),
+        body: JSON.stringify({ customer_id: customer.id, email }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      toast.success(data.resent ? `Invite resent to ${customer.email}` : `Invite sent to ${customer.email}`)
-      // Update local state
+      toast.success(data.resent ? `Invite resent to ${email}` : `Invite sent to ${email}`)
       setPortalUsers(prev => ({ ...prev, [customer.id]: 'pending' }))
+      setInviting(null)
+      setInviteEmail('')
     } catch (err: any) {
       toast.error(err.message)
     } finally {
@@ -469,8 +477,13 @@ export default function PortalManagementPage() {
                     )}
                     {statusBadge(status)}
                   </div>
+                  {/* The card address is the BILLING address. It is labelled as
+                      such so nobody mistakes it for the person who orders — and
+                      it is never used for the invitation. */}
                   <p className="text-xs text-muted-foreground truncate mt-0.5">
-                    {customer.email || <span className="text-orange-500">No email — add one first</span>}
+                    {customer.email
+                      ? <>Billing: {customer.email}</>
+                      : <span className="text-muted-foreground">No billing address on file</span>}
                   </p>
                   {(customer as any).portal_invited_at && (
                     <p className="text-xs text-muted-foreground">
@@ -495,7 +508,7 @@ export default function PortalManagementPage() {
                         variant="outline"
                         className="gap-1.5 text-xs"
                         disabled={isActioning}
-                        onClick={() => handleInvite(customer)}
+                        onClick={() => { setInviting(customer.id); setInviteEmail('') }}
                       >
                         <RefreshCw className={`h-3 w-3 ${isActioning ? 'animate-spin' : ''}`} />
                         Resend
@@ -515,8 +528,8 @@ export default function PortalManagementPage() {
                     <Button
                       size="sm"
                       className="gap-1.5 text-xs bg-red-600 hover:bg-red-700"
-                      disabled={isActioning || !customer.email}
-                      onClick={() => handleInvite(customer)}
+                      disabled={isActioning}
+                      onClick={() => { setInviting(customer.id); setInviteEmail('') }}
                     >
                       <Mail className={`h-3 w-3 ${isActioning ? 'animate-spin' : ''}`} />
                       Invite
@@ -524,6 +537,44 @@ export default function PortalManagementPage() {
                   )}
                 </div>
               </CardContent>
+
+              {/* Type the address of whoever will place the orders. Left empty
+                  on purpose — pre-filling it with the billing address is exactly
+                  the mistake this field exists to prevent. */}
+              {inviting === customer.id && (
+                <CardContent className="pt-0 space-y-2">
+                  <div className="rounded-lg border p-2.5 space-y-2">
+                    <p className="text-xs font-medium">
+                      Who places the orders for {customer.company_name}?
+                    </p>
+                    <Input
+                      autoFocus
+                      type="email"
+                      className="h-8 text-sm"
+                      placeholder="name@company.com"
+                      value={inviteEmail}
+                      onChange={e => setInviteEmail(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && inviteEmail.trim()) sendInvite(customer, inviteEmail.trim())
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      This becomes their login, and the only address this app will ever mail.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button size="sm" className="bg-red-600 hover:bg-red-700 h-7 text-xs"
+                        disabled={isActioning || !inviteEmail.trim()}
+                        onClick={() => sendInvite(customer, inviteEmail.trim())}>
+                        Send invite
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-7 text-xs"
+                        onClick={() => { setInviting(null); setInviteEmail('') }}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              )}
             </Card>
           )
         })}

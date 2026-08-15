@@ -269,6 +269,62 @@ export default function DeliveryPage({
     })
   }
 
+  /**
+   * Take this run's bottles off the warehouse they were stored at.
+   *
+   * Only for a load that was actually booked IN somewhere: the transport went to
+   * a warehouse, it was ticked "stays here as stock", and it has been signed in.
+   * Anything else was never added to a warehouse, so taking it off again would
+   * push that location negative.
+   *
+   * It follows the RUN, not the order — a partial delivery only takes out what
+   * physically went out, and the rest stays on the shelf over there.
+   */
+  async function bookOffWarehouse() {
+    const transportId = (order as any)?.transport_id
+    if (!transportId) return
+    try {
+      const { data: t } = await supabase
+        .from('transports')
+        .select('id, location_id, stores_at_warehouse, arrived_at')
+        .eq('id', transportId)
+        .single()
+      if (!t?.stores_at_warehouse || !t.arrived_at || !t.location_id) return
+
+      // The same batches it was picked from — read back, never guessed.
+      const { data: picks } = await supabase
+        .from('stock_movements')
+        .select('sku, batch_id')
+        .eq('order_id', orderId)
+        .eq('reason', 'order')
+      const batchOf = new Map((picks ?? []).map(p => [p.sku, p.batch_id]))
+
+      const rows = runItems
+        .filter(i => batchOf.has(i.sku))
+        .map(i => ({
+          batch_id: batchOf.get(i.sku),
+          sku: i.sku,
+          qty: -i.qty,
+          location_id: t.location_id,
+          reason: 'warehouse_out',
+          order_id: orderId,
+          transport_id: t.id,
+          note: 'Delivered to the customer from the warehouse',
+        }))
+      if (rows.length === 0) return
+
+      const { error } = await supabase.from('stock_movements').insert(rows)
+      if (error) throw error
+    } catch (err) {
+      // The delivery itself is already signed and saved — that must stand. But
+      // a stock booking that silently failed is how a warehouse count starts
+      // lying, so it is said out loud.
+      toast.error(
+        `Delivered, but the warehouse stock was not booked off: ${err instanceof Error ? err.message : 'unknown error'}`
+      )
+    }
+  }
+
   async function handleCompleteDelivery() {
     if (missingTht) {
       toast.error('Fill in the THT for every product before completing')
@@ -399,7 +455,12 @@ export default function DeliveryPage({
           ...(signatureDataUrl ? { signature_data_url: signatureDataUrl } : {}),
         } as any).eq('id', orderId)
 
-        // Notify admin + customer (fire-and-forget)
+        await bookOffWarehouse()
+
+        // Tell OURSELVES, never the customer. Danique, 2026-08-14: the e-mail
+        // addresses on a customer card are ours for internal use, and a customer
+        // who is standing in front of you signing does not need an e-mail about
+        // it. The customer address is deliberately not passed on.
         fetch('/api/notify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -408,8 +469,6 @@ export default function DeliveryPage({
             payload: {
               orderNumber: order?.order_number ?? orderId,
               customerName: order?.customer?.company_name ?? '',
-              customerEmail: (order?.customer as any)?.email ?? '',
-              billingEmails: (order?.customer as any)?.billing_emails ?? [],
             },
           }),
         }).catch(() => {})

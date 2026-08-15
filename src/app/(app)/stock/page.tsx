@@ -15,7 +15,6 @@ import { toast } from 'sonner'
 import { SPIKA_PRODUCTS } from '@/lib/products'
 import { OIL_SKUS, bottlesFromLitres, litresFromBottles, type RealVolumes } from '@/lib/oil-stock'
 import { BatchesCard } from './_components/batches-card'
-import { ShopifyWeekCard } from './_components/shopify-week-card'
 
 function monthOptions() {
   return Array.from({ length: 12 }, (_, i) => {
@@ -276,10 +275,6 @@ export default function StockPage() {
       {/* Batches — where a batch begins: filled bottles allocated to a number
           that then follows the goods all the way to the customer. */}
       <BatchesCard />
-
-      {/* Shopify is invoiced by another entity, but the bottles are ours and they
-          came off a batch. Booked per week — Danique, 2026-08-03. */}
-      <ShopifyWeekCard />
     </div>
   )
 }

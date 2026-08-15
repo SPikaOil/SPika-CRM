@@ -106,8 +106,9 @@ function NewOrderPageInner() {
       if (error) throw error
 
       // Notify the admin AND acknowledge to the customer (fire-and-forget).
-      // customerEmail is what turns this into a receipt for the customer too —
-      // without it they heard nothing until an admin approved, possibly a day later.
+      // NO address is sent along. The server resolves it from this customer's
+      // portal login, so there is nothing here the app could misread — the
+      // address on the customer card is ours, the login is theirs.
       fetch('/api/notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -115,8 +116,7 @@ function NewOrderPageInner() {
           type: 'order_placed',
           payload: {
             customerName: customer?.company_name ?? 'Unknown',
-            customerEmail: customer?.email ?? null,
-            billingEmails: customer?.billing_emails ?? [],
+            customerId: customer?.id ?? null,
             total: fmtCur(total),
             items: activeItems.map(i => `${i.qty}× ${i.name}`).join(', '),
           },

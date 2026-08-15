@@ -409,6 +409,7 @@ export default function TeamPage() {
                     <SelectItem value="admin">Admin</SelectItem>
                     <SelectItem value="manager">Manager</SelectItem>
                     <SelectItem value="sales">Sales</SelectItem>
+                    <SelectItem value="warehouse">Warehouse</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -472,6 +473,7 @@ export default function TeamPage() {
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="manager">Manager</SelectItem>
                   <SelectItem value="sales">Sales</SelectItem>
+                  <SelectItem value="warehouse">Warehouse</SelectItem>
                 </SelectContent>
               </Select>
             </div>

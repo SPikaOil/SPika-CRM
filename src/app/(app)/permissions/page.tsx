@@ -16,7 +16,14 @@ import {
 
 // Roles you can actually edit. Admin is absent on purpose: it always holds
 // everything, so nobody can tick the owner out of her own system.
-const EDITABLE_ROLES = ['manager', 'sales'] as const
+const EDITABLE_ROLES = ['manager', 'sales', 'warehouse'] as const
+
+// The column widths follow the number of roles instead of being hard-coded at
+// three. Adding Warehouse pushed a fourth column onto its own line, which put
+// every checkbox under the wrong header.
+const GRID = {
+  gridTemplateColumns: `1fr repeat(${EDITABLE_ROLES.length + 1}, minmax(40px, 56px))`,
+}
 
 export default function PermissionsPage() {
   const { isAdmin, isLoading: authLoading } = useAuth()
@@ -82,6 +89,7 @@ export default function PermissionsPage() {
     setMatrix({
       manager: [...DEFAULT_ROLE_PERMISSIONS.manager],
       sales: [...DEFAULT_ROLE_PERMISSIONS.sales],
+      warehouse: [...DEFAULT_ROLE_PERMISSIONS.warehouse],
     })
   }
 
@@ -121,7 +129,7 @@ export default function PermissionsPage() {
                 <CardContent className="p-0">
                   {/* Group name doubles as the "Permission" column header — as a
                       separate title bar it cost 40px plus a 16px gap per card. */}
-                  <div className="grid grid-cols-[1fr_48px_48px_48px] sm:grid-cols-[1fr_70px_70px_70px] gap-2 px-3 sm:px-4 py-1 border-b bg-muted/30">
+                  <div style={GRID} className="grid gap-2 px-3 sm:px-4 py-1 border-b bg-muted/30">
                     <span className="text-sm font-semibold">{group.group}</span>
                     <span className="text-[11px] text-center text-muted-foreground self-center">Admin</span>
                     {EDITABLE_ROLES.map(r => (
@@ -139,7 +147,7 @@ export default function PermissionsPage() {
 
                   {group.items.map(item => (
                     <div key={item.key}
-                      className="grid grid-cols-[1fr_48px_48px_48px] sm:grid-cols-[1fr_70px_70px_70px] gap-2 items-center px-3 sm:px-4 py-0.5 leading-tight border-b last:border-0">
+                      style={GRID} className="grid gap-2 items-center px-3 sm:px-4 py-0.5 leading-tight border-b last:border-0">
                       {/* Hint sits after the label instead of under it — on its
                           own line it nearly doubled the row height. It is hidden
                           on phones, where there is only room for a stub like

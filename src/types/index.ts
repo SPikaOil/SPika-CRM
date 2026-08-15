@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'manager' | 'sales' | 'staff' | 'customer' | 'prospect'
+export type UserRole = 'admin' | 'manager' | 'sales' | 'warehouse' | 'staff' | 'customer' | 'prospect'
 
 export type CustomerCategory = string
 
@@ -410,7 +410,7 @@ export interface Batch {
 
 export type StockReason =
   | 'filled' | 'transport_out' | 'received' | 'order'
-  | 'shopify' | 'handover' | 'return' | 'adjustment'
+  | 'warehouse_out' | 'shopify' | 'handover' | 'return' | 'adjustment'
 
 /** Every bottle in and out. Stock is the sum of these, never a stored total. */
 export interface StockMovement {
@@ -458,6 +458,9 @@ export type TransportStatus = 'draft' | 'ready' | 'submitted' | 'cleared' | 'del
 
 /** One of our own warehouse / drop addresses, used when a transport does not go straight to the customer. */
 export interface TransportLocation {
+  /** The warehouse member responsible for this place. Null = an unmanned address. */
+  user_id?: string | null
+  user?: { id: string; name: string; email: string } | null
   id: string
   name: string
   street: string
@@ -492,6 +495,16 @@ export interface Transport {
   stores_at_warehouse?: boolean
   /** When the warehouse signed the load in. Null = not arrived yet. */
   arrived_at?: string | null
+  /** Who signed it in. */
+  received_by?: string | null
+  /** PATH inside the private pod-files bucket, never a public URL. */
+  receipt_signature_url?: string | null
+  /** What was counted at intake, per product per order. */
+  receipt_lines?: {
+    order_id: string; order_number: string; sku: string; name: string
+    expected: number; received: number; reason: string
+  }[]
+  receipt_notes?: string
   created_by: string | null
   created_at: string
   updated_at: string

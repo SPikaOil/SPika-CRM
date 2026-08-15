@@ -28,6 +28,7 @@ export function BatchSelect({
   disabled,
   className,
   placeholder = 'Choose batch',
+  locationId = null,
 }: {
   sku?: string
   value: string | null | undefined
@@ -36,14 +37,20 @@ export function BatchSelect({
   disabled?: boolean
   className?: string
   placeholder?: string
+  /** Where the bottles are taken from. Null = Curaçao, the default. */
+  locationId?: string | null
 }) {
   const { data: batches } = useBatches()
   const { data: stock } = useBatchStock()
 
-  /** Left on Curaçao (location null) for this batch — of one sku, or of all. */
+  /**
+   * What is left of this batch AT THE PLACE it is being taken from — of one sku,
+   * or of all. A batch can be empty on Curaçao and still have 200 bottles
+   * sitting in a warehouse, so counting them together would be a lie.
+   */
   function left(batchId: string): number {
     return (stock ?? [])
-      .filter(r => r.batch_id === batchId && r.location_id === null && (!sku || r.sku === sku))
+      .filter(r => r.batch_id === batchId && r.location_id === locationId && (!sku || r.sku === sku))
       .reduce((sum, r) => sum + r.qty, 0)
   }
 
@@ -63,7 +70,11 @@ export function BatchSelect({
         onValueChange={v => onChange(v === NONE ? null : v)}
       >
         <SelectTrigger className={`h-7 w-full text-xs px-2 ${!value ? 'border-red-300' : ''}`}>
-          <SelectValue placeholder={placeholder} />
+          {/* Without this the trigger prints the raw value — a bare uuid, in a
+              field that is supposed to say SPGE22. */}
+          <SelectValue placeholder={placeholder}>
+            {(v: string) => options.find(o => o.id === v)?.batch_number ?? placeholder}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={NONE}>— no batch —</SelectItem>

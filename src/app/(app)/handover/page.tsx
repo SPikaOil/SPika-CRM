@@ -18,9 +18,23 @@ import { toast } from 'sonner'
 import { SPIKA_PRODUCTS } from '@/lib/products'
 import { BatchSelect } from '@/components/batch-select'
 import { useBatches } from '@/hooks/use-batches'
+import { useTransportLocations } from '@/hooks/use-transports'
 
 // Only physical bottle products can be handed over
 const HANDOVER_SKUS = SPIKA_PRODUCTS.filter(p => !p.sku.includes('return')).map(p => p.sku)
+
+// A Select item cannot carry an empty value. Null keeps meaning Curaçao.
+const CURACAO = '__curacao__'
+
+/** Why a counted number is not the one that was sent. */
+const RECEIPT_REASONS = [
+  { value: 'broken',  label: 'Broken in transit' },
+  { value: 'missing', label: 'Missing / short' },
+  { value: 'extra',   label: 'More than sent' },
+  { value: 'other',   label: 'Other' },
+] as const
+
+interface CountLine { sku: string; name: string; expected: number; received: number; reason: string }
 
 interface Batch {
   id: string
@@ -30,6 +44,13 @@ interface Batch {
   batch_id: string | null
   handover_date: string | null
   member_id: string
+  /** Where it left from. Null = Curaçao. */
+  from_location_id: string | null
+  /** Set when it travelled by post instead of hand to hand. */
+  tracking_number: string | null
+  tracking_carrier: string | null
+  /** What the receiver counted. Empty until it is signed for. */
+  receipt_lines?: CountLine[]
   items: { sku: string; name: string; qty: number }[]
   notes: string
   signature_url: string | null
@@ -48,12 +69,17 @@ export default function HandoverPage() {
   const supabase = createClient()
   const { data: users } = useUsers()
   const { data: stockBatches } = useBatches()
+  const { data: locations } = useTransportLocations()
 
   const [batches, setBatches] = useState<Batch[]>([])
   const [loading, setLoading] = useState(true)
 
   // New batch form
   const [batchId, setBatchId] = useState<string | null>(null)
+  /** Where the bottles leave from. Null = Curaçao. */
+  const [fromLocationId, setFromLocationId] = useState<string | null>(null)
+  const [tracking, setTracking] = useState('')
+  const [trackingCarrier, setTrackingCarrier] = useState('')
   const [handoverDate, setHandoverDate] = useState(todayStr())
   const [memberId, setMemberId] = useState('')
   const [qtys, setQtys] = useState<Record<string, number>>({})
@@ -63,6 +89,7 @@ export default function HandoverPage() {
   // Signing
   const [signBatch, setSignBatch] = useState<Batch | null>(null)
   const [signing, setSigning] = useState(false)
+  const [countLines, setCountLines] = useState<CountLine[]>([])
 
   // Delete (reconciliation after delivery)
   const [deleteBatch, setDeleteBatch] = useState<Batch | null>(null)
@@ -79,6 +106,14 @@ export default function HandoverPage() {
     setLoading(false)
   }
   useEffect(() => { if (profile) loadBatches() /* eslint-disable-next-line */ }, [profile?.id, isAdmin])
+
+  // Opening the dialog starts the count at what was sent; the receiver corrects
+  // it where reality differs.
+  useEffect(() => {
+    setCountLines((signBatch?.items ?? []).map(i => ({
+      sku: i.sku, name: i.name, expected: i.qty, received: i.qty, reason: '',
+    })))
+  }, [signBatch])
 
   useEffect(() => {
     if (signBatch && canvasRef.current) {
@@ -101,6 +136,20 @@ export default function HandoverPage() {
   // records fall back to whatever text was typed at the time.
   const batchNumberOf = (b: Batch) =>
     (stockBatches ?? []).find(x => x.id === b.batch_id)?.batch_number ?? b.batch_number
+  // Where a person's stock lands. One person, one place — migration 068 makes
+  // sure of that, so this find can only ever match once.
+  const placeOf = (userId: string) => (locations ?? []).find(l => l.user_id === userId) ?? null
+  /** From → to, in plain words. A null from-location means Curaçao. */
+  const routeOf = (b: Batch) => {
+    const from = b.from_location_id
+      ? (locations ?? []).find(l => l.id === b.from_location_id)?.name ?? 'a warehouse'
+      : 'Curaçao'
+    const to = placeOf(b.member_id)?.name ?? memberName(b.member_id)
+    return `${from} → ${to}`
+  }
+  /** How many bottles went missing between sending and signing. */
+  const shortOf = (b: Batch) =>
+    (b.receipt_lines ?? []).reduce((sum, l) => sum + Math.max(0, l.expected - l.received), 0)
   const memberName = (id: string) => users?.find(u => u.id === id)?.name ?? 'Unknown'
 
   function adjust(sku: string, delta: number) {
@@ -119,18 +168,23 @@ export default function HandoverPage() {
     setCreating(true)
     const { data: created, error } = await supabase.from('handover_batches').insert({
       batch_id: batchId,
+      from_location_id: fromLocationId,
+      tracking_number: tracking.trim(),
+      tracking_carrier: trackingCarrier.trim(),
       handover_date: handoverDate || null,
       member_id: memberId, items, notes, created_by: profile?.id,
     }).select('id').single()
     if (error) { setCreating(false); toast.error(error.message); return }
 
     // The bottles leave the shelf now, not when the member signs. They are
-    // physically gone the moment they are handed over, and Stock has to say so.
+    // physically gone the moment they are handed over — in the post, in a car,
+    // in somebody's hands — and the place they left has to say so.
     const { error: moveErr } = await supabase.from('stock_movements').insert(
       items.map(i => ({
         batch_id: batchId,
         sku: i.sku,
         qty: -i.qty,
+        location_id: fromLocationId,
         reason: 'handover',
         handover_batch_id: created.id,
         note: `Handed to ${memberName(memberId)}`,
@@ -141,6 +195,7 @@ export default function HandoverPage() {
     if (moveErr) { toast.error(`Handover saved, but the stock was not booked: ${moveErr.message}`); return }
     toast.success('Handover batch created')
     setBatchId(null); setHandoverDate(todayStr()); setMemberId(''); setQtys({}); setNotes('')
+    setFromLocationId(null); setTracking(''); setTrackingCarrier('')
     loadBatches()
   }
 
@@ -177,6 +232,15 @@ export default function HandoverPage() {
     }
     setSigning(true)
     try {
+      // Every difference needs a reason. A shortage nobody explained is a
+      // shortage nobody can chase with the carrier afterwards.
+      const shortWithoutReason = countLines.filter(l => l.received !== l.expected && !l.reason)
+      if (shortWithoutReason.length > 0) {
+        toast.error('Say why the count differs — every difference needs a reason')
+        setSigning(false)
+        return
+      }
+
       const dataUrl = sigPadRef.current.toDataURL('image/png')
       const blob = await (await fetch(dataUrl)).blob()
       const path = `handover/${signBatch.id}.png`
@@ -186,8 +250,34 @@ export default function HandoverPage() {
       const signedAt = new Date().toISOString()
       const { error } = await supabase.from('handover_batches').update({
         signature_url: urlData.publicUrl, signer_name: memberName(signBatch.member_id), signed_at: signedAt,
+        receipt_lines: countLines,
       }).eq('id', signBatch.id)
       if (error) throw error
+
+      // Signing is the moment the bottles land. If the receiver holds a place,
+      // what they COUNTED goes onto that place — never what was sent. Somebody
+      // without a place keeps it as personal stock, exactly as before.
+      const place = placeOf(signBatch.member_id)
+      if (place && signBatch.batch_id) {
+        const rows = countLines
+          .filter(l => l.received > 0)
+          .map(l => ({
+            batch_id: signBatch.batch_id,
+            sku: l.sku,
+            qty: l.received,
+            location_id: place.id,
+            reason: 'received',
+            handover_batch_id: signBatch.id,
+            note: l.received === l.expected
+              ? `Received at ${place.name}`
+              : `Received at ${place.name} — counted ${l.received} of ${l.expected}`,
+            created_by: profile?.id,
+          }))
+        if (rows.length > 0) {
+          const { error: moveErr } = await supabase.from('stock_movements').insert(rows)
+          if (moveErr) throw moveErr
+        }
+      }
 
       // Email the member a receipt of what they took (fire-and-forget)
       fetch('/api/notify', {
@@ -261,17 +351,26 @@ export default function HandoverPage() {
         <CardContent className="space-y-3">
           <div className="flex gap-2">
             <div className="space-y-1 flex-1">
-              <Label className="text-xs">Batch</Label>
-              {/* Chosen, never typed. The number is entered once, at Stock, when
-                  the batch is created — Danique, 2026-08-14. Handing bottles to
-                  a team member takes them off that batch, so what Stock shows
-                  stays equal to what is actually on the shelf. */}
-              <BatchSelect
-                className="[&>button]:h-9 [&>button]:text-sm"
-                value={batchId}
-                onChange={setBatchId}
-                placeholder="Choose batch"
-              />
+              <Label className="text-xs">From</Label>
+              {/* The same batch can be lying on Curaçao and in Rotterdam at
+                  once, so the shelf it leaves has to be named. Null = Curaçao,
+                  the same convention the stock movements use. */}
+              <Select value={fromLocationId ?? CURACAO}
+                onValueChange={v => { if (v) { setFromLocationId(v === CURACAO ? null : v); setBatchId(null) } }}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue>
+                    {(v: string) => v === CURACAO
+                      ? 'Curaçao'
+                      : (locations ?? []).find(l => l.id === v)?.name ?? 'Curaçao'}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={CURACAO}>Curaçao</SelectItem>
+                  {(locations ?? []).map(l => (
+                    <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Date</Label>
@@ -279,13 +378,50 @@ export default function HandoverPage() {
             </div>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Allocate to</Label>
+            <Label className="text-xs">Batch</Label>
+            {/* Chosen, never typed. The number is entered once, at Stock, when
+                the batch is created — Danique, 2026-08-14. The list shows what
+                is left at the place it is leaving from, not the grand total. */}
+            <BatchSelect
+              className="[&>button]:h-9 [&>button]:text-sm"
+              value={batchId}
+              onChange={setBatchId}
+              locationId={fromLocationId}
+              placeholder="Choose batch"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">To</Label>
             <Select value={memberId} onValueChange={v => setMemberId(v ?? '')}>
               <SelectTrigger className="h-9"><SelectValue placeholder="Select team member" /></SelectTrigger>
               <SelectContent>
                 {salesTeam.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
               </SelectContent>
             </Select>
+            {/* Where it lands follows from WHO receives it — there is no
+                destination field on purpose. A destination you can set apart
+                from the receiver is one you can set wrong. */}
+            {memberId && (
+              <p className="text-xs text-muted-foreground">
+                {placeOf(memberId)
+                  ? `Lands at ${placeOf(memberId)!.name}`
+                  : 'Not tied to a place — stays personal stock, outside the warehouse counts'}
+              </p>
+            )}
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Track &amp; trace / label</Label>
+              {/* Handed over in person, or posted. When it goes by post the
+                  number belongs here so it can be followed while it is away. */}
+              <Input className="h-9" placeholder="e.g. 3SABCD1234567"
+                value={tracking} onChange={e => setTracking(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Carrier</Label>
+              <Input className="h-9" placeholder="e.g. PostNL"
+                value={trackingCarrier} onChange={e => setTrackingCarrier(e.target.value)} />
+            </div>
           </div>
           <div className="space-y-1.5">
             {HANDOVER_SKUS.map(sku => {
@@ -328,6 +464,13 @@ export default function HandoverPage() {
                       <p className="text-xs text-muted-foreground truncate">
                         {b.items.map(i => `${i.qty}× ${i.name.replace('SPika Oil - ', '').replace('SPika2Go - ', '')}`).join(' · ')}
                       </p>
+                      {/* Where it went and, when it travelled by post, how to
+                          follow it while it is away. */}
+                      <p className="text-xs text-muted-foreground truncate">
+                        {routeOf(b)}
+                        {b.tracking_number ? ` · ${b.tracking_carrier || 'tracking'} ${b.tracking_number}` : ''}
+                        {shortOf(b) > 0 ? ` · ${shortOf(b)} short at intake` : ''}
+                      </p>
                     </div>
                     <Badge className="bg-orange-500 text-white text-xs shrink-0"><Clock className="h-3 w-3 mr-1" />Pending</Badge>
                     <Button size="sm" className="bg-red-600 hover:bg-red-700 shrink-0" onClick={() => setSignBatch(b)}>Sign</Button>
@@ -351,6 +494,13 @@ export default function HandoverPage() {
                       </div>
                       <p className="text-xs text-muted-foreground truncate">
                         {b.items.map(i => `${i.qty}× ${i.name.replace('SPika Oil - ', '').replace('SPika2Go - ', '')}`).join(' · ')}
+                      </p>
+                      {/* Where it went and, when it travelled by post, how to
+                          follow it while it is away. */}
+                      <p className="text-xs text-muted-foreground truncate">
+                        {routeOf(b)}
+                        {b.tracking_number ? ` · ${b.tracking_carrier || 'tracking'} ${b.tracking_number}` : ''}
+                        {shortOf(b) > 0 ? ` · ${shortOf(b)} short at intake` : ''}
                       </p>
                     </div>
                     {b.signature_url && (
@@ -387,6 +537,51 @@ export default function HandoverPage() {
               <p className="text-xs text-muted-foreground">
                 By signing, {memberName(signBatch.member_id)} confirms receipt of these bottles for delivery.
               </p>
+
+              {/* Count first, sign after. A handover that travels by post can
+                  arrive short, and signing for what was SENT would make that
+                  shortage disappear the moment it is discovered. */}
+              <div className="space-y-1.5">
+                <Label className="text-xs">What actually arrived?</Label>
+                {countLines.map((l, i) => {
+                  const diff = l.received - l.expected
+                  return (
+                    <div key={l.sku} className="space-y-1 border-b pb-1.5 last:border-0">
+                      <div className="flex items-center gap-2">
+                        <span className="flex-1 min-w-0 text-sm truncate">{l.name}</span>
+                        <span className="text-xs text-muted-foreground shrink-0">of {l.expected}</span>
+                        <Input type="number" min="0"
+                          className={`h-7 w-20 text-sm text-right px-2 ${diff !== 0 ? 'border-orange-400' : ''}`}
+                          value={l.received}
+                          onChange={e => setCountLines(rows => rows.map((r, idx) =>
+                            idx === i ? { ...r, received: Math.max(0, Number(e.target.value) || 0) } : r))} />
+                      </div>
+                      {diff !== 0 && (
+                        <div className="flex items-center gap-2 pl-1">
+                          <span className={`text-xs shrink-0 ${diff < 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                            {diff > 0 ? `+${diff}` : diff}
+                          </span>
+                          <Select value={l.reason || undefined}
+                            onValueChange={v => v && setCountLines(rows => rows.map((r, idx) =>
+                              idx === i ? { ...r, reason: v } : r))}>
+                            <SelectTrigger className={`h-7 text-xs px-2 flex-1 ${!l.reason ? 'border-red-300' : ''}`}>
+                              <SelectValue placeholder="Why?">
+                                {(v: string) => RECEIPT_REASONS.find(r => r.value === v)?.label ?? 'Why?'}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              {RECEIPT_REASONS.map(r => (
+                                <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+
               <canvas ref={canvasRef} className="w-full h-40 rounded-lg border bg-white touch-none" />
               <div className="flex gap-2">
                 <Button variant="outline" className="flex-1" onClick={() => sigPadRef.current?.clear()}>Clear</Button>

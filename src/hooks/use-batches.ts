@@ -123,6 +123,38 @@ export function useAddStockMovements() {
 }
 
 /**
+ * The batches a transport actually brought into a warehouse.
+ *
+ * Read from the 'received' movements, not from the orders on the transport: an
+ * order can sit on a transport without ever having been booked in, and shipping
+ * from something that was never received is how a location goes negative.
+ */
+export function useTransportBatches(transportId: string | null | undefined) {
+  const supabase = createClient()
+  return useQuery({
+    queryKey: ['transport_batches', transportId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('stock_movements')
+        .select('sku, batch_id, batch:batches(batch_number, tht_date)')
+        .eq('transport_id', transportId!)
+        .eq('reason', 'received')
+      if (error) throw error
+      return (data ?? []).map(row => {
+        const batch = row.batch as unknown as { batch_number: string; tht_date: string | null } | null
+        return {
+          sku: row.sku,
+          batch_id: row.batch_id,
+          batch_number: batch?.batch_number ?? '',
+          tht_date: batch?.tht_date ?? null,
+        }
+      })
+    },
+    enabled: !!transportId,
+  })
+}
+
+/**
  * Which batch each product on an order was taken from: { sku -> batch_id }.
  *
  * A batch is CHOSEN on the order, per product — Danique, 2026-08-14. That choice

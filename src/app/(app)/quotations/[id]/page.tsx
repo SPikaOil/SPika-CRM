@@ -113,32 +113,10 @@ export default function QuotationDetailPage({
       // Update status to sent
       await updateQuote.mutateAsync({ id, values: { status: 'sent' } })
 
-      // Send email notification
-      const itemsSummary = activeItems.map((i) => `${i.qty}× ${i.name}`).join(', ')
-      const validUntilStr = quote.valid_until
-        ? new Date(quote.valid_until).toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })
-        : '—'
-
-      await fetch('/api/notify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'quote_sent',
-          payload: {
-            quoteNumber: quote.quote_number,
-            customerEmail: customer.email,
-            customerName: customer.company_name,
-            validUntil: validUntilStr,
-            // Formatted here, with the quote's own currency — the template no
-            // longer prefixes anything.
-            total: fmtCur(total),
-            items: itemsSummary,
-            billingEmails: customer.billing_emails ?? [],
-          },
-        }),
-      }).catch(() => {})
-
-      toast.success('Quotation sent to customer!')
+      // No mail. Danique, 2026-08-14: "offertes is ook intern, ENKEL B2B portal
+      // zaken". Marking a quotation as sent records that WE sent it — the PDF is
+      // downloaded and mailed by hand, from a real mailbox, by a person.
+      toast.success('Quotation marked as sent — send the PDF yourself')
     } catch (err: any) {
       toast.error(err.message)
     } finally {

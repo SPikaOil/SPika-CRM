@@ -112,11 +112,15 @@ export async function PATCH(
     console.error('[edit-order] Admin email failed:', err)
   }
 
-  const customerEmail = customer?.email
-  if (customerEmail) {
+  // The portal login's own address, never customers.email. Two places hold an
+  // address and they mean different things: the customer card is our notes, the
+  // login is a mailbox they own. Only the second is written to.
+  const { portalRecipients } = await import('@/lib/portal-recipients')
+  const recipients = await portalRecipients(customer?.id)
+  if (recipients.length > 0) {
     try {
       await sendEmail({
-        to: customerEmail,
+        to: recipients,
         subject: `Your changes to order #${orderNumber} have been received`,
         html: emailOrderModifiedConfirmation({
           orderNumber,

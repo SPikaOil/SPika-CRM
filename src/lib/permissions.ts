@@ -2,13 +2,14 @@
 // Permissions screen can show them all and an admin decides per role who gets
 // what. Roles are presets over these permissions, not the source of truth.
 
-export const ROLES = ['admin', 'manager', 'sales'] as const
+export const ROLES = ['admin', 'manager', 'sales', 'warehouse'] as const
 export type Role = (typeof ROLES)[number]
 
 export const ROLE_LABELS: Record<Role, string> = {
   admin: 'Admin',
   manager: 'Manager',
   sales: 'Sales',
+  warehouse: 'Warehouse',
 }
 
 export interface PermissionDef {
@@ -61,6 +62,8 @@ export const PERMISSIONS: PermissionGroup[] = [
       { key: 'deliveries.all', label: 'All delivery notes', hint: "Also see other people's" },
       { key: 'products.view', label: 'Products tab' },
       { key: 'stock.view', label: 'Stock & production' },
+      { key: 'warehouse.view', label: 'Warehouse tab', hint: 'Stock lying at our warehouses and sales staff abroad' },
+      { key: 'warehouse.receive', label: 'Sign transports in', hint: 'Book an arriving transport in, including any differences' },
       { key: 'salesdocs.view', label: 'Sales documents' },
       { key: 'tasks.view', label: 'Tasks' },
       { key: 'storelocator.view', label: 'Store locator' },
@@ -95,6 +98,13 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Exclude<Role, 'admin'>, string[]> 
   ],
   sales: [
     'orders.create',
+    'deliveries.own',
+  ],
+  // A warehouse member touches stock and nothing else. No prices, no customers,
+  // no reports — they sign goods in and hand them out again.
+  warehouse: [
+    'warehouse.view',
+    'warehouse.receive',
     'deliveries.own',
   ],
 }

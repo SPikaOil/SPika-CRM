@@ -68,10 +68,37 @@ export function useTransportLocations() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('transport_locations')
-        .select('*')
+        .select('*, user:users(id, name, email)')
         .order('name')
       if (error) throw error
       return data as TransportLocation[]
+    },
+  })
+}
+
+/**
+ * Who may be put in charge of a location: whoever physically holds our bottles.
+ *
+ * Danique, 2026-08-14: "het moet niet kunnen dat ik gewoon who ever kan
+ * invullen, want anders ben je de controle kwijt uit deze app." So it is a
+ * warehouse member or a sales member — a sales member driving around with stock
+ * in the boot is holding stock just as much as a warehouse is. Nobody else. The
+ * database refuses the rest as well (migrations 066 and 068); this only keeps
+ * the screen from offering a choice that would be rejected.
+ */
+export function useWarehouseMembers() {
+  const supabase = createClient()
+  return useQuery({
+    queryKey: ['warehouse_members'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, name, email, role, is_active')
+        .in('role', ['warehouse', 'sales'])
+        .order('name')
+      if (error) throw error
+      return (data ?? []).filter(u => (u as { is_active?: boolean }).is_active !== false) as
+        { id: string; name: string; email: string; role: string }[]
     },
   })
 }
