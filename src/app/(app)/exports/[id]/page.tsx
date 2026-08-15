@@ -20,6 +20,7 @@ import {
 } from '@/hooks/use-transports'
 import { ColliEditor } from '../_components/colli-editor'
 import { TransportDocuments } from '../_components/transport-documents'
+import { ReceivedDocuments } from '../_components/received-documents'
 import { ArrivalCard } from '../_components/arrival-card'
 import { ShortagePanel } from '../_components/shortage-panel'
 import { TransportStatus } from '@/types'
@@ -478,6 +479,10 @@ export default function TransportDetailPage({
       <ShortagePanel transport={t} />
 
       <TransportDocuments transport={t} />
+
+      {/* Papers that came back stamped. The card above generates what we send;
+          this one keeps what somebody else signed and handed back. */}
+      <ReceivedDocuments transport={t} />
     </div>
   )
 }
