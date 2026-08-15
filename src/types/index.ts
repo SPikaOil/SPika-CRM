@@ -503,6 +503,8 @@ export interface Transport {
   receipt_lines?: {
     order_id: string; order_number: string; sku: string; name: string
     expected: number; received: number; reason: string
+    /** What the customer gets: credited, delivered later, or carried by us. */
+    outcome?: 'credit' | 'later' | 'our_loss'
   }[]
   receipt_notes?: string
   created_by: string | null
