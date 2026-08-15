@@ -24,6 +24,8 @@ import { Order, OrderCurrency, OrderEditLogEntry, OrderStatus, QuoteItem } from 
 import { SPIKA_PRODUCTS } from '@/lib/products'
 import { getNextCashOrderNumber, getNextOrderNumber, getCreditNoteNumber } from '@/lib/order-number'
 import { formatCurrency, formatTht, thtToMonthInput, monthInputToTht, currentMonthInput } from '@/lib/utils'
+import { BatchSelect } from '@/components/batch-select'
+import { useOrderPicks, useSetOrderPick } from '@/hooks/use-batches'
 import { ConsignmentPanel } from '../_components/consignment-panel'
 import { DefectReportsPanel } from '../_components/defect-reports-panel'
 
@@ -67,6 +69,10 @@ export default function OrderDetailPage({
   const { data: order, isLoading } = useOrder(id)
   const updateOrder = useUpdateOrder()
   const { isAdmin, profile } = useAuth()
+  // The batch chosen per product. It lives in the stock movements, not on the
+  // order, so the choice and the stock can never drift apart.
+  const { data: picks = {} } = useOrderPicks(id)
+  const setOrderPick = useSetOrderPick()
 
   // Adjusted total accounting for table bottle credit
   const bottleCredit = order
@@ -320,6 +326,7 @@ export default function OrderDetailPage({
         showPrices: docType === 'INVOICE' ? isAdmin : false,
         company: companyData ?? undefined,
         documentType: docType,
+        batches: await (await import('@/lib/order-batches')).fetchOrderBatches(order?.id),
       })
     ).toBlob()
   }
@@ -1564,6 +1571,26 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                         )
                       ) : (
                         item.tht_date && <p className="text-xs text-muted-foreground mt-0.5">THT: {formatTht(item.tht_date)}</p>
+                      )}
+                      {/* Which batch this product came off. Choosing one takes
+                          the bottles off that batch straight away, so the stock
+                          under Stock is what is really on the shelf — and the
+                          batch number lands on the invoice and the packing
+                          list. Per product, because one order can be picked
+                          from more than one batch. */}
+                      {isAdmin && item.qty > 0 && (
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <span className={`text-xs ${picks[item.sku] ? 'text-muted-foreground' : 'text-red-600 font-medium'}`}>Batch</span>
+                          <BatchSelect
+                            className="w-52"
+                            sku={item.sku}
+                            needed={item.qty}
+                            value={picks[item.sku] ?? null}
+                            onChange={batchId => setOrderPick.mutate({
+                              orderId: order.id, sku: item.sku, qty: item.qty, batchId,
+                            })}
+                          />
+                        </div>
                       )}
                     </div>
                     {isAdmin && <p className="font-semibold text-sm shrink-0">{fmt(item.line_total)}</p>}

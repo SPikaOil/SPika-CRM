@@ -16,13 +16,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { SPIKA_PRODUCTS } from '@/lib/products'
+import { BatchSelect } from '@/components/batch-select'
+import { useBatches } from '@/hooks/use-batches'
 
 // Only physical bottle products can be handed over
 const HANDOVER_SKUS = SPIKA_PRODUCTS.filter(p => !p.sku.includes('return')).map(p => p.sku)
 
 interface Batch {
   id: string
+  /** Free text from before batches were real records. Kept for old rows only. */
   batch_number: string | null
+  /** The batch these bottles came off. Chosen, never typed. */
+  batch_id: string | null
   handover_date: string | null
   member_id: string
   items: { sku: string; name: string; qty: number }[]
@@ -42,12 +47,13 @@ export default function HandoverPage() {
   const { isAdmin, profile } = useAuth()
   const supabase = createClient()
   const { data: users } = useUsers()
+  const { data: stockBatches } = useBatches()
 
   const [batches, setBatches] = useState<Batch[]>([])
   const [loading, setLoading] = useState(true)
 
   // New batch form
-  const [batchNumber, setBatchNumber] = useState('')
+  const [batchId, setBatchId] = useState<string | null>(null)
   const [handoverDate, setHandoverDate] = useState(todayStr())
   const [memberId, setMemberId] = useState('')
   const [qtys, setQtys] = useState<Record<string, number>>({})
@@ -91,6 +97,10 @@ export default function HandoverPage() {
   // new role (Manager) silently disappeared from this dropdown.
   const INTERNAL_ROLES = ['admin', 'manager', 'sales', 'staff']
   const salesTeam = (users ?? []).filter(u => INTERNAL_ROLES.includes(u.role) && (u as any).is_active !== false)
+  // A handover shows the batch it came off. Rows from before batches were real
+  // records fall back to whatever text was typed at the time.
+  const batchNumberOf = (b: Batch) =>
+    (stockBatches ?? []).find(x => x.id === b.batch_id)?.batch_number ?? b.batch_number
   const memberName = (id: string) => users?.find(u => u.id === id)?.name ?? 'Unknown'
 
   function adjust(sku: string, delta: number) {
@@ -103,16 +113,34 @@ export default function HandoverPage() {
       .filter(sku => (qtys[sku] ?? 0) > 0)
       .map(sku => ({ sku, name: SPIKA_PRODUCTS.find(p => p.sku === sku)!.name, qty: qtys[sku] }))
     if (items.length === 0) { toast.error('Add at least one bottle'); return }
+    // No batch, no handover: you cannot give away bottles that were never
+    // filled — the rule migration 055 was written for.
+    if (!batchId) { toast.error('Choose the batch these bottles come from'); return }
     setCreating(true)
-    const { error } = await supabase.from('handover_batches').insert({
-      batch_number: batchNumber.trim() || null,
+    const { data: created, error } = await supabase.from('handover_batches').insert({
+      batch_id: batchId,
       handover_date: handoverDate || null,
       member_id: memberId, items, notes, created_by: profile?.id,
-    })
+    }).select('id').single()
+    if (error) { setCreating(false); toast.error(error.message); return }
+
+    // The bottles leave the shelf now, not when the member signs. They are
+    // physically gone the moment they are handed over, and Stock has to say so.
+    const { error: moveErr } = await supabase.from('stock_movements').insert(
+      items.map(i => ({
+        batch_id: batchId,
+        sku: i.sku,
+        qty: -i.qty,
+        reason: 'handover',
+        handover_batch_id: created.id,
+        note: `Handed to ${memberName(memberId)}`,
+        created_by: profile?.id,
+      }))
+    )
     setCreating(false)
-    if (error) { toast.error(error.message); return }
+    if (moveErr) { toast.error(`Handover saved, but the stock was not booked: ${moveErr.message}`); return }
     toast.success('Handover batch created')
-    setBatchNumber(''); setHandoverDate(todayStr()); setMemberId(''); setQtys({}); setNotes('')
+    setBatchId(null); setHandoverDate(todayStr()); setMemberId(''); setQtys({}); setNotes('')
     loadBatches()
   }
 
@@ -123,6 +151,14 @@ export default function HandoverPage() {
       // Remove the signature file too, if any
       const path = `handover/${deleteBatch.id}.png`
       await supabase.storage.from('pod-files').remove([path]).catch(() => {})
+      // Removing a handover puts the bottles back on the batch. The handover
+      // never happened, so the stock must not stay deducted.
+      const { error: moveErr } = await supabase
+        .from('stock_movements')
+        .delete()
+        .eq('handover_batch_id', deleteBatch.id)
+        .eq('reason', 'handover')
+      if (moveErr) throw moveErr
       const { error } = await supabase.from('handover_batches').delete().eq('id', deleteBatch.id)
       if (error) throw error
       toast.success('Handover record removed')
@@ -203,7 +239,7 @@ export default function HandoverPage() {
             'handover-batches',
             ['Batch #', 'Handover date', 'Member', 'Total bottles', 'Items', 'Signed by', 'Signed at', 'Notes', 'Created'],
             batches.map(b => [
-              b.batch_number ?? '',
+              batchNumberOf(b) ?? '',
               b.handover_date ?? '',
               memberName(b.member_id),
               (b.items ?? []).reduce((s, i) => s + (i.qty ?? 0), 0),
@@ -225,8 +261,17 @@ export default function HandoverPage() {
         <CardContent className="space-y-3">
           <div className="flex gap-2">
             <div className="space-y-1 flex-1">
-              <Label className="text-xs">Batch number</Label>
-              <Input value={batchNumber} onChange={e => setBatchNumber(e.target.value)} placeholder="e.g. P-2026-014" className="h-9" />
+              <Label className="text-xs">Batch</Label>
+              {/* Chosen, never typed. The number is entered once, at Stock, when
+                  the batch is created — Danique, 2026-08-14. Handing bottles to
+                  a team member takes them off that batch, so what Stock shows
+                  stays equal to what is actually on the shelf. */}
+              <BatchSelect
+                className="[&>button]:h-9 [&>button]:text-sm"
+                value={batchId}
+                onChange={setBatchId}
+                placeholder="Choose batch"
+              />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Date</Label>
@@ -277,7 +322,7 @@ export default function HandoverPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium">{memberName(b.member_id)}</p>
-                        {b.batch_number && <span className="font-mono text-xs text-muted-foreground shrink-0">{b.batch_number}</span>}
+                        {batchNumberOf(b) && <span className="font-mono text-xs text-muted-foreground shrink-0">{batchNumberOf(b)}</span>}
                         {b.handover_date && <span className="text-xs text-muted-foreground shrink-0">{new Date(b.handover_date + 'T12:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short' })}</span>}
                       </div>
                       <p className="text-xs text-muted-foreground truncate">
@@ -302,7 +347,7 @@ export default function HandoverPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium">{memberName(b.member_id)}</p>
-                        {b.batch_number && <span className="font-mono text-xs text-muted-foreground shrink-0">{b.batch_number}</span>}
+                        {batchNumberOf(b) && <span className="font-mono text-xs text-muted-foreground shrink-0">{batchNumberOf(b)}</span>}
                       </div>
                       <p className="text-xs text-muted-foreground truncate">
                         {b.items.map(i => `${i.qty}× ${i.name.replace('SPika Oil - ', '').replace('SPika2Go - ', '')}`).join(' · ')}
@@ -362,7 +407,7 @@ export default function HandoverPage() {
               <Trash2 className="h-5 w-5 text-red-600" /> Remove handover record?
             </p>
             <p className="text-sm text-muted-foreground">
-              Only remove {deleteBatch.batch_number ? `batch ${deleteBatch.batch_number}` : 'this handover'} for{' '}
+              Only remove {batchNumberOf(deleteBatch) ? `batch ${batchNumberOf(deleteBatch)}` : 'this handover'} for{' '}
               {memberName(deleteBatch.member_id)} once all deliveries are done and there are no discrepancies.
               This deletes the record and its signature permanently.
             </p>

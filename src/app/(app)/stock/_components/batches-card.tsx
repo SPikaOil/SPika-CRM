@@ -8,6 +8,10 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { SPIKA_PRODUCTS } from '@/lib/products'
+
+// You cannot fill a returned bottle into a batch — the return sku is empty glass
+// coming back, not a product. Same filter the handover and Shopify screens use.
+const FILLABLE = SPIKA_PRODUCTS.filter(p => !p.sku.includes('return'))
 import { formatTht, thtToMonthInput, monthInputToTht, currentMonthInput } from '@/lib/utils'
 import {
   useBatches, useBatchStock, useCreateBatch, useAddStockMovements,
@@ -61,7 +65,7 @@ export function BatchesCard() {
   }
 
   async function create() {
-    const lines = SPIKA_PRODUCTS
+    const lines = FILLABLE
       .map(p => ({ sku: p.sku, name: p.name, qty: qty[p.sku] ?? 0 }))
       .filter(l => l.qty > 0)
 
@@ -90,7 +94,7 @@ export function BatchesCard() {
     }
   }
 
-  const totalToAllocate = SPIKA_PRODUCTS.reduce((s, p) => s + (qty[p.sku] ?? 0), 0)
+  const totalToAllocate = FILLABLE.reduce((s, p) => s + (qty[p.sku] ?? 0), 0)
 
   return (
     <Card className="py-3 gap-2">
@@ -173,7 +177,7 @@ export function BatchesCard() {
 
             <div className="space-y-1">
               <Label className="text-xs">Bottles filled</Label>
-              {SPIKA_PRODUCTS.map(p => (
+              {FILLABLE.map(p => (
                 <div key={p.sku} className="flex items-center justify-between gap-2">
                   <span className="text-sm flex-1 min-w-0 truncate">{p.name}</span>
                   <Input type="number" min="0" className="h-7 w-24 text-sm text-right px-2"

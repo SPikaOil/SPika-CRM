@@ -123,6 +123,75 @@ export function useAddStockMovements() {
 }
 
 /**
+ * Which batch each product on an order was taken from: { sku -> batch_id }.
+ *
+ * A batch is CHOSEN on the order, per product — Danique, 2026-08-14. That choice
+ * is not a field on the order: it is the stock movement that took the bottles
+ * off the shelf, so the choice and the stock can never disagree.
+ */
+export function useOrderPicks(orderId: string | null | undefined) {
+  const supabase = createClient()
+  return useQuery({
+    queryKey: ['order_picks', orderId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('stock_movements')
+        .select('sku, batch_id')
+        .eq('order_id', orderId!)
+        .eq('reason', 'order')
+      if (error) throw error
+      const picks: Record<string, string> = {}
+      for (const row of data ?? []) picks[row.sku] = row.batch_id
+      return picks
+    },
+    enabled: !!orderId,
+  })
+}
+
+/**
+ * Choose the batch for one product on an order, or clear it again.
+ *
+ * Re-picking REPLACES the earlier choice instead of mirroring it. Nothing
+ * physically moved — somebody corrected which batch the bottles came off — and a
+ * reversal pair would only make the batch history unreadable. A real movement
+ * (filling, shipping, breakage) is still never deleted.
+ */
+export function useSetOrderPick() {
+  const supabase = createClient()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ orderId, sku, qty, batchId }: {
+      orderId: string; sku: string; qty: number; batchId: string | null
+    }) => {
+      const { error: delErr } = await supabase
+        .from('stock_movements')
+        .delete()
+        .eq('order_id', orderId)
+        .eq('sku', sku)
+        .eq('reason', 'order')
+      if (delErr) throw delErr
+      if (!batchId || qty <= 0) return
+      const { error } = await supabase.from('stock_movements').insert({
+        batch_id: batchId,
+        sku,
+        qty: -qty,
+        // Picked on Curaçao, where the bottles are filled.
+        reason: 'order' as StockReason,
+        order_id: orderId,
+        note: 'Picked for this order',
+      })
+      if (error) throw error
+    },
+    onSuccess: (_d, v) => {
+      queryClient.invalidateQueries({ queryKey: ['batch_stock'] })
+      queryClient.invalidateQueries({ queryKey: ['stock_movements'] })
+      queryClient.invalidateQueries({ queryKey: ['order_picks', v.orderId] })
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+}
+
+/**
  * Undo a movement by writing its mirror image, never by deleting it. The
  * original stays visible, which is the whole point of keeping movements.
  */

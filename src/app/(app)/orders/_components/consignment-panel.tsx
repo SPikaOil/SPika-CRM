@@ -229,6 +229,41 @@ export function ConsignmentPanel({ order }: { order: Order }) {
         if (error) throw error
       }
 
+      // Art. 12.5: what comes back, comes back onto the batch it was picked
+      // from. Only 'returned' — a defect of ours (Art. 4.3) is credited but
+      // written off, so those bottles never become sellable stock again, and
+      // 'taken over' and 'lost' never physically came back at all.
+      const returned = rows.filter(r => r.open > 0 && outcome[r.sku] === 'returned')
+      if (returned.length > 0) {
+        const picks = await supabase
+          .from('stock_movements')
+          .select('sku, batch_id')
+          .eq('order_id', order.id)
+          .eq('reason', 'order')
+        const batchOf = new Map((picks.data ?? []).map(p => [p.sku, p.batch_id]))
+        const bookable = returned.filter(r => batchOf.has(r.sku))
+        if (bookable.length > 0) {
+          const { error: moveErr } = await supabase.from('stock_movements').insert(
+            bookable.map(r => ({
+              batch_id: batchOf.get(r.sku),
+              sku: r.sku,
+              qty: r.open,
+              reason: 'return',
+              order_id: order.id,
+              note: `Returned from consignment ${order.order_number}`,
+            }))
+          )
+          if (moveErr) throw moveErr
+        }
+        // A line with no batch behind it cannot be put back anywhere. Say so
+        // rather than swallow it — the count would silently be short.
+        if (bookable.length < returned.length) {
+          toast.warning(
+            `${returned.length - bookable.length} returned line(s) had no batch chosen, so they were not put back into stock`
+          )
+        }
+      }
+
       const { error: closeError } = await supabase
         .from('orders')
         .update({ consignment_closed_at: new Date().toISOString() })

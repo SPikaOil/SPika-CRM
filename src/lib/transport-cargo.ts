@@ -120,6 +120,8 @@ export function buildLabelPages(transport: Transport): LabelPage[] {
 export function colliQrText(
   transport: Transport,
   page: Pick<LabelPage, 'colliNumber' | 'totalColli' | 'order' | 'colli'>,
+  /** Batch numbers per sku, so a scan names the batches inside this box. */
+  batches?: Record<string, string[]>,
 ): string {
   const lines: string[] = [
     `${transport.transport_number} · Colli ${page.colliNumber}/${page.totalColli}`,
@@ -127,6 +129,11 @@ export function colliQrText(
   ]
   for (const item of page.colli.items) lines.push(`${item.name} — ${item.qty}`)
   if (page.colli.items.length === 0) lines.push('(empty)')
+  // A box can hold bottles from two batches, so every batch behind its contents
+  // is named. Art. 10.3 puts traceability on us, and a scan is the fastest way
+  // to answer "which batch is this?" without opening anything.
+  const inBox = Array.from(new Set(page.colli.items.flatMap(it => batches?.[it.sku] ?? [])))
+  if (inBox.length > 0) lines.push(`Batch: ${inBox.join(', ')}`)
   if (page.colli.weight_kg !== null && page.colli.weight_kg !== undefined) {
     lines.push(`${Number(page.colli.weight_kg).toFixed(2)} kg`)
   }

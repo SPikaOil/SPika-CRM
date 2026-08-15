@@ -13,6 +13,7 @@ import { CompanyInfo } from '../delivery-note-pdf'
 import { formatTaxId } from '@/lib/tax-id'
 import { addressLines, isEuropeanAddress } from '@/lib/address'
 import { formatTht } from '@/lib/utils'
+import { batchLabel, type OrderBatches } from '@/lib/order-batches'
 
 const RED = '#CC0000'
 const DARK = '#1a1a1a'
@@ -74,9 +75,11 @@ interface Props {
   transport: Transport
   order: Order
   company?: CompanyInfo
+  /** Batch numbers per sku, from the stock movements. Empty prints nothing. */
+  batches?: OrderBatches
 }
 
-export function CommercialInvoicePDF({ transport, order, company = DEFAULT_COMPANY }: Props) {
+export function CommercialInvoicePDF({ transport, order, company = DEFAULT_COMPANY, batches }: Props) {
   const customer = order.customer as any
   const items: QuoteItem[] = (order.items ?? []) as QuoteItem[]
   const activeItems = items.filter(i => i.qty > 0)
@@ -176,7 +179,10 @@ export function CommercialInvoicePDF({ transport, order, company = DEFAULT_COMPA
               <Text style={styles.tdText}>{item.name}</Text>
               {(item as any).tht_date && (
                 <Text style={{ fontSize: 7, color: GRAY, marginTop: 1 }}>
-                  THT: {formatTht((item as any).tht_date)}
+                  {[
+                    `THT: ${formatTht((item as any).tht_date)}`,
+                    batchLabel(batches, item.sku) ? `Batch: ${batchLabel(batches, item.sku)}` : '',
+                  ].filter(Boolean).join('   ·   ')}
                 </Text>
               )}
             </View>

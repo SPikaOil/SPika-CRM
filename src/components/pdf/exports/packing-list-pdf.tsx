@@ -13,6 +13,7 @@ import { CompanyInfo } from '../delivery-note-pdf'
 import { addressLines, isEuropeanAddress } from '@/lib/address'
 import { formatTht } from '@/lib/utils'
 import { orderColli, orderColliWeight } from '@/lib/transport-cargo'
+import { type OrderBatches } from '@/lib/order-batches'
 
 const RED = '#CC0000'
 const DARK = '#1a1a1a'
@@ -71,9 +72,11 @@ interface Props {
   transport: Transport
   order: Order
   company?: CompanyInfo
+  /** Batch numbers per sku, from the stock movements. Empty prints nothing. */
+  batches?: OrderBatches
 }
 
-export function PackingListPDF({ transport, order, company = DEFAULT_COMPANY }: Props) {
+export function PackingListPDF({ transport, order, company = DEFAULT_COMPANY, batches }: Props) {
   const customer = order.customer as any
   const items: QuoteItem[] = (order.items ?? []) as QuoteItem[]
   const activeItems = items.filter(i => i.qty > 0)
@@ -178,7 +181,21 @@ export function PackingListPDF({ transport, order, company = DEFAULT_COMPANY }: 
             .filter(Boolean)[0] ?? thtDate
           return (
             <View key={i} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]}>
-              <Text style={[styles.tdText, styles.colDesc]}>Colli {i + 1} — {contents}</Text>
+              <View style={styles.colDesc}>
+                <Text style={styles.tdText}>Colli {i + 1} — {contents}</Text>
+                {/* Which batches are in this box. A box can hold bottles from
+                    two, so every batch behind its contents is named. */}
+                {(() => {
+                  const inBox = Array.from(new Set(
+                    c.items.flatMap(it => (batches?.[it.sku] ?? []))
+                  ))
+                  return inBox.length > 0 ? (
+                    <Text style={{ fontSize: 7, color: GRAY, marginTop: 1 }}>
+                      Batch: {inBox.join(', ')}
+                    </Text>
+                  ) : null
+                })()}
+              </View>
               <Text style={[styles.tdText, styles.colTht]}>{tht}</Text>
               <Text style={[styles.tdText, styles.colQty]}>{qty} btls</Text>
               <Text style={[styles.tdText, styles.colWeight]}>

@@ -20,6 +20,7 @@ import {
 } from '@/hooks/use-transports'
 import { ColliEditor } from '../_components/colli-editor'
 import { TransportDocuments } from '../_components/transport-documents'
+import { ArrivalCard } from '../_components/arrival-card'
 import { TransportStatus } from '@/types'
 import { fmtOwnCurrency, formatCurrency, transportQrPayload } from '@/lib/utils'
 
@@ -421,6 +422,9 @@ export default function TransportDetailPage({
           )}
         </CardContent>
       </Card>
+
+      {/* Signing in at the other end. Only a warehouse can hold stock. */}
+      <ArrivalCard transport={t} />
 
       <TransportDocuments transport={t} />
     </div>

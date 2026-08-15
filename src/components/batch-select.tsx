@@ -1,0 +1,96 @@
+'use client'
+
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useBatches, useBatchStock } from '@/hooks/use-batches'
+import { formatTht } from '@/lib/utils'
+
+const NONE = '__none__'
+
+/**
+ * Pick a batch — never type one.
+ *
+ * Danique's rule, 2026-08-14: a batch number is typed in exactly one place, when
+ * the batch is created at Stock. Everywhere else — a handover, a product on an
+ * order — you choose from the batches that actually exist. Typing it again is
+ * how you end up with SPGE22, SPGE-22 and Spge22 all meaning the same bottles.
+ *
+ * What is left of a batch is read from `batch_stock`, which is the sum of the
+ * movements, so the number next to a batch is what is really on the shelf on
+ * Curaçao. A batch with nothing left is still listed, greyed out and marked
+ * "empty", because hiding it makes it look like it never existed.
+ */
+export function BatchSelect({
+  sku,
+  value,
+  onChange,
+  /** How many bottles are needed. Only used to warn, never to block. */
+  needed,
+  disabled,
+  className,
+  placeholder = 'Choose batch',
+}: {
+  sku?: string
+  value: string | null | undefined
+  onChange: (batchId: string | null) => void
+  needed?: number
+  disabled?: boolean
+  className?: string
+  placeholder?: string
+}) {
+  const { data: batches } = useBatches()
+  const { data: stock } = useBatchStock()
+
+  /** Left on Curaçao (location null) for this batch — of one sku, or of all. */
+  function left(batchId: string): number {
+    return (stock ?? [])
+      .filter(r => r.batch_id === batchId && r.location_id === null && (!sku || r.sku === sku))
+      .reduce((sum, r) => sum + r.qty, 0)
+  }
+
+  const options = (batches ?? []).map(b => ({ ...b, left: left(b.id) }))
+  const short = value ? options.find(o => o.id === value) : undefined
+  const isShort = short && needed !== undefined && short.left < 0
+
+  return (
+    <div className={className}>
+      <Select
+        // null, not undefined: no selection, but still a CONTROLLED select.
+        // Handing it the sentinel printed the literal "__none__" in the field,
+        // and handing it undefined made it flip to uncontrolled the moment a
+        // batch was chosen.
+        value={value ?? null}
+        disabled={disabled}
+        onValueChange={v => onChange(v === NONE ? null : v)}
+      >
+        <SelectTrigger className={`h-7 w-full text-xs px-2 ${!value ? 'border-red-300' : ''}`}>
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NONE}>— no batch —</SelectItem>
+          {options.map(o => (
+            <SelectItem key={o.id} value={o.id}>
+              <span className="font-mono">{o.batch_number}</span>
+              {o.tht_date ? <span className="text-muted-foreground"> · THT {formatTht(o.tht_date)}</span> : null}
+              <span className={o.left <= 0 ? 'text-red-600' : 'text-muted-foreground'}>
+                {' '}· {o.left <= 0 ? 'empty' : `${o.left} left`}
+              </span>
+            </SelectItem>
+          ))}
+          {options.length === 0 && (
+            <SelectItem value="__empty__" disabled>
+              No batches yet — create one under Stock
+            </SelectItem>
+          )}
+        </SelectContent>
+      </Select>
+      {/* A batch that has gone negative was over-picked: more bottles were taken
+          off it than were ever filled into it. That is a counting error
+          somewhere, and it should be visible the moment it happens. */}
+      {isShort && (
+        <p className="text-xs text-red-600 mt-0.5">
+          Over-picked by {Math.abs(short!.left)} — this batch does not hold that many
+        </p>
+      )}
+    </div>
+  )
+}

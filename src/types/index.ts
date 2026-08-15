@@ -488,6 +488,10 @@ export interface Transport {
   other_costs: number | null
   notes: string
   status: TransportStatus
+  /** Whether the load stays at the warehouse as stock, or is only forwarded. */
+  stores_at_warehouse?: boolean
+  /** When the warehouse signed the load in. Null = not arrived yet. */
+  arrived_at?: string | null
   created_by: string | null
   created_at: string
   updated_at: string

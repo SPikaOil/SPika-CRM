@@ -44,10 +44,12 @@ export function TransportDocuments({ transport }: { transport: Transport }) {
     const React = await import('react')
     if (type === 'commercial_invoice') {
       const { CommercialInvoicePDF } = await import('@/components/pdf/exports/commercial-invoice-pdf')
-      return React.createElement(CommercialInvoicePDF, { transport, order, company: co })
+      const b = await (await import('@/lib/order-batches')).fetchOrderBatches(order.id)
+      return React.createElement(CommercialInvoicePDF, { transport, order, company: co, batches: b })
     }
     const { PackingListPDF } = await import('@/components/pdf/exports/packing-list-pdf')
-    return React.createElement(PackingListPDF, { transport, order, company: co })
+    const b = await (await import('@/lib/order-batches')).fetchOrderBatches(order.id)
+    return React.createElement(PackingListPDF, { transport, order, company: co, batches: b })
   }
 
   async function buildTransportDoc(type: PerTransport, co?: CompanyInfo) {
@@ -58,10 +60,18 @@ export function TransportDocuments({ transport }: { transport: Transport }) {
     }
     const { ShippingLabelPDF } = await import('@/components/pdf/exports/shipping-label-pdf')
     const QRCode = (await import('qrcode')).default
+    // Batches are per order, so they are fetched once per order and then handed
+    // to every label of that order — a box names the batches inside it.
+    const { fetchOrderBatches } = await import('@/lib/order-batches')
+    const perOrder = new Map<string, Awaited<ReturnType<typeof fetchOrderBatches>>>()
+    for (const o of orders) perOrder.set(o.id, await fetchOrderBatches(o.id))
     const pages = await Promise.all(
       buildLabelPages(transport).map(async (p) => ({
         ...p,
-        qrCodeDataUrl: await QRCode.toDataURL(colliQrText(transport, p), { margin: 1, width: 240 }),
+        qrCodeDataUrl: await QRCode.toDataURL(
+          colliQrText(transport, p, perOrder.get(p.order.id)),
+          { margin: 1, width: 240 },
+        ),
       }))
     )
     return React.createElement(ShippingLabelPDF, { transport, pages, company: co })
