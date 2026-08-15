@@ -162,9 +162,11 @@ export async function buildPeriodSnapshot(
     admin
       .from('orders_with_sales_date')
       .select(
-        // currency/fx_rate are NOT selected here: this view was created with
-        // `o.*` in migration 048, so it still exposes the column list of that
-        // moment. They are fetched from the orders table below and merged in.
+        // currency/fx_rate are fetched from the orders table below and merged
+        // in. That started as a workaround for this view being frozen at
+        // migration 048's column list; 070 rebuilt it, so they are reachable
+        // here now. Left as it is: same numbers either way, and it keeps
+        // working whether or not 070 has been run.
         'id, order_number, status, sales_date, planned_date, invoice_date, paid_date, created_at, total, payment_type, order_type, is_consignment, po_number, customer_id, assigned_to, items, delivery_notes, customer:customers(id, company_name, customer_category), delivery:deliveries(delivered_at, signer_name)'
       )
       .gte('sales_date', from)

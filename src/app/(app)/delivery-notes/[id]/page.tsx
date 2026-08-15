@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useRef, useState } from 'react'
+import { use, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -18,6 +18,7 @@ import {
 import { useOrder, useUpdateOrder } from '@/hooks/use-orders'
 import { useAuth } from '@/contexts/auth-context'
 import { createClient } from '@/lib/supabase/client'
+import { signedUrl, storagePath } from '@/lib/storage'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -77,9 +78,23 @@ export default function DeliveryNoteDetailPage({
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null)
   const [pdfTitle, setPdfTitle] = useState('Delivery Note')
   const [pdfShareFile, setPdfShareFile] = useState<File | null>(null)
+  /** Short-lived link to the delivery photo — pod-files has no public read. */
+  const [podPhotoSignedUrl, setPodPhotoSignedUrl] = useState<string | null>(null)
   const [isSharing, setIsSharing] = useState(false)
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Sign the delivery photo once the order is in. Old rows hold a full public
+  // URL and new ones a path; signedUrl() takes either.
+  const podFileValue = (order as any)?.delivery?.pod_file_url ?? null
+  useEffect(() => {
+    let cancelled = false
+    if (!podFileValue) { setPodPhotoSignedUrl(null); return }
+    signedUrl('pod-files', podFileValue).then(url => {
+      if (!cancelled) setPodPhotoSignedUrl(url)
+    })
+    return () => { cancelled = true }
+  }, [podFileValue])
 
   // Preview a PDF in-app, then Share the actual named file (iOS-reliable)
   function showPdfInApp(blob: Blob, title: string, filename: string) {
@@ -185,12 +200,15 @@ export default function DeliveryNoteDetailPage({
       const filename = orderDocumentFilename(order, order.id.slice(0, 8))
 
       let blob: Blob | null = null
-      const signedUrl = (order as any).signed_pdf_url
-      if (signedUrl) {
+      const stored = (order as any).signed_pdf_url
+      if (stored) {
         try {
-          const match = signedUrl.match(/\/object\/(?:public\/)?pod-files\/(.+)$/)
-          const storagePath = match ? match[1] : signedUrl
-          const { data, error } = await supabase.storage.from('pod-files').createSignedUrl(storagePath, 120)
+          // Old rows hold a full public URL, new ones a path — storagePath takes
+          // both, and it is the one the rest of the app uses.
+          const path = storagePath('pod-files', stored)
+          const { data, error } = path
+            ? await supabase.storage.from('pod-files').createSignedUrl(path, 120)
+            : { data: null, error: new Error('no path') }
           if (!error && data?.signedUrl) {
             const res = await fetch(data.signedUrl)
             if (res.ok) {
@@ -229,12 +247,11 @@ export default function DeliveryNoteDetailPage({
         .from('pod-files')
         .upload(path, file, { upsert: true, contentType: file.type || 'application/pdf' })
       if (uploadError) throw uploadError
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from('pod-files').getPublicUrl(path)
+      // The PATH is stored, never a public URL: pod-files is private and such a
+      // link is dead on arrival. See lib/storage.ts.
       await updateOrder.mutateAsync({
         id: order.id,
-        values: { signed_pdf_url: publicUrl } as any,
+        values: { signed_pdf_url: path } as any,
       })
       toast.success('Signed delivery note uploaded!')
     } catch (err: any) {
@@ -281,7 +298,9 @@ export default function DeliveryNoteDetailPage({
   const currentStepIndex = TIMELINE.indexOf(order.status as any)
   const items = order.items as QuoteItem[]
   const delivery = (order as any).delivery
-  const podPhotoUrl = delivery?.pod_file_url
+  // pod-files is private, so the stored value is a path and an <img src> on it
+  // shows nothing. Signed here, once the delivery is loaded.
+  const podPhotoUrl = podPhotoSignedUrl
 
   return (
     <div className="p-3 lg:p-6 space-y-3 max-w-3xl mx-auto w-full">

@@ -7,6 +7,7 @@ import { downloadCsv, csvDate } from '@/lib/csv-export'
 import { useAuth } from '@/contexts/auth-context'
 import { useUsers } from '@/hooks/use-users'
 import { createClient } from '@/lib/supabase/client'
+import { openPrivateFile } from '@/lib/storage'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -246,10 +247,10 @@ export default function HandoverPage() {
       const path = `handover/${signBatch.id}.png`
       const { error: upErr } = await supabase.storage.from('pod-files').upload(path, blob, { upsert: true, contentType: 'image/png' })
       if (upErr) throw upErr
-      const { data: urlData } = supabase.storage.from('pod-files').getPublicUrl(path)
+      // The PATH, not a public URL: pod-files is private. See lib/storage.ts.
       const signedAt = new Date().toISOString()
       const { error } = await supabase.from('handover_batches').update({
-        signature_url: urlData.publicUrl, signer_name: memberName(signBatch.member_id), signed_at: signedAt,
+        signature_url: path, signer_name: memberName(signBatch.member_id), signed_at: signedAt,
         receipt_lines: countLines,
       }).eq('id', signBatch.id)
       if (error) throw error
@@ -503,10 +504,20 @@ export default function HandoverPage() {
                         {shortOf(b) > 0 ? ` · ${shortOf(b)} short at intake` : ''}
                       </p>
                     </div>
+                    {/* A plain href to pod-files is a dead link — the bucket is
+                        private. The URL is signed at the moment of the click. */}
                     {b.signature_url && (
-                      <a href={b.signature_url} target="_blank" rel="noreferrer" className="shrink-0 text-muted-foreground hover:text-foreground" title="View signature">
+                      <button
+                        type="button"
+                        className="shrink-0 text-muted-foreground hover:text-foreground"
+                        title="View signature"
+                        onClick={async () => {
+                          const ok = await openPrivateFile('pod-files', b.signature_url)
+                          if (!ok) toast.error('Could not open the signature')
+                        }}
+                      >
                         <Eye className="h-4 w-4" />
-                      </a>
+                      </button>
                     )}
                     <Badge className="bg-green-600 text-white text-xs shrink-0"><Check className="h-3 w-3 mr-1" />
                       {b.signed_at ? new Date(b.signed_at).toLocaleDateString('en', { day: 'numeric', month: 'short' }) : 'Signed'}

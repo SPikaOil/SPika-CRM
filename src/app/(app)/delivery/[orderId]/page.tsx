@@ -250,13 +250,13 @@ export default function DeliveryPage({
     setPhotoPreview(URL.createObjectURL(file))
   }
 
+  /** Returns the PATH, not a URL — pod-files is private, see lib/storage.ts. */
   async function uploadToSupabase(blob: Blob, fileName: string): Promise<string> {
     const { data, error } = await supabase.storage
       .from('pod-files')
       .upload(fileName, blob, { upsert: true })
     if (error) throw error
-    const { data: urlData } = supabase.storage.from('pod-files').getPublicUrl(data.path)
-    return urlData.publicUrl
+    return data.path
   }
 
   async function syncQueue() {

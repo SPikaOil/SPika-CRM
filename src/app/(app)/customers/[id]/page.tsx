@@ -3,6 +3,7 @@
 import { use, useMemo, useState } from 'react'
 import { formatTaxId } from '@/lib/tax-id'
 import { isExportCustomer } from '@/lib/country'
+import { storagePath } from '@/lib/storage'
 import { fmtOwnCurrency } from '@/lib/utils'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -193,14 +194,13 @@ export default function CustomerDetailPage({
     if (!customer?.ob_form_signed_url) return
     setIsOpeningOB(true)
     try {
-      const raw = customer.ob_form_signed_url
-      // Support both stored formats:
-      // 1. New: plain storage path like "ob-forms/id/file.pdf"
-      // 2. Old: full public URL like "https://…/object/public/pod-files/ob-forms/…"
-      const urlMatch = raw.match(/\/object\/(?:public\/)?pod-files\/(.+)$/)
-      const storagePath = urlMatch ? urlMatch[1] : raw
+      // Both stored formats: a plain path on new rows, a full public URL on old
+      // ones. storagePath() takes either — the same function the rest of the app
+      // uses, so the two cannot drift apart.
+      const path = storagePath('pod-files', customer.ob_form_signed_url)
+      if (!path) throw new Error('No file stored')
 
-      const { data, error } = await supabase.storage.from('pod-files').download(storagePath)
+      const { data, error } = await supabase.storage.from('pod-files').download(path)
       if (error || !data) throw error ?? new Error('Could not download file')
       const blobUrl = URL.createObjectURL(data)
       window.open(blobUrl, '_blank')

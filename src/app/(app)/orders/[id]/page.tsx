@@ -25,6 +25,7 @@ import { SPIKA_PRODUCTS } from '@/lib/products'
 import { getNextCashOrderNumber, getNextOrderNumber, getCreditNoteNumber } from '@/lib/order-number'
 import { formatCurrency, formatTht, thtToMonthInput, monthInputToTht, currentMonthInput } from '@/lib/utils'
 import { isExportCustomer } from '@/lib/country'
+import { storagePath } from '@/lib/storage'
 import { BatchSelect } from '@/components/batch-select'
 import { useOrderPicks, useSetOrderPick } from '@/hooks/use-batches'
 import { ConsignmentPanel } from '../_components/consignment-panel'
@@ -351,10 +352,11 @@ export default function OrderDetailPage({
   }
 
   function signedPdfStoragePath(): string | null {
-    const signedUrl = (order as any)?.signed_pdf_url
-    if (!signedUrl) return null
-    const match = signedUrl.match(/\/object\/(?:public\/)?pod-files\/(.+)$/)
-    return match ? match[1] : signedUrl
+    const stored = (order as any)?.signed_pdf_url
+    if (!stored) return null
+    // Old rows hold a full public URL, new ones a path. storagePath takes both
+    // — the same function the rest of the app uses, so they cannot drift.
+    return storagePath('pod-files', stored)
   }
 
   // The Signed Invoice = the stored PDF captured at delivery time: a full
@@ -373,10 +375,10 @@ export default function OrderDetailPage({
     const filename = orderDocumentFilename(order, order!.id.slice(0, 8))
 
     // Try the stored PDF first (has the real photo)
-    const storagePath = signedPdfStoragePath()
-    if (storagePath) {
+    const storedPath = signedPdfStoragePath()
+    if (storedPath) {
       try {
-        const { data, error } = await supabase.storage.from('pod-files').createSignedUrl(storagePath, 120)
+        const { data, error } = await supabase.storage.from('pod-files').createSignedUrl(storedPath, 120)
         if (!error && data?.signedUrl) {
           const res = await fetch(data.signedUrl)
           if (res.ok) {
@@ -392,8 +394,8 @@ export default function OrderDetailPage({
     try {
       const path = `signed-notes/${customerName ? `${orderNum} - ${customerName}` : orderNum}.pdf`
       await supabase.storage.from('pod-files').upload(path, blob, { upsert: true, contentType: 'application/pdf' })
-      const { data: { publicUrl } } = supabase.storage.from('pod-files').getPublicUrl(path)
-      try { await updateOrder.mutateAsync({ id: order!.id, values: { signed_pdf_url: publicUrl } as any }) } catch { /* non-fatal */ }
+      // The PATH, not a public URL: pod-files is private. See lib/storage.ts.
+      try { await updateOrder.mutateAsync({ id: order!.id, values: { signed_pdf_url: path } as any }) } catch { /* non-fatal */ }
     } catch { /* non-fatal */ }
     return { blob, filename }
   }
@@ -504,8 +506,8 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
         .upload(path, file, { upsert: true, contentType: file.type || 'application/pdf' })
       if (uploadError) throw uploadError
 
-      const { data: { publicUrl } } = supabase.storage.from('pod-files').getPublicUrl(path)
-      await updateOrder.mutateAsync({ id: order.id, values: { signed_pdf_url: publicUrl } as any })
+      // The PATH, not a public URL: pod-files is private. See lib/storage.ts.
+      await updateOrder.mutateAsync({ id: order.id, values: { signed_pdf_url: path } as any })
       toast.success('Signed delivery note uploaded!')
     } catch (err: any) {
       toast.error(err.message ?? 'Upload failed')
