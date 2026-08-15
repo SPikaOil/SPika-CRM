@@ -13,6 +13,15 @@ export interface ProductRecord {
   box_length_cm: number | null
   box_width_cm: number | null
   real_volume_ml: number | null
+  /**
+   * Verrekenprijs — what a bottle costs US. Admin-only, and the database says so
+   * too: migration 055 refuses the change unless the caller is an admin, because
+   * this number decides every margin figure in the app.
+   *
+   * Null is not zero. Null means nobody has set it yet, and a margin cannot be
+   * worked out from it — which is exactly what should be shown.
+   */
+  vvp: number | null
 }
 
 export function useProducts() {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Pencil, Check, X, Package, Tag, Plus, Trash2, ChevronDown, ChevronUp, Loader2, FileSpreadsheet } from 'lucide-react'
 import { downloadCsv, csvMoney } from '@/lib/csv-export'
+import { useAuth } from '@/contexts/auth-context'
 import { useProducts, useUpdateProduct, ProductRecord } from '@/hooks/use-products'
 import { usePricePresets, useUpdatePricePreset, useCreatePricePreset, useDeletePricePreset } from '@/hooks/use-price-presets'
 import { SPIKA_PRODUCTS } from '@/lib/products'
@@ -25,6 +26,7 @@ type EditingRow = {
   box_length_cm: string
   box_width_cm: string
   real_volume_ml: string
+  vvp: string
 }
 
 function num(v: number | null) { return v != null ? String(v) : '' }
@@ -33,6 +35,7 @@ function dash(v: string | number | null) {
 }
 
 function ProductsTab() {
+  const { isAdmin } = useAuth()
   const { data: products, isLoading } = useProducts()
   const updateProduct = useUpdateProduct()
   const [editing, setEditing] = useState<EditingRow | null>(null)
@@ -47,6 +50,7 @@ function ProductsTab() {
       box_length_cm: num(p.box_length_cm),
       box_width_cm: num(p.box_width_cm),
       real_volume_ml: num(p.real_volume_ml),
+      vvp: num(p.vvp),
     })
   }
 
@@ -64,6 +68,9 @@ function ProductsTab() {
           box_length_cm: parse(editing.box_length_cm),
           box_width_cm: parse(editing.box_width_cm),
           real_volume_ml: parse(editing.real_volume_ml),
+          // Only sent when an admin is editing — the field is not even rendered
+          // otherwise, and the database would refuse it anyway (migration 055).
+          ...(isAdmin ? { vvp: parse(editing.vvp) } : {}),
         },
       })
       toast.success('Product updated')
@@ -75,6 +82,9 @@ function ProductsTab() {
 
   const fields: { key: keyof EditingRow; label: string; type?: string }[] = [
     { key: 'product_code',      label: 'Product Code' },
+    // Cost price. Admin-only on screen AND in the database (migration 055), so
+    // nobody else ever sees what a bottle costs us.
+    ...(isAdmin ? [{ key: 'vvp' as keyof EditingRow, label: 'VVP (cost)', type: 'number' }] : []),
     { key: 'real_volume_ml',    label: 'Real Volume (ml)', type: 'number' },
     { key: 'weight_g',          label: 'Weight (g)',    type: 'number' },
     { key: 'bottles_per_carton',label: 'Btls / Carton', type: 'number' },
