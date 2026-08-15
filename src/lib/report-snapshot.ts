@@ -158,16 +158,14 @@ export async function buildPeriodSnapshot(
 ): Promise<PeriodSnapshot> {
   const { from, to } = opts
 
-  const [ordersRes, customersRes, productsRes, fxRes] = await Promise.all([
+  const [ordersRes, customersRes, productsRes] = await Promise.all([
     admin
       .from('orders_with_sales_date')
       .select(
-        // currency/fx_rate are fetched from the orders table below and merged
-        // in. That started as a workaround for this view being frozen at
-        // migration 048's column list; 070 rebuilt it, so they are reachable
-        // here now. Left as it is: same numbers either way, and it keeps
-        // working whether or not 070 has been run.
-        'id, order_number, status, sales_date, planned_date, invoice_date, paid_date, created_at, total, payment_type, order_type, is_consignment, po_number, customer_id, assigned_to, items, delivery_notes, customer:customers(id, company_name, customer_category), delivery:deliveries(delivered_at, signer_name)'
+        // currency and fx_rate come straight from the view since migration 070
+        // rebuilt it. They used to be fetched separately because the view was
+        // frozen at migration 048's column list and did not have them.
+        'id, order_number, status, sales_date, planned_date, invoice_date, paid_date, created_at, total, payment_type, order_type, is_consignment, po_number, customer_id, assigned_to, items, delivery_notes, currency, fx_rate, customer:customers(id, company_name, customer_category), delivery:deliveries(delivered_at, signer_name)'
       )
       .gte('sales_date', from)
       .lte('sales_date', to)
@@ -178,18 +176,16 @@ export async function buildPeriodSnapshot(
       .select('*')
       .order('company_name', { ascending: true }),
     admin.from('products').select('sku, real_volume_ml'),
-    // Only the orders that are not in guilders — everything else is rate 1.
-    admin.from('orders').select('id, currency, fx_rate').neq('currency', 'XCG'),
   ])
 
   if (ordersRes.error) throw new Error(`orders: ${ordersRes.error.message}`)
   if (customersRes.error) throw new Error(`customers: ${customersRes.error.message}`)
 
-  // id -> { currency, rate }. Absent means guilders at rate 1.
-  const fxById = new Map<string, { currency: string; rate: number }>(
-    ((fxRes?.data ?? []) as { id: string; currency: string; fx_rate: number }[])
-      .map(r => [r.id, { currency: r.currency ?? 'XCG', rate: num(r.fx_rate) || 1 }])
-  )
+  /** Guilders at rate 1 unless the order says otherwise. */
+  const rateOf = (o: { currency?: string | null; fx_rate?: number | null }) => ({
+    currency: o.currency ?? 'XCG',
+    rate: num(o.fx_rate) || 1,
+  })
 
   const volumeBySku: Record<string, number | null> = {}
   for (const p of (productsRes.data ?? []) as { sku: string; real_volume_ml: number | null }[]) {
@@ -209,9 +205,9 @@ export async function buildPeriodSnapshot(
       paid_date: o.paid_date ?? null,
       created_at: o.created_at,
       total: num(o.total),
-      currency: fxById.get(o.id)?.currency ?? 'XCG',
-      fx_rate: fxById.get(o.id)?.rate ?? 1,
-      total_xcg: Number((num(o.total) * (fxById.get(o.id)?.rate ?? 1)).toFixed(2)),
+      currency: rateOf(o).currency,
+      fx_rate: rateOf(o).rate,
+      total_xcg: Number((num(o.total) * rateOf(o).rate).toFixed(2)),
       payment_type: o.payment_type ?? 'invoice',
       order_type: o.order_type ?? 'normal',
       is_consignment: !!o.is_consignment,

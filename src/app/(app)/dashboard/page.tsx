@@ -801,38 +801,18 @@ export default function DashboardPage() {
     // Consignment counts from creation, not from delivery, so those orders are
     // included whatever their status — a shipment still at sea is revenue the
     // moment the note exists. Everything else follows the normal rule.
+    // order_type and fx_rate are read straight from the view since migration
+    // 070 rebuilt it. They used to need two extra round trips to the orders
+    // table, because the view was frozen at migration 048's column list and did
+    // not have them — and asking anyway returned 400, which showed up here as a
+    // revenue figure of zero.
     const { data } = await supabase
       .from('orders_with_sales_date')
-      .select('id, items, assigned_to, total, status, is_consignment')
+      .select('id, items, assigned_to, total, status, is_consignment, order_type, fx_rate')
       .or('status.in.(delivered,invoice_ready,invoice_blocked,paid),is_consignment.eq.true')
       .neq('status', 'deleted')
       .gte('sales_date', start)
       .lt('sales_date', end)
-
-    // A consignment invoice settles a period of a consignment note that was
-    // already counted in full. Counting it here as well books the same bottles
-    // twice — once as stock placed, once as stock sold.
-    //
-    // Read from the orders TABLE. This was a workaround for the view being
-    // frozen at migration 048's column list; migration 070 rebuilt it, so the
-    // column is there now and this could be folded into the query above. Left
-    // as it is on purpose: it reads the same numbers either way, and it keeps
-    // working whether or not 070 has been run yet.
-    const { data: settlementRows } = await supabase
-      .from('orders')
-      .select('id')
-      .eq('order_type', 'consignment_invoice')
-    const settlementIds = new Set((settlementRows ?? []).map(r => r.id as string))
-
-    // Exchange rates from the orders TABLE — same story as above, and migration
-    // 070 put fx_rate back within reach of the view. Only non-XCG orders are
-    // fetched; everything else is rate 1 by definition, so this is an empty
-    // round trip until the first foreign-currency order.
-    const { data: fxRows } = await supabase
-      .from('orders')
-      .select('id, fx_rate')
-      .neq('currency', 'XCG')
-    const fxById = new Map<string, number>((fxRows ?? []).map(r => [r.id as string, Number(r.fx_rate) || 1]))
 
     const COUNTED_SKUS = ['oil-100ml', 'oil-50ml']
     let total = 0
@@ -840,7 +820,10 @@ export default function DashboardPage() {
     const byWorker: Record<string, number> = {}
 
     for (const order of data ?? []) {
-      if (settlementIds.has(order.id as string)) continue
+      // A consignment invoice settles a period of a consignment note that was
+      // already counted in full. Counting it here as well books the same
+      // bottles twice — once as stock placed, once as stock sold.
+      if ((order as any).order_type === 'consignment_invoice') continue
       const items: { sku: string; qty: number }[] = order.items ?? []
       const count = items
         .filter(item => COUNTED_SKUS.includes(item.sku))
@@ -849,7 +832,7 @@ export default function DashboardPage() {
       // Converted with the rate frozen on the order's invoice date (051), so a
       // month of mixed-currency orders adds up to one honest XCG figure and
       // never moves again when the euro does. XCG orders have rate 1.
-      revenue += Number((order as any).total ?? 0) * (fxById.get((order as any).id) ?? 1)
+      revenue += Number((order as any).total ?? 0) * (Number((order as any).fx_rate) || 1)
       if (order.assigned_to) {
         byWorker[order.assigned_to] = (byWorker[order.assigned_to] ?? 0) + count
       }

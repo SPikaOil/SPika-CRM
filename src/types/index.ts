@@ -365,10 +365,11 @@ export interface Task {
 }
 
 // ── Export Module ──────────────────────────────────────────────────────────────
-
-export type ExportStatus = 'draft' | 'ready' | 'submitted' | 'cleared' | 'delivered'
-
-export type ExportDocumentType = 'commercial_invoice' | 'packing_list' | 'bill_of_lading' | 'received_doc'
+//
+// ExportStatus, ExportDocumentType, Export and ExportDocument lived here until
+// 2026-08-15. They described the `exports` table, which migration 054 replaced
+// with transports; nothing had referenced them since. Carrier stays — the
+// Export tab still picks a carrier when a transport is created.
 
 export interface Carrier {
   id: string
@@ -376,27 +377,6 @@ export interface Carrier {
   route: string
   bl_template: 'don_andres' | 'generic'
   created_at: string
-}
-
-export interface Export {
-  id: string
-  export_number: string
-  order_id: string | null
-  customer_id: string | null
-  carrier_id: string | null
-  destination: string
-  export_date: string | null
-  tht_date: string | null
-  notes: string
-  currency: string
-  status: ExportStatus
-  items: QuoteItem[]
-  created_by: string | null
-  created_at: string
-  updated_at: string
-  order?: Order
-  customer?: Customer
-  carrier?: Carrier
 }
 
 /**
@@ -522,10 +502,15 @@ export interface Transport {
   orders?: Order[]
 }
 
-export interface ExportDocument {
+/**
+ * A document received back for a transport — a stamped B/L, a customs release.
+ * file_url holds the STORAGE PATH, never a public URL: these are customs papers
+ * and are served through a short-lived signed link.
+ */
+export interface TransportDocument {
   id: string
-  export_id: string
-  document_type: ExportDocumentType
+  transport_id: string
+  document_type: string
   file_url: string
   file_name: string
   uploaded_at: string

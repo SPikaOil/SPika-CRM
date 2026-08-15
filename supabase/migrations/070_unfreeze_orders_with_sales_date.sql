@@ -1,8 +1,8 @@
 -- 070: the sales-date view stops going stale
 --
 -- A view built on `o.*` freezes the column list of the moment it was created.
--- orders_with_sales_date was last built in migration 048, and eleven columns
--- have been added to orders since:
+-- orders_with_sales_date was last built in migration 048, and ten columns have
+-- been added to orders since:
 --
 --   051  currency, fx_rate
 --   052  credit_note_of
