@@ -124,6 +124,13 @@ export interface Customer {
   vat_number: string
   coc_number: string
   crib_number: string
+  /**
+   * @deprecated Do not read this to decide anything. Since 2026-08-15 an order
+   * is an export because the delivery country is not Curaçao — use
+   * isExportCustomer() from lib/country.ts. The column is left in place so old
+   * rows keep their value, but a hand-set switch and an address will drift, and
+   * this one already did.
+   */
   is_international: boolean
   product_prices: Record<string, number>
   product_discounts: Record<string, number>

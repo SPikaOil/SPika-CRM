@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { Transport, TransportLocation, Carrier, Order, Colli } from '@/types'
+import { isExportCustomer } from '@/lib/country'
 import { toast } from 'sonner'
 
 const TRANSPORT_SELECT =
@@ -39,10 +40,11 @@ export function useTransport(id: string) {
 }
 
 /**
- * Every order of an international customer — that IS the export list. There is
- * no separate export record to keep in step; an order is an export because of
- * who it is for. Deleted orders are left out; anything else, including orders
- * already on a transport, is returned so the Export tab can group them.
+ * Every order that leaves Curaçao — that IS the export list. There is no
+ * separate export record to keep in step, and since 2026-08-15 no switch to
+ * forget either: an order is an export because the delivery address is not
+ * Curaçao. Deleted orders are left out; anything else, including orders already
+ * on a transport, is returned so the Export tab can group them.
  */
 export function useExportOrders() {
   const supabase = createClient()
@@ -53,10 +55,13 @@ export function useExportOrders() {
         .from('orders')
         .select('*, customer:customers!inner(*), transport:transports(*)')
         .is('deleted_at', null)
-        .eq('customers.is_international', true)
         .order('created_at', { ascending: false })
       if (error) throw error
-      return data as Order[]
+      // Filtered here rather than in the query: the country sits in a free-text
+      // field inside the address, and isExportCustomer already knows how to
+      // read "Curacao", "CURAÇAO " and "cw" as the same place. One rule, one
+      // function, used by every screen — see lib/country.ts.
+      return ((data ?? []) as Order[]).filter(o => isExportCustomer(o.customer))
     },
   })
 }

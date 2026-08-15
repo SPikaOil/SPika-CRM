@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Customer, SpikaStand, SPIKA_STAND_TYPES, OrderCurrency } from '@/types'
 import { SPIKA_PRODUCTS } from '@/lib/products'
+import { isExportCustomer } from '@/lib/country'
 import { getTaxIdInfo } from '@/lib/tax-id'
 import { useCustomers } from '@/hooks/use-customers'
 import { usePricePresets } from '@/hooks/use-price-presets'
@@ -798,18 +799,26 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
                   <Input {...register('vat_number')} placeholder="e.g. NL123456789B01" />
                 </div>
               )}
+              {/* Export follows from the ADDRESS, not from a switch.
+                  Danique, 2026-08-15: two things saying the same thing is one
+                  thing too many — forget to flick it for a customer in Germany
+                  and their order is silently not an export. So it is shown, not
+                  set: fill in the country and the app knows. */}
               <div className="flex items-center justify-between rounded-lg border p-3">
                 <div>
-                  <p className="text-sm font-medium">International Customer</p>
-                  <p className="text-xs text-muted-foreground">Ships internationally via export</p>
+                  <p className="text-sm font-medium">Export customer</p>
+                  <p className="text-xs text-muted-foreground">
+                    Follows the delivery country — anything outside Curaçao ships as an export
+                  </p>
                 </div>
-                <label className="flex items-center cursor-pointer">
-                  <div className="relative">
-                    <input type="checkbox" className="sr-only peer" {...register('is_international')} />
-                    <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-red-600 transition-colors" />
-                    <div className="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5" />
-                  </div>
-                </label>
+                <span className={`text-sm font-semibold shrink-0 ${
+                  isExportCustomer({ billing_address: { country: watch('billing_country') } })
+                    ? 'text-red-600' : 'text-muted-foreground'
+                }`}>
+                  {watch('billing_country')?.trim()
+                    ? (isExportCustomer({ billing_address: { country: watch('billing_country') } }) ? 'Yes' : 'No')
+                    : 'Fill in a country'}
+                </span>
               </div>
               <div className="space-y-1.5">
                 <Label>Payment Term</Label>

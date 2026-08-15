@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertCircle, CheckCircle, Clock, ShoppingBag, Truck, CreditCard, Copy, Check, X, Mail, ChevronDown, ChevronUp, ChevronRight, Package, Pencil, UserPlus, Building2, ArrowRight, Droplets, ClipboardList, CalendarDays, PhoneCall, Sprout, MessageCircle } from 'lucide-react'
+import { AlertCircle, CheckCircle, Clock, ShoppingBag, Truck, CreditCard, Copy, Check, X, Mail, ChevronDown, ChevronUp, ChevronRight, Package, Pencil, UserPlus, Building2, ArrowRight, Droplets, ClipboardList, CalendarDays, PhoneCall, Sprout, MessageCircle, Ship } from 'lucide-react'
 import Link from 'next/link'
+import { isExportCustomer } from '@/lib/country'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -515,6 +516,16 @@ function ConsignmentBanner({ orders }: { orders: Order[] }) {
 // Customers overdue to reorder relative to their own rhythm (or 6 weeks silent
 // when they have too little history). This is the "call these people today"
 // list — the reorder-driver the whole rhythm feature is for.
+interface ExportGapRow {
+  id: string
+  order_number: string
+  company_name: string
+  country: string
+  statusLabel: string
+  /** Already out for delivery or beyond, so the paperwork is genuinely late. */
+  urgent: boolean
+}
+
 function QuietCustomersBanner({ rows }: { rows: QuietRow[] }) {
   const [expanded, setExpanded] = useState(false)
   if (rows.length === 0) return null
@@ -556,6 +567,78 @@ function QuietCustomersBanner({ rows }: { rows: QuietRow[] }) {
               <span className="text-sm font-bold text-violet-700 dark:text-violet-400 shrink-0">{row.daysSinceLast}d</span>
             </Link>
           ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+
+// ── Export exceptions collapsible banner ───────────────────────────────────
+// An international order that is not on a transport. Danique's rule, 2026-08-14:
+// "het zou niet moeten kunnen dat we een order op uitlevering staat naar
+// nederland zonder een transport nummer."
+//
+// This is the softest possible way to enforce it: not a block that stops work
+// mid-flight, but a list that will not go away until every one of them has a
+// transport. When this reaches zero the database trigger can be switched on
+// without ever locking anybody out — that is the whole point of showing it here
+// first.
+function ExportBanner({ rows }: { rows: ExportGapRow[] }) {
+  const [expanded, setExpanded] = useState(false)
+  if (rows.length === 0) return null
+
+  return (
+    <div className="rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/20 overflow-hidden">
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="w-full flex items-center gap-3 px-3 py-0.5 leading-tight hover:bg-sky-100/40 dark:hover:bg-sky-900/20 transition-colors"
+      >
+        <Ship className="h-4 w-4 text-sky-600 shrink-0" />
+        <div className="flex-1 text-left">
+          <p className="font-semibold text-sky-700 dark:text-sky-400">
+            {rows.length} export order{rows.length > 1 ? 's' : ''} without a transport
+          </p>
+          <p className="text-xs text-sky-600/80 dark:text-sky-500">
+            {expanded ? 'Click to collapse' : 'Put them on a transport before they ship'}
+          </p>
+        </div>
+        <Badge className="bg-sky-600 text-white text-sm px-2 shrink-0">{rows.length}</Badge>
+        {expanded
+          ? <ChevronUp className="h-4 w-4 text-sky-500 shrink-0" />
+          : <ChevronDown className="h-4 w-4 text-sky-500 shrink-0" />
+        }
+      </button>
+
+      {expanded && (
+        <div className="divide-y divide-sky-100 dark:divide-sky-900 border-t border-sky-200 dark:border-sky-800">
+          {rows.map((row) => (
+            <Link
+              key={row.id}
+              href={`/orders/${row.id}`}
+              className="flex items-center justify-between px-3 py-0.5 gap-3 leading-tight hover:bg-sky-100/40 dark:hover:bg-sky-900/20 transition-colors"
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">
+                  {row.order_number} · {row.company_name}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {row.country ? row.country + ' · ' : ''}{row.statusLabel}
+                </p>
+              </div>
+              {/* An order already on its way with no transport behind it is the
+                  one that actually hurts — customs has nothing to show. */}
+              {row.urgent && (
+                <span className="text-xs font-semibold text-red-600 shrink-0">already out</span>
+              )}
+            </Link>
+          ))}
+          <Link
+            href="/exports"
+            className="flex items-center gap-2 px-3 py-1 text-xs font-medium text-sky-700 dark:text-sky-400 hover:bg-sky-100/40 dark:hover:bg-sky-900/20"
+          >
+            Open the Export tab →
+          </Link>
         </div>
       )}
     </div>
@@ -645,6 +728,7 @@ export default function DashboardPage() {
   const [consignmentOrders, setConsignmentOrders] = useState<Order[]>([])
   const [quietCustomers, setQuietCustomers] = useState<QuietRow[]>([])
   const [openLeads, setOpenLeads] = useState<LeadRow[]>([])
+  const [exportGaps, setExportGaps] = useState<ExportGapRow[]>([])
 
   async function loadPendingOrders() {
     const { data } = await supabase
@@ -786,6 +870,55 @@ export default function DashboardPage() {
       .in('status', ['processing', 'out_for_delivery', 'delivered', 'invoice_ready', 'invoice_blocked'])
       .order('created_at', { ascending: true })
     setConsignmentOrders((data ?? []) as Order[])
+  }
+
+  // Export orders with no transport behind them.
+  //
+  // An order is an export because the delivery address is not Curaçao — one
+  // rule, read from the address, shared with the Export tab through
+  // isExportCustomer. Nothing to switch on, nothing to forget.
+  //
+  // Paid and deleted are left out: those are finished, and a list you cannot
+  // empty is a list people stop looking at.
+  async function loadExportGaps() {
+    const { data } = await supabase
+      .from('orders')
+      .select('id, order_number, status, transport_id, customer:customers!inner(company_name, billing_address)')
+      .is('deleted_at', null)
+      .is('transport_id', null)
+      .in('status', ['pending_approval', 'processing', 'out_for_delivery', 'partly_delivered', 'delivered', 'invoice_ready', 'invoice_blocked'])
+      .order('created_at', { ascending: true })
+
+    const LABELS: Record<string, string> = {
+      pending_approval: 'Pending Approval',
+      processing: 'Processing',
+      out_for_delivery: 'Out for Delivery',
+      partly_delivered: 'Partly Delivered',
+      delivered: 'Delivered',
+      invoice_ready: 'Send Invoice',
+      invoice_blocked: 'Invoice Blocked',
+    }
+    // Past "processing" the goods have physically left, so the paperwork is not
+    // merely missing — it is late.
+    const OUT_ALREADY = ['out_for_delivery', 'partly_delivered', 'delivered', 'invoice_ready', 'invoice_blocked']
+
+    setExportGaps((data ?? [])
+      .map((o: any) => {
+        const cust = Array.isArray(o.customer) ? o.customer[0] : o.customer
+        return { order: o, cust }
+      })
+      // The country lives in a free-text field inside the address, so the rule
+      // is applied here instead of in the query. isExportCustomer already reads
+      // "Curacao", "CURAÇAO " and "cw" as the same place.
+      .filter(({ cust }) => isExportCustomer(cust))
+      .map(({ order: o, cust }) => ({
+        id: o.id,
+        order_number: o.order_number,
+        company_name: cust?.company_name ?? 'Unknown',
+        country: cust?.billing_address?.country ?? '',
+        statusLabel: LABELS[o.status] ?? o.status,
+        urgent: OUT_ALREADY.includes(o.status),
+      })))
   }
 
   // Customers who have gone quiet relative to their own buying rhythm — the
@@ -1011,7 +1144,7 @@ export default function DashboardPage() {
   }
 
   async function loadStats() {
-    await Promise.all([loadPendingOrders(), loadOverdueOrders(), loadAccessRequests(), loadClientOverview(), loadRefillData(), loadWeekTasks(), loadConsignmentOrders(), loadQuietCustomers(), loadOpenLeads()])
+    await Promise.all([loadPendingOrders(), loadOverdueOrders(), loadAccessRequests(), loadClientOverview(), loadRefillData(), loadWeekTasks(), loadConsignmentOrders(), loadQuietCustomers(), loadOpenLeads(), loadExportGaps()])
     const [kpisRes, monthData] = await Promise.all([
       supabase
         .from('v_dashboard_kpis')
@@ -1196,6 +1329,9 @@ export default function DashboardPage() {
 
       {/* Consignment orders out — awaiting settlement */}
       {isAdmin && <ConsignmentBanner orders={consignmentOrders} />}
+
+      {/* Export orders with no transport behind them */}
+      {isAdmin && <ExportBanner rows={exportGaps} />}
 
       {/* Customers who have gone quiet — call them to reorder */}
       {isAdmin && <QuietCustomersBanner rows={quietCustomers} />}

@@ -24,6 +24,7 @@ import { Order, OrderCurrency, OrderEditLogEntry, OrderStatus, QuoteItem } from 
 import { SPIKA_PRODUCTS } from '@/lib/products'
 import { getNextCashOrderNumber, getNextOrderNumber, getCreditNoteNumber } from '@/lib/order-number'
 import { formatCurrency, formatTht, thtToMonthInput, monthInputToTht, currentMonthInput } from '@/lib/utils'
+import { isExportCustomer } from '@/lib/country'
 import { BatchSelect } from '@/components/batch-select'
 import { useOrderPicks, useSetOrderPick } from '@/hooks/use-batches'
 import { ConsignmentPanel } from '../_components/consignment-panel'
@@ -1672,11 +1673,13 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
         </Card>
       )}
 
-      {/* Export section — driven by the customer's "International Customer"
-          toggle, NOT by their price category. The category doubles as the price
-          list, so gating on it meant that changing someone's pricing silently
-          took their customs paperwork away (La Bandera, 2026-08-02). */}
-      {isAdmin && order.customer?.is_international && (
+      {/* Export section — driven by the delivery COUNTRY, not by a switch and
+          not by the price category. The category doubles as the price list, so
+          gating on it meant that changing someone's pricing silently took their
+          customs paperwork away (La Bandera, 2026-08-02). The switch that
+          replaced it could be forgotten just as silently, so since 2026-08-15
+          the address decides — see lib/country.ts. */}
+      {isAdmin && isExportCustomer(order.customer) && (
         <ExportOrderSection order={order} />
       )}
 

@@ -18,3 +18,25 @@ export function countryCode(raw?: string | null): string | null {
 export function customerCountryCode(customer: any): string | null {
   return countryCode(customer?.billing_address?.country)
 }
+
+/**
+ * Whether an order for this customer is an EXPORT. Anything that is not Curaçao
+ * leaves the island, so it needs a transport, customs papers and a B/L.
+ *
+ * Danique, 2026-08-15: the app used to read a hand-set "international" switch on
+ * the customer card. Two things then said the same thing — the country in the
+ * address and that switch — and nothing kept them in step. Forget to flick it
+ * for a new customer in Germany and their order is silently not an export: not
+ * in the Export tab, not in the dashboard warning, not covered by the rule that
+ * an export needs a transport number. The address is the truth, so the address
+ * decides.
+ *
+ * An address with no country at all counts as Curaçao. Almost every customer is
+ * local and the field is often left blank; treating blank as export would fill
+ * the Export tab with the whole customer base.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function isExportCustomer(customer: any): boolean {
+  const code = customerCountryCode(customer)
+  return code !== null && code !== 'CUR'
+}

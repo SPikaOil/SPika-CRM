@@ -2,6 +2,7 @@
 
 import { use, useMemo, useState } from 'react'
 import { formatTaxId } from '@/lib/tax-id'
+import { isExportCustomer } from '@/lib/country'
 import { fmtOwnCurrency } from '@/lib/utils'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -749,7 +750,7 @@ export default function CustomerDetailPage({
           )}
 
           {/* Business / Tax Details */}
-          {(customer.vat_number || customer.crib_number || customer.coc_number || customer.is_international) && (
+          {(customer.vat_number || customer.crib_number || customer.coc_number || isExportCustomer(customer)) && (
             <Card size="sm" className="py-0">
               <CardHeader className="pt-3 pb-2"><CardTitle className="text-sm">Business Details</CardTitle></CardHeader>
               <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 pb-3">
@@ -762,8 +763,9 @@ export default function CustomerDetailPage({
                   return taxId ? <Row label="Tax ID" value={taxId} /> : null
                 })()}
                 {customer.coc_number && <Row label="CoC Number" value={customer.coc_number} />}
-                {customer.is_international && (
-                  <Row label="International" value="Yes — exports eligible" />
+                {/* Read from the address, so it can never disagree with it. */}
+                {isExportCustomer(customer) && (
+                  <Row label="Export" value={`Yes — ships from Curaçao to ${billingAddr?.country ?? 'abroad'}`} />
                 )}
                 {customer.payment_term_days && (
                   <Row label="Payment Term" value={`${customer.payment_term_days} days`} />
