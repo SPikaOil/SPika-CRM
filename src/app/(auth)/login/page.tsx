@@ -1,10 +1,11 @@
 'use client'
 
+import { BrandLockup } from '@/components/brand-mark'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Flame, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -51,16 +52,10 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-950/20 dark:to-orange-950/20 p-4">
       <div className="w-full max-w-md space-y-6">
-        {/* Brand */}
-        <div className="flex flex-col items-center gap-2">
-          <div className="flex items-center gap-2">
-            <Flame className="h-10 w-10 text-red-600" />
-            <span className="font-bold text-3xl tracking-tight">SPika CRM</span>
-          </div>
-          <p className="text-muted-foreground text-sm">
-            Sales &amp; Delivery Management
-          </p>
-        </div>
+        {/* This screen is the reference: the ratios inside BrandLockup were
+            measured here against the real artwork. Every other screen uses
+            the same component so the treatment cannot drift. */}
+        <BrandLockup height={96} word="SPika" strapline="Sales, Marketing & more" />
 
         <Card>
           <CardHeader>

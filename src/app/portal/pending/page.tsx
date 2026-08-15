@@ -1,8 +1,9 @@
 'use client'
 
+import { BrandLockup } from '@/components/brand-mark'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Flame, Clock, CheckCircle, ArrowRight, MessageCircle, Mail, LogOut, ChevronDown, ChevronUp } from 'lucide-react'
+import { Clock, CheckCircle, ArrowRight, MessageCircle, Mail, LogOut, ChevronDown, ChevronUp } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -23,8 +24,7 @@ export default function PendingPage() {
         {/* Branding */}
         <div className="flex flex-col items-center gap-1 text-center">
           <div className="flex items-center gap-2">
-            <Flame className="h-7 w-7 text-red-600" />
-            <span className="font-bold text-xl tracking-tight">SPika Oil</span>
+            <BrandLockup height={30} word="SPika Oil" />
           </div>
         </div>
 

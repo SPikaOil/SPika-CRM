@@ -1,8 +1,9 @@
 'use client'
 
+import { BrandLockup } from '@/components/brand-mark'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Flame, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -125,8 +126,7 @@ export default function OnboardingPage() {
         {/* Branding */}
         <div className="flex flex-col items-center gap-1 text-center">
           <div className="flex items-center gap-2">
-            <Flame className="h-8 w-8 text-red-600" />
-            <span className="font-bold text-2xl tracking-tight">SPika Oil</span>
+            <BrandLockup height={34} word="SPika Oil" />
           </div>
           <p className="text-muted-foreground text-sm">B2B Partner Application</p>
         </div>

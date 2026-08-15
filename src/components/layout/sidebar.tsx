@@ -1,5 +1,6 @@
 'use client'
 
+import { BrandLockup } from '@/components/brand-mark'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -8,7 +9,7 @@ import {
   FileText,
   ShoppingCart,
   Settings,
-  Flame,
+
   ClipboardList,
   CalendarDays,
   UserCog,
@@ -71,8 +72,7 @@ export function Sidebar() {
     <aside className="hidden lg:flex flex-col w-64 border-r bg-background h-screen sticky top-0">
       {/* Logo */}
       <div className="flex items-center gap-2 px-6 py-5 border-b">
-        <Flame className="h-7 w-7 text-red-600" />
-        <span className="font-bold text-xl tracking-tight">SPika CRM</span>
+        <BrandLockup height={30} word="SPika CRM" />
       </div>
 
       {/* Navigation */}

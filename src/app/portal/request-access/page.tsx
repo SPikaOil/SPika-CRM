@@ -1,7 +1,8 @@
 'use client'
 
+import { BrandLockup } from '@/components/brand-mark'
 import { useState } from 'react'
-import { Flame, CheckCircle, ArrowLeft, Mail, Loader2 } from 'lucide-react'
+import { CheckCircle, ArrowLeft, Mail, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -53,8 +54,7 @@ export default function RequestAccessPage() {
         <div className="w-full max-w-sm space-y-6">
           <div className="flex flex-col items-start gap-1">
             <div className="flex items-center gap-2">
-              <Flame className="h-8 w-8 text-red-600" />
-              <span className="font-bold text-2xl tracking-tight">SPika Oil</span>
+              <BrandLockup height={34} word="SPika Oil" />
             </div>
             <p className="text-muted-foreground text-sm">B2B Customer Portal</p>
           </div>

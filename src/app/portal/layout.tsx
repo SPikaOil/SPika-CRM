@@ -1,8 +1,9 @@
 'use client'
 
+import { BrandLockup } from '@/components/brand-mark'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Flame, ShoppingBag, ClipboardList, LogOut, Loader2, Mail, KeyRound, LayoutDashboard, FileText, BookOpen, HeadphonesIcon, UserCircle, Megaphone } from 'lucide-react'
+import { ShoppingBag, ClipboardList, LogOut, Loader2, Mail, KeyRound, LayoutDashboard, FileText, BookOpen, HeadphonesIcon, UserCircle, Megaphone } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
@@ -103,8 +104,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       <header className="sticky top-0 z-50 bg-background border-b">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Flame className="h-6 w-6 text-red-600" />
-            <span className="font-bold text-lg">SPika Oil</span>
+            <BrandLockup height={26} word="SPika Oil" />
           </div>
           <div className="flex items-center gap-3">
             <p className="text-sm text-muted-foreground hidden sm:block">{profile?.name}</p>
@@ -198,8 +198,7 @@ function PortalLogin() {
           {/* Brand */}
           <div className="flex flex-col items-start gap-1 mb-2">
             <div className="flex items-center gap-2">
-              <Flame className="h-8 w-8 text-red-600" />
-              <span className="font-bold text-2xl tracking-tight">SPika Oil</span>
+              <BrandLockup height={34} word="SPika Oil" />
             </div>
             <p className="text-muted-foreground text-sm">B2B Customer Portal</p>
           </div>
