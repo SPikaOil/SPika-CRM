@@ -7,12 +7,14 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'SPika CRM',
-  description: 'Sales, delivery & POD management for SPika Hot Sauce',
+  description: 'Sales, Marketing & more',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'SPika CRM',
+    // The name under the icon on an iPhone home screen. Short on purpose:
+    // iOS truncates anything longer, and "CRM" is our word, not a customer's.
+    title: 'SPika',
   },
 }
 
