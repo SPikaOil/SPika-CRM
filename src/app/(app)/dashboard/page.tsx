@@ -197,33 +197,40 @@ function MetricProgress({
 
   return (
     <div className="space-y-1">
+      {/* The pencil sits on the label row, not next to the number. Value,
+          target and pencil on one line meant the target was the thing that got
+          truncated on a phone — "/ XCG 1…" — which is exactly the number you
+          are comparing against. */}
       <div className="flex items-center gap-1.5">
         <div className={`p-1 rounded-md ${c.iconBg}`}>
           <Icon className="h-3 w-3" />
         </div>
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+        <p className="text-xs font-medium text-muted-foreground truncate">{label}</p>
+        {editing ? (
+          <div className="flex items-center gap-1 ml-auto shrink-0">
+            <Input autoFocus type="number" value={draft}
+              onChange={e => setDraft(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') saveTarget(); if (e.key === 'Escape') setEditing(false) }}
+              className="h-6 w-16 text-xs text-right px-2" />
+            <button onClick={saveTarget} className={`text-xs ${c.link} font-medium hover:underline`}>Save</button>
+          </div>
+        ) : (
+          <button onClick={() => { setDraft(String(target)); setEditing(true) }}
+            className="flex items-center text-xs text-muted-foreground hover:text-foreground ml-auto shrink-0">
+            <Pencil className="h-3 w-3" />
+          </button>
+        )}
       </div>
-      <div className="flex items-end gap-2 leading-none">
+      <div className="leading-tight">
         {isLoading ? <Skeleton className="h-7 w-16" /> : (
           <>
             {/* nowrap: "XCG 7,148" broke across two lines at tablet widths once
                 the two metrics sat side by side */}
             <p className={`text-lg sm:text-2xl font-bold whitespace-nowrap ${c.text}`}>{formatValue(value)}</p>
-            <p className="text-[10px] sm:text-xs text-muted-foreground mb-0.5 truncate min-w-0">/ {formatValue(target)} · {pct}%</p>
-            {editing ? (
-              <div className="flex items-center gap-1 ml-auto shrink-0">
-                <Input autoFocus type="number" value={draft}
-                  onChange={e => setDraft(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') saveTarget(); if (e.key === 'Escape') setEditing(false) }}
-                  className="h-6 w-16 text-xs text-right px-2" />
-                <button onClick={saveTarget} className={`text-xs ${c.link} font-medium hover:underline`}>Save</button>
-              </div>
-            ) : (
-              <button onClick={() => { setDraft(String(target)); setEditing(true) }}
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground ml-auto shrink-0">
-                <Pencil className="h-3 w-3" />
-              </button>
-            )}
+            {/* Its own line, so the full target fits at any width */}
+            <p className="text-[10px] sm:text-xs text-muted-foreground whitespace-nowrap">
+              / {formatValue(target)} · {pct}%
+            </p>
           </>
         )}
       </div>
@@ -596,8 +603,10 @@ function ExportBanner({ rows }: { rows: ExportGapRow[] }) {
       >
         <Ship className="h-4 w-4 text-sky-600 shrink-0" />
         <div className="flex-1 text-left">
+          {/* Short on purpose: the long version wrapped to two lines on a phone
+              and made this banner taller than every other one in the row. */}
           <p className="font-semibold text-sky-700 dark:text-sky-400">
-            {rows.length} export order{rows.length > 1 ? 's' : ''} without a transport
+            {rows.length} Export — No TP#
           </p>
           <p className="text-xs text-sky-600/80 dark:text-sky-500">
             {expanded ? 'Click to collapse' : 'Put them on a transport before they ship'}

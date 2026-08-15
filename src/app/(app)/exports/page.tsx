@@ -145,27 +145,29 @@ function ExportsInner() {
             const t = order.transport
             const eta = fmtDay(t?.eta)
             return (
+              // On a phone the customer name was squeezed to "La B…" by the
+              // action next to it. Stacked instead: the text gets the full
+              // width, the action gets its own line underneath. Two thin rows
+              // beat one row with the name cut off.
               <div
                 key={order.id}
-                className={`flex items-center justify-between gap-2 px-3 py-0.5 leading-tight rounded-xl border bg-card ${t ? '' : 'border-dashed'}`}
+                className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 px-3 py-1 sm:py-0.5 leading-tight rounded-xl border bg-card ${t ? '' : 'border-dashed'}`}
               >
                 <Link href={`/orders/${order.id}`} className="flex-1 min-w-0 hover:opacity-70">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-mono text-sm font-medium">{order.order_number}</p>
+                  <div className="flex items-baseline gap-2 min-w-0">
+                    <p className="font-mono text-sm font-medium shrink-0">{order.order_number}</p>
                     <p className="font-medium text-sm truncate">{order.customer?.company_name}</p>
-                    {t && (
-                      <Badge className="text-xs bg-indigo-100 text-indigo-700 font-mono">
-                        {t.transport_number}
-                      </Badge>
-                    )}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
                     {order.customer?.billing_address?.country ?? '—'} · {fmtOwnCurrency(order)}
+                    {t && ` · ${t.transport_number}`}
+                    {t && ` · ${eta ? `ETA ${eta}` : 'no ETA yet'}`}
                   </p>
                 </Link>
 
-                {/* ETA — filled in on the transport, shown here */}
-                <div className="shrink-0 text-right w-24">
+                {/* ETA gets its own column on a wide screen; on a phone it is
+                    folded into the line above so it cannot push anything out. */}
+                <div className="hidden sm:block shrink-0 text-right w-24">
                   {eta ? (
                     <>
                       <p className="text-sm font-semibold">{eta}</p>
@@ -180,7 +182,7 @@ function ExportsInner() {
 
                 {t ? (
                   <Link href={`/exports/${t.id}`} className="shrink-0">
-                    <Button variant="outline" size="sm" className="h-7 text-xs">Open</Button>
+                    <Button variant="outline" size="sm" className="h-7 text-xs w-full sm:w-auto">Open</Button>
                   </Link>
                 ) : (
                   <Select
@@ -191,7 +193,7 @@ function ExportsInner() {
                       setOrderTransport.mutate({ orderId: order.id, transportId: v })
                     }}
                   >
-                    <SelectTrigger className="h-7 w-40 text-xs shrink-0">
+                    <SelectTrigger className="h-7 w-full sm:w-40 text-xs shrink-0">
                       <SelectValue placeholder="Put on transport…" />
                     </SelectTrigger>
                     <SelectContent>
