@@ -54,7 +54,7 @@ export default function RequestAccessPage() {
         <div className="w-full max-w-sm space-y-6">
           <div className="flex flex-col items-start gap-1">
             <div className="flex items-center gap-2">
-              <BrandLockup height={34} word="SPika Oil" />
+              <BrandLockup height={34} word="SPika" />
             </div>
             <p className="text-muted-foreground text-sm">B2B Customer Portal</p>
           </div>

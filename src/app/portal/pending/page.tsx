@@ -24,7 +24,7 @@ export default function PendingPage() {
         {/* Branding */}
         <div className="flex flex-col items-center gap-1 text-center">
           <div className="flex items-center gap-2">
-            <BrandLockup height={30} word="SPika Oil" />
+            <BrandLockup height={30} word="SPika" />
           </div>
         </div>
 

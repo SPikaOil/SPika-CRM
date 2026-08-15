@@ -1,4 +1,6 @@
-export const FROM = process.env.EMAIL_FROM ?? 'SPika CRM <hello@spikaoil.nl>'
+// The sender name a recipient sees in their inbox list. "SPika", like the
+// screens and the mail header — not "SPika CRM", which is our internal word.
+export const FROM = process.env.EMAIL_FROM ?? 'SPika <hello@spikaoil.nl>'
 export const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'hello@spikaoil.nl'
 
 export type SendResult =

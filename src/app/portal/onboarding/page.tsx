@@ -126,7 +126,7 @@ export default function OnboardingPage() {
         {/* Branding */}
         <div className="flex flex-col items-center gap-1 text-center">
           <div className="flex items-center gap-2">
-            <BrandLockup height={34} word="SPika Oil" />
+            <BrandLockup height={34} word="SPika" />
           </div>
           <p className="text-muted-foreground text-sm">B2B Partner Application</p>
         </div>

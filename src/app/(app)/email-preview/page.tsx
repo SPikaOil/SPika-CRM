@@ -42,6 +42,14 @@ const PREVIEWS: Preview[] = [
     html: T.emailNewCustomer({ customerName: 'Restaurant Zeezicht', email: 'maria@zeezicht.cw', category: 'horeca' }),
   },
   {
+    key: 'pos_request', name: 'POS material requested', subject: 'POS material requested by …',
+    audience: 'admin', when: 'A reseller taps "We need this" on a POS item in the portal', branded: true,
+    html: T.emailPosRequest({
+      customerName: 'Carrefour Market', assetTitle: 'Wobbler — round, 8cm',
+      qty: '3', note: 'For all three shelves in the Zeelandia branch.', outOfStock: 'no',
+    }),
+  },
+  {
     key: 'order_placed', name: 'Order placed', subject: 'New order placed',
     audience: 'admin', when: 'A customer places an order in the portal', branded: true,
     html: T.emailOrderPlaced({ customerName: 'Restaurant Zeezicht', total: 'XCG 652.10', items: '15× SPika Oil 100ml, 35× SPika Oil 50ml' }),

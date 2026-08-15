@@ -19,8 +19,20 @@ function layout(content: string) {
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:32px 16px;">
     <tr><td align="center">
       <table width="100%" style="max-width:520px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1);">
-        <tr><td style="background:${LOGO_COLOR};padding:20px 28px;">
-          <span style="color:#fff;font-size:20px;font-weight:700;letter-spacing:-0.5px;">🔥 SPika CRM</span>
+        <tr><td style="background:${LOGO_COLOR};padding:18px 28px;">
+          <!-- The real mark, on a white pill because the artwork is red and the
+               banner is red. Sized and pulled in like BrandLockup does on the
+               screens; the ALT text carries the name for the clients that block
+               images, so the header never comes up empty. -->
+          <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>
+            <td style="vertical-align:middle;background:#ffffff;border-radius:8px;padding:4px 6px;">
+              <img src="${APP_URL}/spika-s-red.png" alt="SPika" width="20" height="25"
+                   style="display:block;border:0;outline:none;" />
+            </td>
+            <td style="vertical-align:middle;padding-left:8px;">
+              <span style="color:#fff;font-size:22px;font-weight:500;letter-spacing:-1px;">SPika</span>
+            </td>
+          </tr></table>
         </td></tr>
         <tr><td style="padding:28px;">
           ${content}
