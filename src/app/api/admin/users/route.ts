@@ -1,3 +1,4 @@
+import { checkPassword } from '@/lib/password'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient as createServerClient } from '@/lib/supabase/server'
@@ -36,6 +37,11 @@ export async function POST(req: NextRequest) {
   if (!email || !name || !role || !password) {
     return NextResponse.json({ error: 'email, name, role and password are required' }, { status: 400 })
   }
+
+  // Checked here as well as in the form: the form is a screen, this is the
+  // rule. Calling this route directly used to accept a password of any length.
+  const tooShort = checkPassword(password)
+  if (tooShort) return NextResponse.json({ error: tooShort }, { status: 400 })
 
   const admin = createAdminClient()
 

@@ -1,3 +1,4 @@
+import { checkPassword } from '@/lib/password'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient as createServerClient } from '@/lib/supabase/server'
@@ -64,6 +65,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   // Password reset
   if (body.password) {
+    // Same rule as creating an account — a reset must not be a way around it.
+    const tooShort = checkPassword(body.password)
+    if (tooShort) return NextResponse.json({ error: tooShort }, { status: 400 })
     const { error } = await admin.auth.admin.updateUserById(id, { password: body.password })
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     return NextResponse.json({ ok: true })

@@ -1,5 +1,7 @@
 'use client'
 
+import { TwoFactor } from '@/components/two-factor'
+import { checkPassword, MIN_PASSWORD_LENGTH, PASSWORD_RULE_TEXT } from '@/lib/password'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -76,7 +78,8 @@ export default function TeamPage() {
   const [changingOwnPw, setChangingOwnPw] = useState(false)
 
   async function handleChangeOwnPassword() {
-    if (ownNewPw.length < 6) return toast.error('New password must be at least 6 characters')
+    const pwErr = checkPassword(ownNewPw)
+    if (pwErr) return toast.error(pwErr)
     if (ownNewPw !== ownConfirmPw) return toast.error('Passwords do not match')
     setChangingOwnPw(true)
     try {
@@ -114,6 +117,8 @@ export default function TeamPage() {
 
   async function handleCreate() {
     if (!newName || !newEmail || !newPassword) return toast.error('Name, email and password are required')
+    const createErr = checkPassword(newPassword)
+    if (createErr) return toast.error(createErr)
     setCreating(true)
     try {
       const res = await fetch('/api/admin/users', {
@@ -135,7 +140,8 @@ export default function TeamPage() {
   }
 
   async function handleResetPassword() {
-    if (!newPw || newPw.length < 6) return toast.error('Password must be at least 6 characters')
+    const resetErr = checkPassword(newPw)
+    if (resetErr) return toast.error(resetErr)
     if (!resetUser) return
     setResetting(true)
     try {
@@ -273,6 +279,10 @@ export default function TeamPage() {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Your own second step. Directly under your account card, because it is
+          about YOUR login and nobody else's. */}
+      <TwoFactor />
 
       {/* Member filter */}
       <div className="flex gap-2">
@@ -425,6 +435,7 @@ export default function TeamPage() {
             </div>
             <div className="space-y-1.5">
               <Label>Temporary password <span className="text-red-500">*</span></Label>
+              <p className="text-[11px] text-muted-foreground">{PASSWORD_RULE_TEXT}</p>
               <Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Min. 6 characters" />
               <p className="text-xs text-muted-foreground">The worker can change this after logging in.</p>
             </div>
@@ -446,6 +457,7 @@ export default function TeamPage() {
           </DialogHeader>
           <div className="space-y-1.5">
             <Label>New password <span className="text-red-500">*</span></Label>
+            <p className="text-[11px] text-muted-foreground">{PASSWORD_RULE_TEXT}</p>
             <Input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="Min. 6 characters" />
           </div>
           <DialogFooter>
@@ -504,6 +516,7 @@ export default function TeamPage() {
             </div>
             <div className="space-y-1.5">
               <Label>New password <span className="text-red-500">*</span></Label>
+              <p className="text-[11px] text-muted-foreground">{PASSWORD_RULE_TEXT}</p>
               <Input type="password" value={ownNewPw} onChange={e => setOwnNewPw(e.target.value)} placeholder="Min. 6 characters" />
             </div>
             <div className="space-y-1.5">
