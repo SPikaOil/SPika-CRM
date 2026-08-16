@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { isExportCustomer } from '@/lib/country'
 import { createClient } from '@/lib/supabase/client'
 import { usePosRequests } from '@/hooks/use-pos-requests'
+import { PosRequest } from '@/types'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
@@ -395,6 +396,63 @@ function OverdueBanner({
   )
 }
 
+// ── POS material requests ─────────────────────────────────────────────────
+// Opens like every other alert here. It used to be a flat strip you could
+// click without anything happening — worse than no link at all, because it
+// reads as broken. Each row goes to the customer, since granting a request
+// happens on their next order and that is reachable from there.
+function PosRequestBanner({ requests }: { requests: PosRequest[] }) {
+  const [expanded, setExpanded] = useState(false)
+  if (requests.length === 0) return null
+
+  return (
+    <div className="rounded-xl border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/20 overflow-hidden">
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="w-full flex items-center gap-3 px-3 py-0.5 leading-tight hover:bg-orange-100/40 dark:hover:bg-orange-900/20 transition-colors"
+      >
+        <PackagePlus className="h-4 w-4 text-orange-600 shrink-0" />
+        <div className="flex-1 text-left">
+          <p className="font-semibold text-orange-700 dark:text-orange-400">
+            {requests.length} POS material request{requests.length > 1 ? 's' : ''}
+          </p>
+          <p className="text-xs text-orange-600/80 dark:text-orange-500">
+            {expanded ? 'Click to collapse' : 'Click to view'}
+            <span className="hidden sm:inline"> · Free, goes out with their next order</span>
+          </p>
+        </div>
+        <Badge className="bg-orange-600 text-white text-sm px-2 shrink-0">{requests.length}</Badge>
+        {expanded
+          ? <ChevronUp className="h-4 w-4 text-orange-500 shrink-0" />
+          : <ChevronDown className="h-4 w-4 text-orange-500 shrink-0" />}
+      </button>
+
+      {expanded && (
+        <div className="divide-y divide-orange-100 dark:divide-orange-900 border-t border-orange-200 dark:border-orange-800">
+          {requests.map(req => (
+            <Link
+              key={req.id}
+              href={req.customer_id ? `/customers/${req.customer_id}` : '/customers'}
+              className="flex items-center justify-between px-3 py-1 gap-3 leading-tight hover:bg-orange-100/40 dark:hover:bg-orange-900/20 transition-colors"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-medium">{req.customer?.company_name ?? 'Unknown reseller'}</p>
+                <p className="text-xs text-muted-foreground">
+                  {req.qty}× {req.asset?.title ?? 'POS material'}
+                </p>
+                {req.note && <p className="text-xs text-muted-foreground italic">{req.note}</p>}
+              </div>
+              <p className="text-xs text-muted-foreground shrink-0">
+                {new Date(req.created_at).toLocaleDateString('en', { day: 'numeric', month: 'short' })}
+              </p>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Refill banner ─────────────────────────────────────────────────────────
 function RefillBanner({ rows }: { rows: RefillRow[] }) {
   const [expanded, setExpanded] = useState(false)
@@ -733,7 +791,6 @@ export default function DashboardPage() {
   const [byWorker, setByWorker] = useState<Record<string, number>>({})
   const [pendingAccessRequests, setPendingAccessRequests] = useState(0)
   const { data: posRequests } = usePosRequests('open')
-  const openPosRequests = (posRequests ?? []).length
   const [toProcess, setToProcess] = useState<any[]>([])
   const [refillRows, setRefillRows] = useState<RefillRow[]>([])
   const [weekTasks, setWeekTasks] = useState<Task[]>([])
@@ -1305,23 +1362,7 @@ export default function DashboardPage() {
       {/* Open POS material requests — resellers asking for shelf material.
           Same shape as the reseller-request strip above it so the alert stack
           stays one height. Granting happens on the order, not here. */}
-      {openPosRequests > 0 && (
-        <div className="rounded-xl border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/20 overflow-hidden">
-          <div className="w-full flex items-center gap-3 px-3 py-0.5 leading-tight">
-            <PackagePlus className="h-4 w-4 text-orange-600 shrink-0" />
-            <div className="flex-1 text-left">
-              <p className="font-semibold text-orange-700 dark:text-orange-400">
-                {openPosRequests} POS material request{openPosRequests > 1 ? 's' : ''}
-              </p>
-              <p className="text-xs text-orange-600/80 dark:text-orange-500">
-                Send with their next order
-                <span className="hidden sm:inline"> · Open the order to add it</span>
-              </p>
-            </div>
-            <Badge className="bg-orange-600 text-white text-sm px-2 shrink-0">{openPosRequests}</Badge>
-          </div>
-        </div>
-      )}
+      <PosRequestBanner requests={posRequests ?? []} />
 
       {/* Missing POD alert */}
       {!isLoading && stats && stats.deliveries_missing_pod > 0 && (
