@@ -1,3 +1,4 @@
+import { ROLES } from '@/lib/permissions'
 import { checkPassword } from '@/lib/password'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -21,11 +22,42 @@ export async function GET() {
   const { data: profiles, error } = await admin
     .from('users')
     .select('*')
-    .in('role', ['admin', 'sales'])
+    // Every internal role, not just admin and sales — a Marketing or Warehouse
+    // account simply did not appear on the team page before.
+    //
+    // ROLES, not INTERNAL_ROLES: that list carries the legacy 'staff' value,
+    // which the database enum has never had. Postgres rejects the whole query
+    // with 22P02 on an unknown enum value, so one dead name would have emptied
+    // the entire team page.
+    .in('role', [...ROLES])
     .order('created_at', { ascending: true })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(profiles)
+
+  // Enrich with what only the auth side knows: whether this person actually has
+  // an authenticator set up, and when they last signed in. Without it an admin
+  // can require two-step verification but has no way to see who complied.
+  try {
+    const { data: authList } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
+    const byId = new Map(
+      (authList?.users ?? []).map(u => [
+        u.id,
+        {
+          has_2fa: (u.factors ?? []).some((f: { status?: string }) => f.status === 'verified'),
+          last_sign_in_at: u.last_sign_in_at ?? null,
+          // A banned account is one we deactivated; surfaced so the list can
+          // never disagree with what login actually does.
+          blocked: !!u.banned_until && new Date(u.banned_until) > new Date(),
+        },
+      ]),
+    )
+    return NextResponse.json(
+      (profiles ?? []).map(p => ({ ...p, ...(byId.get(p.id) ?? { has_2fa: false, last_sign_in_at: null, blocked: false }) })),
+    )
+  } catch {
+    // Auth side unreachable — return the profiles rather than an empty page.
+    return NextResponse.json(profiles)
+  }
 }
 
 // POST /api/admin/users — create a new staff user

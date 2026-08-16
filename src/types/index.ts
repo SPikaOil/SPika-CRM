@@ -57,6 +57,12 @@ export interface User {
   customer_id: string | null
   is_active: boolean
   created_at: string
+  /** Admin requires two-step verification on this account (migration 075). */
+  mfa_required?: boolean
+  /** Filled in by /api/admin/users from the auth side — see TeamMemberExtras. */
+  has_2fa?: boolean
+  last_sign_in_at?: string | null
+  blocked?: boolean
 }
 
 export interface SpikaStand {
@@ -598,4 +604,14 @@ export interface PosRequest {
   // Joined for display, never written.
   asset?: { id: string; title: string; category: string } | null
   customer?: { id: string; company_name: string } | null
+}
+
+/** Fields the Team page gets on top of the profile — see /api/admin/users. */
+export interface TeamMemberExtras {
+  /** A verified authenticator exists on this account. */
+  has_2fa?: boolean
+  /** From the auth side, so it reflects real sign-ins rather than page views. */
+  last_sign_in_at?: string | null
+  /** Deactivated: banned from signing in. */
+  blocked?: boolean
 }

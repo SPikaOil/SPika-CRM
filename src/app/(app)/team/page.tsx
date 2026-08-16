@@ -5,7 +5,7 @@ import { checkPassword, MIN_PASSWORD_LENGTH, PASSWORD_RULE_TEXT } from '@/lib/pa
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Users, Plus, KeyRound, Edit2, UserX, Check, X, Loader2, ShieldCheck, Truck, UserCircle2, Lock, Clock, FileSpreadsheet
+  Users, Plus, KeyRound, Edit2, UserX, Check, X, Loader2, ShieldCheck, ShieldAlert, ShieldOff, Truck, Megaphone, UserCircle2, Lock, Clock, FileSpreadsheet
 } from 'lucide-react'
 import { downloadCsv, csvDate } from '@/lib/csv-export'
 import { useAuth } from '@/contexts/auth-context'
@@ -24,10 +24,16 @@ import {
 import { toast } from 'sonner'
 import { User } from '@/types'
 
+// Every internal role, because the list shows them all now. A missing entry
+// falls back to the sales styling rather than crashing, but then the badge
+// lies about the role — so keep this in step with ROLES in lib/permissions.
 const roleConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
-  admin:   { label: 'Admin',   color: 'bg-green-100 text-green-700',   icon: ShieldCheck },
-  manager: { label: 'Manager', color: 'bg-purple-100 text-purple-700', icon: ShieldCheck },
-  sales:   { label: 'Sales',   color: 'bg-blue-100 text-blue-700',     icon: UserCircle2 },
+  admin:     { label: 'Admin',     color: 'bg-green-100 text-green-700',   icon: ShieldCheck },
+  manager:   { label: 'Manager',   color: 'bg-purple-100 text-purple-700', icon: ShieldCheck },
+  sales:     { label: 'Sales',     color: 'bg-blue-100 text-blue-700',     icon: UserCircle2 },
+  warehouse: { label: 'Warehouse', color: 'bg-amber-100 text-amber-800',   icon: Truck },
+  marketing: { label: 'Marketing', color: 'bg-pink-100 text-pink-700',     icon: Megaphone },
+  staff:     { label: 'Staff',     color: 'bg-gray-100 text-gray-700',     icon: UserCircle2 },
 }
 
 export default function TeamPage() {
@@ -76,6 +82,35 @@ export default function TeamPage() {
   const [ownNewPw, setOwnNewPw] = useState('')
   const [ownConfirmPw, setOwnConfirmPw] = useState('')
   const [changingOwnPw, setChangingOwnPw] = useState(false)
+
+  // Require two-step verification on someone else's account
+  const [mfaBusyId, setMfaBusyId] = useState<string | null>(null)
+
+  async function toggleMfaRequired(user: User) {
+    const next = !user.mfa_required
+    setMfaBusyId(user.id)
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mfa_required: next }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      // Keep the enriched fields the list already has — the PATCH only returns
+      // the profile row, so a plain replace would wipe has_2fa and blocked.
+      setUsers(list => list.map(u => (u.id === user.id ? { ...u, ...data } : u)))
+      toast.success(
+        next
+          ? `${user.name} must set up two-step verification`
+          : `${user.name} no longer has to`,
+      )
+    } catch (err: any) {
+      toast.error(err.message)
+    } finally {
+      setMfaBusyId(null)
+    }
+  }
 
   async function handleChangeOwnPassword() {
     const pwErr = checkPassword(ownNewPw)
@@ -269,20 +304,24 @@ export default function TeamPage() {
             <Lock className="h-4 w-4 text-red-600" /> My Account
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex items-center justify-between gap-4">
-          <div>
-            <p className="font-medium text-sm">{profile?.name}</p>
-            <p className="text-xs text-muted-foreground">{profile?.email}</p>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="font-medium text-sm">{profile?.name}</p>
+              <p className="text-xs text-muted-foreground">{profile?.email}</p>
+            </div>
+            <Button variant="outline" size="sm" className="gap-2 shrink-0" onClick={() => setShowOwnPw(true)}>
+              <KeyRound className="h-3.5 w-3.5" /> Change Password
+            </Button>
           </div>
-          <Button variant="outline" size="sm" className="gap-2 shrink-0" onClick={() => setShowOwnPw(true)}>
-            <KeyRound className="h-3.5 w-3.5" /> Change Password
-          </Button>
+
+          {/* Inside this card, not floating above the member list. On a page
+              that lists the whole team, a lone "Two-step verification" block
+              reads as a setting for everyone — it is only ever about the
+              account named right above it. */}
+          <TwoFactor />
         </CardContent>
       </Card>
-
-      {/* Your own second step. Directly under your account card, because it is
-          about YOUR login and nobody else's. */}
-      <TwoFactor />
 
       {/* Member filter */}
       <div className="flex gap-2">
@@ -319,18 +358,58 @@ export default function TeamPage() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-semibold text-sm">{user.name}</p>
                     <Badge className={`text-xs ${rc.color}`}>{rc.label}</Badge>
+
+                    {/* Two-step status at a glance. "Required" without "on" is
+                        the one that matters: that person is being asked and has
+                        not done it yet. */}
+                    {user.has_2fa ? (
+                      <Badge className="text-xs bg-green-100 text-green-700 gap-1">
+                        <ShieldCheck className="h-3 w-3" /> 2FA on
+                      </Badge>
+                    ) : user.mfa_required ? (
+                      <Badge className="text-xs bg-amber-100 text-amber-800 gap-1">
+                        <ShieldAlert className="h-3 w-3" /> 2FA required, not set up
+                      </Badge>
+                    ) : (
+                      <Badge className="text-xs bg-gray-100 text-gray-600 gap-1">
+                        <ShieldOff className="h-3 w-3" /> No 2FA
+                      </Badge>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground truncate">
                     {user.email}{user.phone ? ` · ${user.phone}` : ''}
                   </p>
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  {/* Two different facts, and the difference matters: "last
+                      seen" is any page view, "signed in" is an actual login.
+                      An account that was never signed in is a key lying about. */}
+                  <p className="text-xs text-muted-foreground flex items-center gap-1 flex-wrap">
                     <Clock className="h-3 w-3" />
                     {(user as any).last_seen_at
                       ? `Last seen: ${new Date((user as any).last_seen_at).toLocaleString('en', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`
                       : 'Never logged in'}
+                    {user.last_sign_in_at && (
+                      <span className="opacity-70">
+                        · Signed in: {new Date(user.last_sign_in_at).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </span>
+                    )}
                   </p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
+                  {/* Require two-step verification. Does not lock anyone out —
+                      it sends them to the setup screen at their next page load
+                      and keeps them there until they have an authenticator. */}
+                  <Button
+                    variant="ghost" size="icon"
+                    title={user.mfa_required ? 'Two-step is required — click to stop requiring it' : 'Require two-step verification'}
+                    onClick={() => toggleMfaRequired(user)}
+                    disabled={mfaBusyId === user.id}
+                  >
+                    {mfaBusyId === user.id
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : user.mfa_required
+                        ? <ShieldCheck className="h-4 w-4 text-green-600" />
+                        : <ShieldOff className="h-4 w-4 text-muted-foreground" />}
+                  </Button>
                   <Button
                     variant="ghost" size="icon" title="Edit"
                     onClick={() => { setEditUser(user); setEditName(user.name); setEditRole(user.role); setEditPhone(user.phone ?? '') }}

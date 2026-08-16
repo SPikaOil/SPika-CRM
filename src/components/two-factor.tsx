@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+
 
 /**
  * Two-step verification for your own account.
@@ -53,9 +53,12 @@ export function TwoFactor() {
         if (f.status !== 'verified') await supabase.auth.mfa.unenroll({ factorId: f.id })
       }
 
+      // The authenticator app already labels the entry with the account's
+      // e-mail — Supabase puts it in the TOTP label — so the name only has to
+      // say WHICH app this code belongs to.
       const { data, error } = await supabase.auth.mfa.enroll({
         factorType: 'totp',
-        friendlyName: `SPika ${new Date().toISOString().slice(0, 10)}`,
+        friendlyName: 'SPika CRM',
       })
       if (error) throw error
       setFactorId(data.id)
@@ -109,17 +112,15 @@ export function TwoFactor() {
   if (loading) return null
 
   return (
-    <Card size="sm" className="py-0">
-      <CardHeader className="pt-3 pb-2">
-        <CardTitle className="text-sm flex items-center gap-2">
-          {enrolled
-            ? <ShieldCheck className="h-4 w-4 text-green-600" />
-            : <ShieldAlert className="h-4 w-4 text-amber-600" />}
-          Two-step verification
-        </CardTitle>
-      </CardHeader>
+    <div className="rounded-lg border p-3 space-y-3">
+      <p className="text-sm font-medium flex items-center gap-2">
+        {enrolled
+          ? <ShieldCheck className="h-4 w-4 text-green-600" />
+          : <ShieldAlert className="h-4 w-4 text-amber-600" />}
+        Two-step verification for this account
+      </p>
 
-      <CardContent className="pb-4 space-y-3">
+      <div className="space-y-3">
         {enrolled ? (
           <>
             <p className="text-sm text-muted-foreground leading-snug">
@@ -176,7 +177,7 @@ export function TwoFactor() {
             </Button>
           </>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }

@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { Sidebar } from '@/components/layout/sidebar'
 import { BottomNav } from '@/components/layout/bottom-nav'
@@ -27,8 +28,25 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // refuses them orders and customers. Send them where their work is instead.
   useEffect(() => {
     if (isLoading || profile?.role !== 'marketing') return
-    if (!pathname.startsWith('/marketing')) router.replace('/marketing')
+    if (!pathname.startsWith('/marketing') && !pathname.startsWith('/security')) router.replace('/marketing')
   }, [isLoading, profile?.role, pathname, router])
+
+  // Two-step verification the admin has required but this person has not set up.
+  // Park them on /security until they have. Checked against the LIVE factor list
+  // rather than a stored flag, so turning it on takes effect immediately and
+  // turning it off never leaves someone stuck.
+  const [mfaBlocked, setMfaBlocked] = useState(false)
+  useEffect(() => {
+    if (isLoading || !profile?.mfa_required) { setMfaBlocked(false); return }
+    let cancelled = false
+    createClient().auth.mfa.listFactors().then(({ data }) => {
+      if (cancelled) return
+      const enrolled = (data?.totp ?? []).some(f => f.status === 'verified')
+      setMfaBlocked(!enrolled)
+      if (!enrolled && !pathname.startsWith('/security')) router.replace('/security')
+    })
+    return () => { cancelled = true }
+  }, [isLoading, profile?.mfa_required, pathname, router])
 
   if (isCustomer) return null
 

@@ -85,6 +85,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json(data)
   }
 
+  // Require (or stop requiring) two-step verification on this account.
+  // Handled on its own because it is a security decision, not a profile edit.
+  if (typeof body.mfa_required === 'boolean') {
+    const { data, error } = await admin.from('users')
+      .update({ mfa_required: body.mfa_required }).eq('id', id).select().single()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(data)
+  }
+
   // Profile update (name, role, phone)
   const updates: Record<string, string> = {}
   if (body.name)  updates.name  = body.name
