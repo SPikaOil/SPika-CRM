@@ -160,7 +160,10 @@ function NewDeliveryNoteInner() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!customerId) return toast.error('Select a customer')
-    if (!assignedTo) return toast.error('Assign a worker')
+    // Only demanded of the people who are allowed to answer it. Everyone else
+    // leaves the order unassigned and an admin allocates it — same flow as a
+    // task, her decision of 2026-08-16.
+    if (can('work.assign') && !assignedTo) return toast.error('Assign a worker')
     if (activeItems.length === 0) return toast.error('Set a quantity for at least one product')
 
     setIsSubmitting(true)
@@ -290,26 +293,39 @@ function NewDeliveryNoteInner() {
               />
             </div>
 
-            <div className="space-y-1.5">
-              <Label>Assign to Worker *</Label>
-              <Select value={assignedTo} onValueChange={(v) => v && setAssignedTo(v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select worker">
-                    {assignedTo
-                      ? (() => { const u = users?.find(u => u.id === assignedTo); return u ? `${u.name}${u.role === 'admin' ? ' (Admin)' : ''}` : 'Select worker' })()
-                      : 'Select worker'
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {users?.filter(u => u.is_active !== false).map((u) => (
-                    <SelectItem key={u.id} value={u.id}>
-                      {u.name} {u.role === 'admin' ? '(Admin)' : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Putting a name on the work is its own permission. Without it the
+                order is raised unassigned and an admin allocates it, exactly as
+                a task is. The database refuses the name either way — see
+                guard_assignment() in migration 081. */}
+            {can('work.assign') ? (
+              <div className="space-y-1.5">
+                <Label>Assign to Worker *</Label>
+                <Select value={assignedTo} onValueChange={(v) => v && setAssignedTo(v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select worker">
+                      {assignedTo
+                        ? (() => { const u = users?.find(u => u.id === assignedTo); return u ? `${u.name}${u.role === 'admin' ? ' (Admin)' : ''}` : 'Select worker' })()
+                        : 'Select worker'
+                      }
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {users?.filter(u => u.is_active !== false).map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.name} {u.role === 'admin' ? '(Admin)' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label className="text-muted-foreground">Assign to Worker</Label>
+                <p className="text-xs text-muted-foreground pt-2">
+                  Leave it to us — an admin picks this up and allocates it.
+                </p>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label>Planned Delivery Date</Label>

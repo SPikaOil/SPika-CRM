@@ -64,7 +64,7 @@ const adminMoreItems: MoreItem[] = [
   { href: '/products',            label: 'Products',    icon: Package,       permission: 'products.view'     },
   { href: '/marketing',           label: 'Marketing',   icon: Megaphone,     permission: 'marketing.view'    },
   { href: '/sales-documents',     label: 'Sales Docs',  icon: FolderOpen,    permission: 'salesdocs.view'    },
-  { href: '/tasks',               label: 'Tasks',       icon: ClipboardList, permission: 'tasks.view'        },
+  { href: '/tasks',               label: 'Tasks',       icon: ClipboardList, permission: 'tasks.create'      },
   { href: '/reports',              label: 'Reports',     icon: BarChart2,     permission: 'reports.view'      },
   { href: '/stock',               label: 'Stock',       icon: Droplets,      permission: 'stock.view'        },
   { href: '/handover',            label: 'Handover',    icon: PackageCheck,  permission: null                },

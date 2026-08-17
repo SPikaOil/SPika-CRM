@@ -28,7 +28,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // refuses them orders and customers. Send them where their work is instead.
   useEffect(() => {
     if (isLoading || profile?.role !== 'marketing') return
-    if (!pathname.startsWith('/marketing') && !pathname.startsWith('/security')) router.replace('/marketing')
+    // The screens this role is allowed on. Anything else — the dashboard,
+    // customers, orders — would render empty boxes anyway, because the database
+    // refuses them the data. Sending them back is kinder than showing that.
+    //
+    // /tasks is on the list because every internal role holds tasks.create
+    // since migration 081 — anyone may report something that needs doing, and
+    // an admin allocates it. Without it the sidebar would show a Tasks button
+    // that bounced this role straight back here.
+    const allowed = ['/marketing', '/products', '/store-locator', '/tasks', '/security']
+    if (!allowed.some(p => pathname.startsWith(p))) router.replace('/marketing')
   }, [isLoading, profile?.role, pathname, router])
 
   // Two-step verification the admin has required but this person has not set up.

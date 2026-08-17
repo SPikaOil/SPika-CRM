@@ -8,12 +8,14 @@ export function useUsers() {
   return useQuery({
     queryKey: ['users'],
     queryFn: async () => {
-      // Team members only — never customer-portal accounts (role 'customer'),
-      // which would otherwise show up in "assign to worker" dropdowns.
+      // team_members, not users. Migration 076 closed a privilege escalation by
+      // rebuilding the users policies as "read your own row, admin writes" —
+      // which also meant this query returned exactly one name to anyone who is
+      // not an admin, emptying every assign-to dropdown in the app. The view
+      // filters out portal accounts itself and lets a colleague see colleagues.
       const { data, error } = await supabase
-        .from('users')
+        .from('team_members')
         .select('*')
-        .neq('role', 'customer')
         .order('name')
       if (error) throw error
       return data as User[]

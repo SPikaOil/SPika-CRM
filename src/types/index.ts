@@ -127,6 +127,12 @@ export interface Customer {
   language: string
   internal_notes: string
   quickbooks_customer_id: string
+  /**
+   * The person at SPika this reseller belongs to (users.id), shown to them in
+   * the portal on Support. Null means nobody is assigned and their portal falls
+   * back to the general contact details.
+   */
+  assigned_to: string | null
   vat_number: string
   coc_number: string
   crib_number: string

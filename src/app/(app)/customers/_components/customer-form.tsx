@@ -24,6 +24,7 @@ import { SPIKA_PRODUCTS } from '@/lib/products'
 import { isExportCustomer } from '@/lib/country'
 import { getTaxIdInfo } from '@/lib/tax-id'
 import { useCustomers } from '@/hooks/use-customers'
+import { useUsers } from '@/hooks/use-users'
 import { usePricePresets } from '@/hooks/use-price-presets'
 import { PriceInput } from '@/components/ui/price-input'
 
@@ -58,6 +59,9 @@ const customerSchema = z.object({
   is_consignment: z.boolean(),
   is_lead: z.boolean(),
   status: z.enum(['active', 'inactive']),
+  // Their named contact at SPika. Empty string means nobody is assigned yet;
+  // it becomes null on submit, because the column is a foreign key.
+  assigned_to: z.string(),
   display_as: z.string(),
   shops_sold_at: z.string(),
   storelocator: z.boolean(),
@@ -85,6 +89,7 @@ function toFormValues(customer?: Partial<Customer>): Partial<CustomerFormValues>
   return {
     ...customer,
     storelocator: customer.storelocator ?? false,
+    assigned_to: (customer as any).assigned_to ?? '',
     display_as: customer.display_as ?? '',
     shops_sold_at: customer.shops_sold_at ?? '',
     table_count: (customer as any).table_count != null ? String((customer as any).table_count) : '',
@@ -102,6 +107,7 @@ function toFormValues(customer?: Partial<Customer>): Partial<CustomerFormValues>
 export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
   const { data: allCustomers } = useCustomers()
   const { data: pricePresets } = usePricePresets()
+  const { data: team } = useUsers()
 
   // Track the category the user just selected so we can apply its preset
   // even if pricePresets hasn't loaded yet at the time of selection.
@@ -291,6 +297,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
     is_consignment: false,
     is_lead: false,
     status: 'active',
+    assigned_to: '',
     display_as: '',
     shops_sold_at: '',
     storelocator: false,
@@ -334,6 +341,9 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
       ...rest,
       crib_number: cribNumber,
       table_count: tableCount,
+      // A foreign key takes a uuid or nothing. The select uses '' for "nobody
+      // yet", and '' is not a uuid — it would be rejected with 22P02.
+      assigned_to: rest.assigned_to ? rest.assigned_to : null,
       billing_emails: billingEmails,
       spika_stands: stands,
       product_prices: productPrices,
@@ -382,6 +392,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
   }
 
   const preferredComm = watch('preferred_communication')
+  const assignedTo = watch('assigned_to')
   const status = watch('status')
   const billingCountry = watch('billing_country')
   const taxIdInfo = getTaxIdInfo(billingCountry ?? '')
@@ -524,6 +535,42 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              {/* Their named contact at SPika. Shown to them in the portal, on
+                  Support, with a mail link and a WhatsApp link — so this is the
+                  one field here that a customer actually reads. */}
+              <div className="space-y-1.5">
+                <Label>
+                  Account Manager{' '}
+                  <span className="text-muted-foreground text-xs font-normal">
+                    (shown to this customer in their portal)
+                  </span>
+                </Label>
+                {/* This Select hands back string | null, so clearing it and
+                    picking "Nobody assigned" both land on the same empty string
+                    the schema expects — which becomes null on submit. */}
+                <Select
+                  value={assignedTo || 'none'}
+                  onValueChange={(v) => setValue('assigned_to', !v || v === 'none' ? '' : v)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Nobody assigned" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nobody assigned</SelectItem>
+                    {(team ?? [])
+                      .filter(u => u.is_active !== false)
+                      .map(u => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.name || u.email}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Leave on &ldquo;Nobody assigned&rdquo; and their portal shows only the general contact details.
+                </p>
               </div>
 
               {/* Lead — a potential customer we haven't sold to yet. Kept out of

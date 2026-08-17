@@ -36,7 +36,7 @@ const FREQUENCY_COLORS: Record<TaskFrequency, string> = {
 }
 
 export default function TasksPage() {
-  const { profile, isAdmin } = useAuth()
+  const { profile, isAdmin, can } = useAuth()
   const { data: tasks, isLoading } = useTasks(undefined, profile?.id, isAdmin)
   const { data: customers } = useCustomers()
   const { data: users } = useUsers()
@@ -164,18 +164,32 @@ export default function TasksPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1.5">
-                  <Label>Assign to Worker</Label>
-                  <Select value={assignedTo} onValueChange={(v) => setAssignedTo(v ?? '')}>
-                    <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">Unassigned</SelectItem>
-                      {users?.filter(u => u.is_active !== false).map((u) => (
-                        <SelectItem key={u.id} value={u.id} label={u.name}>{u.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {/* Raising a task and handing it out are two different acts.
+                    Anyone on the team may report something that needs doing; it
+                    lands unassigned and an admin puts a name on it. The database
+                    refuses the name either way — guard_assignment() in migration
+                    081 — so this only spares people a button that would fail. */}
+                {can('work.assign') ? (
+                  <div className="space-y-1.5">
+                    <Label>Assign to Worker</Label>
+                    <Select value={assignedTo} onValueChange={(v) => setAssignedTo(v ?? '')}>
+                      <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Unassigned</SelectItem>
+                        {users?.filter(u => u.is_active !== false).map((u) => (
+                          <SelectItem key={u.id} value={u.id} label={u.name}>{u.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <Label className="text-muted-foreground">Assign to Worker</Label>
+                    <p className="text-xs text-muted-foreground pt-2">
+                      Leave it to us — an admin picks this up and allocates it.
+                    </p>
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">

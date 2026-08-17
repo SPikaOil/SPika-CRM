@@ -19,6 +19,33 @@ export async function POST(req: NextRequest) {
   const { type, payload } = await req.json()
   const admin = createAdminClient()
 
+  // ── A customer may only announce what a customer can actually do ───────────
+  //
+  // Being signed in was the whole check here, and a portal login is signed in.
+  // Any customer could therefore post any type — "task_assigned",
+  // "handover_receipt", "new_customer" — and set off internal mail to our own
+  // inbox with a payload of their choosing.
+  //
+  // Three of the nine types are genuinely theirs, each fired by their own
+  // screen: placing an order (portal/new-order), signing the OB form
+  // (portal/ob-sign) and asking for POS material (portal/marketing via
+  // use-pos-requests). The other six belong to the team.
+  const { data: caller } = await admin
+    .from('users').select('role, customer_id').eq('id', user.id).single()
+  const isCustomer = caller?.role === 'customer' || !!caller?.customer_id
+
+  if (isCustomer) {
+    const CUSTOMER_MAY_SEND = new Set(['order_placed', 'ob_form_signed', 'pos_request'])
+    if (!CUSTOMER_MAY_SEND.has(type)) {
+      console.warn(`[notify] refused "${type}" — a portal account cannot send this`)
+      return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+    }
+    // order_placed mails the customer as well, and it reads WHICH customer from
+    // the payload. Taken from the login instead, so a portal account cannot
+    // name someone else's company and have the acknowledgement land there.
+    if (payload && typeof payload === 'object') payload.customerId = caller?.customer_id
+  }
+
   // ── Nothing reaches a customer unless the customer asked for it ────────────
   //
   // Danique, 2026-08-14, after mail went out that should not have:

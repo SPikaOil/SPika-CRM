@@ -1731,8 +1731,11 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
               It is set at Approve & Assign and again when a run goes out, and
               once an order is delivered both those screens are gone for good —
               so 729147 sat there saying Djamy with no way to change it.
-              Admin only: who did the work is a payroll-adjacent fact. */}
-          {isAdmin ? (
+
+              Was hardcoded to admin; now it follows work.assign, so the
+              Permissions screen decides. Who did the work is a payroll-adjacent
+              fact, which is why nobody holds it by default except the admin. */}
+          {can('work.assign') ? (
             <div className="flex justify-between gap-4 items-center">
               <span className="text-muted-foreground">Assigned To</span>
               <Select

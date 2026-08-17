@@ -49,23 +49,24 @@ export default function PortalSupportPage() {
     loadAccountManager()
   }, [profile?.customer_id])
 
+  // Through a server route, not a query. A portal account may not read anyone
+  // else's row in `users` — migration 076 closed a privilege escalation there —
+  // so the route runs on the service key and returns three fields, for the
+  // customer on the SESSION and no other.
+  //
+  // This card had never once appeared: the old code read customers.assigned_to,
+  // a column that did not exist, and then a table called `profiles` that does
+  // not exist either. Both errors were swallowed.
   async function loadAccountManager() {
-    // Get customer's assigned_to user
-    const { data: customer } = await supabase
-      .from('customers')
-      .select('assigned_to')
-      .eq('id', profile!.customer_id!)
-      .single()
-
-    if (customer?.assigned_to) {
-      const { data: user } = await supabase
-        .from('profiles')
-        .select('name, email, phone')
-        .eq('id', customer.assigned_to)
-        .single()
-      setAccountManager(user)
+    try {
+      const res = await fetch('/api/portal/account-manager')
+      const json = await res.json()
+      setAccountManager(json.manager ?? null)
+    } catch {
+      setAccountManager(null)
+    } finally {
+      setIsLoading(false)
     }
-    setIsLoading(false)
   }
 
   return (

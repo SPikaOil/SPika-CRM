@@ -44,7 +44,7 @@ const allNavItems = [
   { href: '/products',         label: 'Products',         icon: Package,         permission: 'products.view'      },
   { href: '/marketing',       label: 'Marketing',        icon: Megaphone,       permission: 'marketing.view'     },
   { href: '/sales-documents', label: 'Sales Docs',       icon: FolderOpen,      permission: 'salesdocs.view'     },
-  { href: '/tasks',           label: 'Tasks',            icon: ClipboardList,   permission: 'tasks.view'         },
+  { href: '/tasks',           label: 'Tasks',            icon: ClipboardList,   permission: 'tasks.create'       },
   { href: '/agenda',          label: 'Agenda',           icon: CalendarDays,    permission: null                 },
   { href: '/reports',         label: 'Reports',          icon: BarChart2,       permission: 'reports.view'       },
   { href: '/stock',           label: 'Stock & Production',      icon: Droplets,        permission: 'stock.view'         },

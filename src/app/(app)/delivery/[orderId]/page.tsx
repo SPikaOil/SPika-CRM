@@ -49,8 +49,25 @@ export default function DeliveryPage({
   const { orderId } = use(params)
   const { data: order, isLoading, refetch } = useOrder(orderId)
   const { data: knownSigners } = useCustomerSigners((order as any)?.customer_id)
-  const { isAdmin } = useAuth()
+  const { isAdmin, profile, can } = useAuth()
   const { data: users } = useUsers()
+
+  /**
+   * Who may be named as having run this delivery.
+   *
+   * With work.assign: anyone. Without it: yourself, or whoever the admin
+   * already put on the order. Recording that YOU carried it is not the same as
+   * handing the job to a colleague, and the run has to stay truthful — someone
+   * covering for another person must be able to say so.
+   *
+   * guard_delivery_assignment() in migration 081 enforces exactly this list, so
+   * a name outside it is refused by the database as well.
+   */
+  const assignableRunners = (users ?? []).filter(u => {
+    if (u.is_active === false) return false
+    if (can('work.assign')) return true
+    return u.id === profile?.id || u.id === order?.assigned_to
+  })
   const router = useRouter()
   const supabase = createClient()
   const hideSigner = useHideCustomerSigner()
@@ -720,7 +737,7 @@ export default function DeliveryPage({
                       <SelectValue placeholder="Select team member" />
                     </SelectTrigger>
                     <SelectContent>
-                      {(users ?? []).map(u => (
+                      {assignableRunners.map(u => (
                         <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
                       ))}
                     </SelectContent>
@@ -931,7 +948,7 @@ export default function DeliveryPage({
                         <SelectValue placeholder="Select team member" />
                       </SelectTrigger>
                       <SelectContent>
-                        {(users ?? []).map(u => (
+                        {assignableRunners.map(u => (
                           <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
                         ))}
                       </SelectContent>

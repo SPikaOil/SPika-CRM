@@ -30,6 +30,9 @@ export const PERMISSIONS: PermissionGroup[] = [
     group: 'Money',
     items: [
       { key: 'prices.view', label: 'See prices', hint: 'Order lines, invoices, quotations and PDFs' },
+      { key: 'prices.edit', label: 'Change price categories', hint: 'The price lists themselves — seeing a price is not the same as setting it' },
+      { key: 'targets.view', label: 'See revenue targets', hint: 'The monthly targets on the dashboard' },
+      { key: 'targets.edit', label: 'Change revenue targets' },
       { key: 'reports.view', label: 'Reports', hint: 'Revenue and sales reports' },
       { key: 'audit.view', label: 'See edit history', hint: "An order's change log" },
     ],
@@ -69,8 +72,14 @@ export const PERMISSIONS: PermissionGroup[] = [
       { key: 'marketing.view', label: 'Marketing tab', hint: 'The material customers also see in their portal' },
       { key: 'marketing.manage', label: 'Add and remove marketing assets', hint: 'ONLY Admin and Marketing can save — also enforced in the database, so granting this to another role shows the button but the save is refused' },
       { key: 'pos.grant', label: 'Grant POS material requests', hint: 'Put free POS material on an order, or decline it' },
-      { key: 'tasks.view', label: 'Tasks' },
+      { key: 'tasks.view', label: 'Tasks', hint: 'The whole task list, everyone’s' },
+      { key: 'tasks.create', label: 'Raise a task', hint: 'Report something that needs doing. It lands unassigned — see below' },
+      { key: 'work.assign', label: 'Assign work to a person', hint: 'Put a name on a task, an order or a delivery run. Nobody holds this but the admin — tick it for a manager when you want them to allocate. Enforced by a database trigger too, because a policy cannot guard a single column' },
       { key: 'storelocator.view', label: 'Store locator' },
+      { key: 'storelocator.edit', label: 'Change store locations' },
+      { key: 'products.edit', label: 'Change products', hint: 'Everyone signed in can SEE the products — the portal catalogue needs them' },
+      { key: 'carriers.edit', label: 'Change carriers' },
+      { key: 'customernames.view', label: 'See the reseller name list', hint: 'Names, city and country only — no orders, no prices, no turnover' },
     ],
   },
   {
@@ -94,16 +103,30 @@ export const ADMIN_HAS_EVERYTHING = true
 // so switching to permissions changes nothing until an admin decides otherwise.
 export const DEFAULT_ROLE_PERMISSIONS: Record<Exclude<Role, 'admin'>, string[]> = {
   manager: [
-    'prices.view', 'reports.view', 'audit.view',
-    'customers.view', 'customers.edit', 'leads.view',
+    'prices.view', 'prices.edit', 'targets.view', 'targets.edit', 'reports.view', 'audit.view',
+    'customers.view', 'customers.edit', 'customernames.view', 'leads.view',
     'orders.view', 'orders.create', 'orders.approve', 'orders.edit_items', 'quotations.view',
     'deliveries.own', 'deliveries.all',
-    'products.view', 'stock.view', 'salesdocs.view', 'tasks.view', 'storelocator.view',
+    'products.view', 'stock.view', 'salesdocs.view', 'tasks.view',
+    'storelocator.view', 'storelocator.edit', 'carriers.edit',
+    'tasks.create',
+    // work.assign is deliberately absent. Allocating work is the admin's for
+    // now; the switch exists so a manager can be given it later without a
+    // migration. Her decision, 2026-08-16.
     'marketing.view', 'pos.grant',
   ],
   sales: [
     'orders.create',
+    // Seeing the orders they place. Held separately from creating them, because
+    // the database policy on orders reads this key — without it this role would
+    // create an order it could not then open. Confirmed 2026-08-16.
+    'orders.view',
     'deliveries.own',
+    // Reads the name list, never the price list or the turnover behind it.
+    'customernames.view',
+    // May report something that needs doing. It lands unassigned; an admin
+    // reviews it and puts a name on it.
+    'tasks.create',
     // Sales shows this material to customers on the road, so they need to see
     // it. Publishing it is a different act and stays with the admin until she
     // hands it out on the Permissions screen.
@@ -118,14 +141,26 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Exclude<Role, 'admin'>, string[]> 
     'warehouse.view',
     'warehouse.receive',
     'deliveries.own',
+    // Sees the order behind the goods it is handing over — never the prices on
+    // it, those live on price_presets. Added 2026-08-16.
+    'orders.view',
+    'tasks.create',
   ],
   // Marketing does exactly one thing: keep the material for resellers current.
   // No customers, no orders, no prices — and that is not just hidden screens,
   // the database refuses those tables for this role too. Deliberately the only
   // role besides Admin that may publish an asset to every reseller at once.
+  // Plus three read-only tabs she added on 2026-08-16: the products the
+  // material is about, where it is sold, and WHO the resellers are — never
+  // what they order or pay. Looking only; the store locator and product list
+  // refuse writes from this role in the database.
   marketing: [
     'marketing.view',
     'marketing.manage',
+    'products.view',
+    'storelocator.view',
+    'customernames.view',
+    'tasks.create',
   ],
 }
 
