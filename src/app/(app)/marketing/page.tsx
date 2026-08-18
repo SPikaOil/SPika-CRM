@@ -4,15 +4,19 @@ import { useMemo, useState } from 'react'
 import {
   Megaphone, Plus, Trash2, Pencil, Download, ExternalLink, Search,
   AlertTriangle, Lock, Image as ImageIcon, Film, FileText, Package, X, Loader2, CheckCircle2, ShieldCheck,
+  Users, CalendarRange,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
 import {
   useMarketingAssets, useCreateMarketingAsset, useUpdateMarketingAsset,
-  useDeleteMarketingAsset, isDemoAsset,
+  useDeleteMarketingAsset, isDemoAsset, useAssetAudiences, useSaveAssetAudience,
 } from '@/hooks/use-marketing-assets'
+import { useCampaigns } from '@/hooks/use-campaigns'
+import { useCustomerNames } from '@/hooks/use-customer-names'
 import {
   ASSET_CATEGORIES, ASSET_GRID, STANDARD_TERMS, USE_LABELS, DEFAULT_USE_BY_CATEGORY, categoryLabel, useLabel,
   parseDriveId, driveThumbnail, drivePreviewUrl, driveDownloadUrl,
+  VISIBILITIES, visibilityLabel, campaignPeriod, type Visibility,
 } from '@/lib/marketing'
 import { MarketingAsset } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -42,11 +46,20 @@ const EMPTY = {
   // default. Defaulting to POS quietly filed everything as "we ship it".
   title: '', description: '', category: 'prints', use_label: 'print' as string,
   driveInput: '', usage_terms: STANDARD_TERMS,
-  visibility: 'all' as 'all' | 'staff',
+  visibility: 'all' as Visibility,
+  // Who it is for, when visibility is 'selected'. Empty for every other mode.
+  customerIds: [] as string[],
+  // The campaign it belongs to. Picking one flips visibility to 'campaign',
+  // because that is what belonging to a campaign means.
+  campaignId: '' as string,
   is_physical: false, physical_available: true,
 }
 
 export default function MarketingPage() {
+  const { data: campaigns } = useCampaigns()
+  const { data: resellers } = useCustomerNames()
+  const { data: audiences } = useAssetAudiences()
+  const saveAudience = useSaveAssetAudience()
   // Gated on the permission, not on "is this the owner" — otherwise granting it
   // to a manager on the Permissions screen would silently do nothing.
   const { can } = useAuth()
@@ -167,7 +180,9 @@ export default function MarketingPage() {
       use_label: asset.use_label ?? '',
       driveInput: asset.source === 'drive' ? asset.file_ref : '',
       usage_terms: asset.usage_terms ?? '',
-      visibility: asset.visibility,
+      visibility: asset.visibility as Visibility,
+      customerIds: audiences?.[asset.id] ?? [],
+      campaignId: asset.campaign_id ?? '',
       is_physical: asset.is_physical ?? false,
       physical_available: asset.physical_available ?? true,
     })
@@ -202,6 +217,18 @@ export default function MarketingPage() {
       return
     }
 
+    // Aimed at nobody is not aimed at everybody. Without this an asset set to
+    // 'Specific resellers' with an empty list would save and then be invisible
+    // to every single reseller, with nothing on screen saying why.
+    if (form.visibility === 'selected' && form.customerIds.length === 0) {
+      toast.error('Pick at least one reseller, or set it to All resellers')
+      return
+    }
+    if (form.visibility === 'campaign' && !form.campaignId) {
+      toast.error('Pick the campaign this belongs to')
+      return
+    }
+
     const values = {
       title: form.title.trim(),
       description: form.description.trim() || null,
@@ -211,14 +238,27 @@ export default function MarketingPage() {
       file_ref: driveId,
       usage_terms: form.usage_terms.trim() || null,
       visibility: form.visibility,
+      campaign_id: form.visibility === 'campaign' ? form.campaignId : null,
       is_physical: form.is_physical,
       physical_available: form.physical_available,
     }
 
+    // The audience lives in its own table, so it is written after the asset
+    // exists. On a new asset that means waiting for the id to come back.
     if (editing) {
-      updateAsset.mutate({ id: editing.id, values }, { onSuccess: () => setDialogOpen(false) })
+      updateAsset.mutate({ id: editing.id, values }, {
+        onSuccess: () => {
+          saveAudience.mutate({ assetId: editing.id, customerIds: form.customerIds, visibility: form.visibility })
+          setDialogOpen(false)
+        },
+      })
     } else {
-      createAsset.mutate(values, { onSuccess: () => setDialogOpen(false) })
+      createAsset.mutate(values, {
+        onSuccess: (created) => {
+          saveAudience.mutate({ assetId: created.id, customerIds: form.customerIds, visibility: form.visibility })
+          setDialogOpen(false)
+        },
+      })
     }
   }
 
@@ -329,6 +369,8 @@ export default function MarketingPage() {
                     asset={asset}
                     canManage={canManage}
                     linkState={sweep[asset.id]}
+                    audienceCount={(audiences?.[asset.id] ?? []).length}
+                    campaignName={(campaigns ?? []).find(c => c.id === asset.campaign_id)?.name}
                     onEdit={() => openEdit(asset)}
                     onDelete={() => {
                       if (isDemoAsset(asset)) { toast.error('Example data cannot be removed'); return }
@@ -463,19 +505,94 @@ export default function MarketingPage() {
                 </Select>
               </div>
             </div>
-
             <div className="space-y-1.5">
               <Label>Who sees it</Label>
-              <Select value={form.visibility} onValueChange={v => setForm(f => ({ ...f, visibility: (v as 'all' | 'staff') ?? f.visibility }))}>
+              <Select
+                value={form.visibility}
+                onValueChange={v => setForm(f => ({ ...f, visibility: (v as Visibility) ?? f.visibility }))}
+              >
                 <SelectTrigger>
-                  <SelectValue>{(v: string) => (v === 'staff' ? 'Team only' : 'Customers and team')}</SelectValue>
+                  <SelectValue>{(v: string) => visibilityLabel(v)}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Customers and team</SelectItem>
-                  <SelectItem value="staff">Team only</SelectItem>
+                  {VISIBILITIES.map(v => (
+                    <SelectItem key={v.key} value={v.key}>{v.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                {VISIBILITIES.find(v => v.key === form.visibility)?.hint}
+              </p>
             </div>
+
+            {/* Belonging to a campaign IS the audience: change it there and
+                every asset in it moves at once. Beats ticking thirty boxes. */}
+            {form.visibility === 'campaign' && (
+              <div className="space-y-1.5">
+                <Label>Which campaign</Label>
+                <Select
+                  value={form.campaignId || 'none'}
+                  onValueChange={v => setForm(f => ({ ...f, campaignId: !v || v === 'none' ? '' : v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pick a campaign" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Pick a campaign</SelectItem>
+                    {(campaigns ?? []).filter(c => c.is_active).map(c => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name} · {campaignPeriod(c.starts_on, c.ends_on)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {(campaigns ?? []).length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    No campaigns yet — make one on the Campaigns tab first.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Named resellers. A plain list of checkboxes rather than a fancy
+                multi-select: with 26 resellers you want to SEE who is ticked,
+                not open a menu to find out. */}
+            {form.visibility === 'selected' && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label>Which resellers</Label>
+                  <span className="text-xs text-muted-foreground">
+                    {form.customerIds.length} selected
+                  </span>
+                </div>
+                <div className="max-h-44 overflow-y-auto rounded-lg border divide-y">
+                  {(resellers ?? []).filter(r => !r.is_lead).map(r => (
+                    <label key={r.id} className="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer hover:bg-accent">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-red-600 shrink-0"
+                        checked={form.customerIds.includes(r.id)}
+                        onChange={e => setForm(f => ({
+                          ...f,
+                          customerIds: e.target.checked
+                            ? [...f.customerIds, r.id]
+                            : f.customerIds.filter(id => id !== r.id),
+                        }))}
+                      />
+                      <span className="text-sm truncate">{r.company_name}</span>
+                      {r.city && <span className="text-xs text-muted-foreground ml-auto shrink-0">{r.city}</span>}
+                    </label>
+                  ))}
+                  {(resellers ?? []).length === 0 && (
+                    <p className="text-xs text-muted-foreground p-2.5">No resellers to show.</p>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Hides it from everyone else in the portal. The Drive link itself still
+                  opens for anyone who is given it.
+                </p>
+              </div>
+            )}
 
             {/* Physical availability — a switch per asset, never keyed on the
                 category, so a printed recipe card can be requestable too. */}
@@ -540,7 +657,7 @@ export default function MarketingPage() {
 }
 
 function AssetCard({
-  asset, canManage, onEdit, onDelete, linkState,
+  asset, canManage, onEdit, onDelete, linkState, audienceCount = 0, campaignName,
 }: {
   asset: MarketingAsset
   canManage: boolean
@@ -548,6 +665,9 @@ function AssetCard({
   onDelete: () => void
   /** Set by the "Check links" sweep: 'public' | 'private' | 'unknown'. */
   linkState?: string
+  /** How many resellers this one is aimed at, for the badge. */
+  audienceCount?: number
+  campaignName?: string
 }) {
   const label = useLabel(asset.use_label)
   const isDrive = asset.source === 'drive'
@@ -590,10 +710,26 @@ function AssetCard({
           </Badge>
         )}
 
+        {/* One badge slot, three possible states. A card that is aimed at
+            somebody must SAY so — otherwise the only way to find out is to open
+            it, and material quietly aimed at one shop is exactly the kind of
+            thing that gets sent to the wrong one. */}
         {asset.visibility === 'staff' && (
           <Badge className="absolute top-1.5 left-1.5 bg-slate-900/85 text-white gap-1 text-[10px] px-1.5 py-0">
             <Lock className="h-2.5 w-2.5" />
             Team only
+          </Badge>
+        )}
+        {asset.visibility === 'selected' && (
+          <Badge className="absolute top-1.5 left-1.5 bg-amber-600/90 text-white gap-1 text-[10px] px-1.5 py-0">
+            <Users className="h-2.5 w-2.5" />
+            {audienceCount === 1 ? '1 reseller' : audienceCount + ' resellers'}
+          </Badge>
+        )}
+        {asset.visibility === 'campaign' && (
+          <Badge className="absolute top-1.5 left-1.5 bg-violet-600/90 text-white gap-1 text-[10px] px-1.5 py-0">
+            <CalendarRange className="h-2.5 w-2.5" />
+            {campaignName ?? 'Campaign'}
           </Badge>
         )}
 

@@ -575,7 +575,14 @@ export interface MarketingAsset {
   file_ref: string
   file_kind?: string | null
   usage_terms?: string | null
-  visibility: 'all' | 'staff'
+  /**
+   * Who this is for. 'campaign' means it follows the campaign it belongs to,
+   * so changing the audience there moves every asset in it at once.
+   *
+   * Hides the ROW, not the FILE: Drive links stay open to whoever holds them.
+   */
+  visibility: 'all' | 'selected' | 'campaign' | 'staff'
+  campaign_id?: string | null
   sort_order: number
   is_active: boolean
   download_count: number

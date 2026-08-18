@@ -215,3 +215,46 @@ export function drivePreviewUrl(fileId: string): string {
 export function driveDownloadUrl(fileId: string): string {
   return `https://drive.google.com/uc?export=download&id=${fileId}`
 }
+
+/**
+ * Who a piece of material is for.
+ *
+ * Aimed per ASSET and not per category, deliberately. A category says what KIND
+ * of thing something is; an audience is a different axis. Keying them together
+ * would give you "Prints" and "Prints — La Bandera" next to each other, and an
+ * event has prints AND clips AND photos anyway.
+ *
+ * IMPORTANT, and she knows: this hides the ROW, not the FILE. Drive offers
+ * "restricted" or "anyone with the link" and nothing in between, so a link that
+ * gets forwarded still opens. Right for co-branded material that is going to be
+ * posted publicly; not enough for anything confidential.
+ */
+export type Visibility = 'all' | 'selected' | 'campaign' | 'staff'
+
+export const VISIBILITIES: { key: Visibility; label: string; hint: string }[] = [
+  { key: 'all',      label: 'All resellers',      hint: 'Everyone with a portal login sees it' },
+  { key: 'selected', label: 'Specific resellers', hint: 'Only the ones you pick below' },
+  { key: 'campaign', label: 'Follow the campaign', hint: 'Whoever the campaign is for — change it there and this follows' },
+  { key: 'staff',    label: 'Internal only',      hint: 'Never leaves the CRM' },
+]
+
+export function visibilityLabel(key: string | null | undefined): string {
+  return VISIBILITIES.find(v => v.key === key)?.label ?? 'All resellers'
+}
+
+/** Reads as a period even when only one end is filled in. */
+export function campaignPeriod(startsOn?: string | null, endsOn?: string | null): string {
+  const f = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+  if (startsOn && endsOn) return `${f(startsOn)} – ${f(endsOn)}`
+  if (startsOn) return `from ${f(startsOn)}`
+  if (endsOn) return `until ${f(endsOn)}`
+  return 'No dates set'
+}
+
+/** Running today, so the list can lead with what is live. */
+export function campaignIsLive(startsOn?: string | null, endsOn?: string | null): boolean {
+  const today = new Date().toISOString().slice(0, 10)
+  if (startsOn && today < startsOn) return false
+  if (endsOn && today > endsOn) return false
+  return !!(startsOn || endsOn)
+}

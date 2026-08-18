@@ -36,7 +36,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     // since migration 081 — anyone may report something that needs doing, and
     // an admin allocates it. Without it the sidebar would show a Tasks button
     // that bounced this role straight back here.
-    const allowed = ['/marketing', '/products', '/store-locator', '/tasks', '/security']
+    const allowed = ['/marketing', '/campaigns', '/resellers', '/products', '/store-locator', '/tasks', '/security']
     if (!allowed.some(p => pathname.startsWith(p))) router.replace('/marketing')
   }, [isLoading, profile?.role, pathname, router])
 
