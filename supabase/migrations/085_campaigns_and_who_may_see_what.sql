@@ -78,6 +78,16 @@ create table if not exists public.marketing_asset_customers (
 
 create index if not exists marketing_assets_campaign_idx on public.marketing_assets (campaign_id);
 
+-- Switched on right here as well as inside reset_policies() further down.
+-- Supabase reads the text of a migration before it runs it and cannot see
+-- through a function call, so without these three lines it warns that the
+-- tables are open. They were not, but a warning nobody can verify at a glance
+-- is worth one line each to remove.
+alter table public.marketing_campaigns          enable row level security;
+alter table public.marketing_campaign_customers enable row level security;
+alter table public.marketing_asset_customers    enable row level security;
+
+
 -- ── One place that answers "may this reseller see this?" ──────────────────
 --
 -- security definer on purpose: it reads marketing_assets, and it is called
