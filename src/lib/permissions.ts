@@ -70,7 +70,8 @@ export const PERMISSIONS: PermissionGroup[] = [
       { key: 'warehouse.receive', label: 'Sign transports in', hint: 'Book an arriving transport in, including any differences' },
       { key: 'salesdocs.view', label: 'Sales documents' },
       { key: 'marketing.view', label: 'Marketing tab', hint: 'The material customers also see in their portal' },
-      { key: 'marketing.manage', label: 'Add and remove marketing assets', hint: 'ONLY Admin and Marketing can save — also enforced in the database, so granting this to another role shows the button but the save is refused' },
+      { key: 'marketing.manage', label: 'Add and remove marketing assets', hint: 'Making the material. Deciding who it is for is the separate switch below. Enforced in the database too, so a role without it sees no save button and would be refused anyway' },
+      { key: 'marketing.allocate', label: 'Decide who marketing material is for', hint: 'Aim an asset at named resellers or at a campaign. Nobody holds this but the admin — tick it when a marketing person is hired. A database trigger enforces it too, because a policy cannot guard one column' },
       { key: 'pos.grant', label: 'Grant POS material requests', hint: 'Put free POS material on an order, or decline it' },
       { key: 'tasks.view', label: 'Tasks', hint: 'The whole task list, everyone’s' },
       { key: 'tasks.create', label: 'Raise a task', hint: 'Report something that needs doing. It lands unassigned — see below' },
@@ -156,7 +157,9 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Exclude<Role, 'admin'>, string[]> 
   // refuse writes from this role in the database.
   marketing: [
     'marketing.view',
-    'marketing.manage',
+    // marketing.manage and marketing.allocate are deliberately absent: she asked
+    // for admin-only to start with, 2026-08-16. Tick them on this role the day
+    // a marketing person is actually hired.
     'products.view',
     'storelocator.view',
     'customernames.view',

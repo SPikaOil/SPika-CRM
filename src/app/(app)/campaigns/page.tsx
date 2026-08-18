@@ -46,6 +46,8 @@ const EMPTY = {
 export default function CampaignsPage() {
   const { can, isAdmin } = useAuth()
   const canManage = isAdmin || can('marketing.manage')
+  // Making a campaign and deciding who it is for are two rights since 086.
+  const canAllocate = isAdmin || can('marketing.allocate')
 
   const { data: campaigns, isLoading } = useCampaigns()
   const { data: resellers } = useCustomerNames()
@@ -298,6 +300,7 @@ export default function CampaignsPage() {
               />
             </div>
 
+            {canAllocate ? (
             <div className="space-y-1.5">
               <Label>Who sees the material</Label>
               <Select
@@ -316,8 +319,16 @@ export default function CampaignsPage() {
                 </SelectContent>
               </Select>
             </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label className="text-muted-foreground">Who sees the material</Label>
+                <p className="text-xs text-muted-foreground">
+                  All resellers — an admin decides who a campaign is aimed at.
+                </p>
+              </div>
+            )}
 
-            {form.visibility === 'selected' && (
+            {canAllocate && form.visibility === 'selected' && (
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <Label>Which resellers</Label>

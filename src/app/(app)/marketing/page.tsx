@@ -64,6 +64,10 @@ export default function MarketingPage() {
   // to a manager on the Permissions screen would silently do nothing.
   const { can } = useAuth()
   const canManage = can('marketing.manage')
+  // Making the material and deciding who gets it are two rights since 086.
+  // Without this one the aiming controls are not shown at all, and the
+  // database would refuse the aim anyway — guard_marketing_aim().
+  const canAllocate = can('marketing.allocate')
   const { data: assets, isLoading } = useMarketingAssets(true)
   const createAsset = useCreateMarketingAsset()
   const updateAsset = useUpdateMarketingAsset()
@@ -505,6 +509,7 @@ export default function MarketingPage() {
                 </Select>
               </div>
             </div>
+            {canAllocate ? (
             <div className="space-y-1.5">
               <Label>Who sees it</Label>
               <Select
@@ -524,10 +529,18 @@ export default function MarketingPage() {
                 {VISIBILITIES.find(v => v.key === form.visibility)?.hint}
               </p>
             </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label className="text-muted-foreground">Who sees it</Label>
+                <p className="text-xs text-muted-foreground">
+                  {visibilityLabel(form.visibility)} — an admin decides who material is aimed at.
+                </p>
+              </div>
+            )}
 
             {/* Belonging to a campaign IS the audience: change it there and
                 every asset in it moves at once. Beats ticking thirty boxes. */}
-            {form.visibility === 'campaign' && (
+            {canAllocate && form.visibility === 'campaign' && (
               <div className="space-y-1.5">
                 <Label>Which campaign</Label>
                 <Select
@@ -557,7 +570,7 @@ export default function MarketingPage() {
             {/* Named resellers. A plain list of checkboxes rather than a fancy
                 multi-select: with 26 resellers you want to SEE who is ticked,
                 not open a menu to find out. */}
-            {form.visibility === 'selected' && (
+            {canAllocate && form.visibility === 'selected' && (
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <Label>Which resellers</Label>
