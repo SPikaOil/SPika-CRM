@@ -226,6 +226,21 @@ export function PackingListPDF({ transport, order, company = DEFAULT_COMPANY, ba
         </View>
 
         {/* Marks & Numbers */}
+        {/* Whatever the receiver has to be told: extra label sheets, a
+            display travelling loose, anything not on a line of its own.
+            transports.notes is NOT this field — that one is internal and has
+            been used as such. See migration 091. */}
+        {!!(transport as any).notes_on_documents && (
+          <View style={styles.marksBox}>
+            <Text style={{ fontSize: 8, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 4 }}>
+              Note
+            </Text>
+            <Text style={{ fontSize: 9, color: DARK }}>
+              {(transport as any).notes_on_documents}
+            </Text>
+          </View>
+        )}
+
         <View style={styles.marksBox}>
           <Text style={{ fontSize: 8, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 4 }}>
             Marks &amp; Numbers

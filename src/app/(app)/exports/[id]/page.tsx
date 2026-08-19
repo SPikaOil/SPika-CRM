@@ -19,6 +19,7 @@ import {
   useTransportLocations, useCreateTransportLocation, useWarehouseMembers, useExportOrders, useSetOrderTransport,
 } from '@/hooks/use-transports'
 import { ColliEditor } from '../_components/colli-editor'
+import { OrderPosLine } from '../_components/order-pos-line'
 import { TransportDocuments } from '../_components/transport-documents'
 import { ReceivedDocuments } from '../_components/received-documents'
 import { ArrivalCard } from '../_components/arrival-card'
@@ -344,9 +345,25 @@ export default function TransportDetailPage({
           </div>
 
           <div className="sm:col-span-2 space-y-1.5">
-            <Label className="text-xs">Notes</Label>
-            <Input className="h-8" defaultValue={t.notes} placeholder="Internal notes"
+            <Label className="text-xs">Internal notes</Label>
+            <Input className="h-8" defaultValue={t.notes} placeholder="Only we see this"
               onBlur={e => e.target.value !== t.notes && save({ notes: e.target.value })} />
+          </div>
+
+          {/* Two fields on purpose. The one above has been used for things like
+              "Back Order Fenix (cavalier drama shipment cover)" — true, useful,
+              and not for a customer's eyes. This one is the one that prints. */}
+          <div className="sm:col-span-2 space-y-1.5">
+            <Label className="text-xs">Note on the packing list</Label>
+            <Input
+              className="h-8"
+              defaultValue={(t as any).notes_on_documents ?? ''}
+              placeholder="e.g. 3 extra label sheets enclosed"
+              onBlur={e => e.target.value !== ((t as any).notes_on_documents ?? '') && save({ notes_on_documents: e.target.value } as never)}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Printed under the goods on every packing list in this transport.
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -446,6 +463,9 @@ export default function TransportDetailPage({
                 </button>
               </div>
               <ColliEditor order={o} />
+              {/* A stand or a sheet of labels riding along. Lands as a €0 line
+                  on the order, which is what the packing list prints. */}
+              <OrderPosLine order={o} />
             </div>
           ))}
 
