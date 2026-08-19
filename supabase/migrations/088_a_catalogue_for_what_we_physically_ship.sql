@@ -24,7 +24,11 @@
 --
 -- customers.spika_stands holds real data, measured before writing this:
 --
---   14 of 26 customers, 21 rows, 28 racks
+--   14 of 26 customers, 19 rows, 28 racks
+--
+-- (This line first said 21 rows. It was 19 — my own arithmetic, not the data.
+-- Counted again after the migration ran: 19 rows, 28 racks, 14 customers, and
+-- every customer matching its source array exactly.)
 --   10× 8-bottle, 9× 12-bottle, 7× 4-bottle, 2× 24-bottle
 --
 -- All of it moves into the register below. The column STAYS — same treatment as
