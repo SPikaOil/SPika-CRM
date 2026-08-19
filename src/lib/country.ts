@@ -40,3 +40,23 @@ export function isExportCustomer(customer: any): boolean {
   const code = customerCountryCode(customer)
   return code !== null && code !== 'CUR'
 }
+
+/**
+ * Which customs classification applies to a destination (migration 097).
+ *
+ * The same bottle has two HS codes: one the European authorities use and one
+ * the American ones do. Her instruction of 2026-08-19 — the invoice picks by
+ * where the load is going.
+ *
+ * US for the United States, EU for everything else. That covers every market we
+ * ship to today; a third one means a third code, and this function is the one
+ * place that decides.
+ *
+ * `destination` on a transport is free text ("The Netherlands", "USA"), which is
+ * why it goes through countryCode first rather than being matched by hand.
+ */
+export type CustomsRegion = 'eu' | 'us'
+
+export function customsRegion(destination?: string | null): CustomsRegion {
+  return countryCode(destination) === 'US' ? 'us' : 'eu'
+}

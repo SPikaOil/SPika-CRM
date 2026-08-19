@@ -20,6 +20,8 @@ import { toast } from 'sonner'
 type EditingRow = {
   id: string
   product_code: string
+  hs_code_eu: string
+  hs_code_us: string
   weight_g: string
   bottles_per_carton: string
   box_height_cm: string
@@ -44,6 +46,8 @@ function ProductsTab() {
     setEditing({
       id: p.id,
       product_code: p.product_code ?? '',
+      hs_code_eu: p.hs_code_eu ?? '',
+      hs_code_us: p.hs_code_us ?? '',
       weight_g: num(p.weight_g),
       bottles_per_carton: num(p.bottles_per_carton),
       box_height_cm: num(p.box_height_cm),
@@ -62,6 +66,8 @@ function ProductsTab() {
         id: editing.id,
         values: {
           product_code: editing.product_code.trim() || null,
+          hs_code_eu: editing.hs_code_eu.trim() || null,
+          hs_code_us: editing.hs_code_us.trim() || null,
           weight_g: parse(editing.weight_g),
           bottles_per_carton: parse(editing.bottles_per_carton) as number | null,
           box_height_cm: parse(editing.box_height_cm),
@@ -82,6 +88,8 @@ function ProductsTab() {
 
   const fields: { key: keyof EditingRow; label: string; type?: string }[] = [
     { key: 'product_code',      label: 'Product Code' },
+    { key: 'hs_code_eu',        label: 'HS code EU' },
+    { key: 'hs_code_us',        label: 'HS code US' },
     // Cost price. Admin-only on screen AND in the database (migration 055), so
     // nobody else ever sees what a bottle costs us.
     ...(isAdmin ? [{ key: 'vvp' as keyof EditingRow, label: 'VVP (cost)', type: 'number' }] : []),
@@ -102,9 +110,26 @@ function ProductsTab() {
    * screen. The mobile cards still list all three — there is room there.
    */
   const BOX_FIELDS = ['box_height_cm', 'box_length_cm', 'box_width_cm'] as const
-  const narrowFields = fields.filter(
-    f => !(BOX_FIELDS as readonly string[]).includes(f.key as string),
-  )
+
+  /**
+   * The two HS codes, sharing one column for the same reason the box does.
+   *
+   * The same bottle is classified differently by European and American customs
+   * (migration 097), so a product carries both and the commercial invoice picks
+   * by where the transport is going. They are one fact read together — "which
+   * code applies here?" — and giving each its own column would put this table
+   * back over the edge of a scaled screen, which took three attempts to fix.
+   */
+  const HS_FIELDS = [
+    { key: 'hs_code_eu' as const, short: 'EU' },
+    { key: 'hs_code_us' as const, short: 'US' },
+  ]
+
+  const pairedFields: readonly string[] = [
+    ...BOX_FIELDS,
+    ...HS_FIELDS.map(f => f.key),
+  ]
+  const narrowFields = fields.filter(f => !pairedFields.includes(f.key as string))
 
   return (
     <>
@@ -138,19 +163,90 @@ function ProductsTab() {
               {narrowFields.map(f => (
                 <th key={f.key} className="text-center px-1.5 py-2.5 font-semibold text-[11px] leading-tight">{f.label}</th>
               ))}
+              {/* Wider than the numeric columns on purpose: an HS code is eight
+                  to ten digits where "Btls / Carton" is two. */}
+              <th className="text-center px-1.5 py-2.5 font-semibold text-[11px] leading-tight w-[13%]">HS code<br />EU / US</th>
               <th className="text-center px-1.5 py-2.5 font-semibold text-[11px] leading-tight">Box h×l×w<br />(cm)</th>
-              <th className="px-1 py-2.5 w-[56px]" />
+              {/* 68px, not 56. In edit mode this cell holds two 28px buttons
+                  with a 2px gap and 8px of padding — 66px — so at 56 the table
+                  was 6px wider than its own box and the Cancel button was
+                  clipped by the overflow-hidden above. Measured, not guessed:
+                  the cell reported clientWidth 56 against scrollWidth 62. */}
+              <th className="px-1 py-2.5 w-[68px]" />
             </tr>
           </thead>
           <tbody className="divide-y">
             {isLoading
               ? Array.from({ length: 6 }).map((_, i) => (
-                  <tr key={i}>{Array.from({ length: narrowFields.length + 3 }).map((_, j) => (
+                  <tr key={i}>{Array.from({ length: narrowFields.length + 4 }).map((_, j) => (
                     <td key={j} className="px-2 py-3"><Skeleton className="h-5 w-full" /></td>
                   ))}</tr>
                 ))
               : products?.map(p => {
                   const isEditing = editing?.id === p.id
+
+                  /* Editing takes the WHOLE row, as a form.
+                   *
+                   * It used to put an input in each column, which meant nine
+                   * inputs sharing the width of the table. Measured in the
+                   * browser: the three box fields came out 12px wide at 768 and
+                   * 21px at 1280 — two characters — and squeezing them any
+                   * further only moved the problem into the next column.
+                   *
+                   * Her instruction of 2026-08-19: "als het niet past, dan moet
+                   * je de opmaak maar anders doen voor desktop." So it does not
+                   * try. The row spans every column and lays the fields out in a
+                   * grid that has room for them, which also means nothing here
+                   * can ever push the table sideways again.
+                   *
+                   * The READ row is untouched: nine tidy columns, which is what
+                   * a table is good at. */
+                  if (isEditing) {
+                    return (
+                      <tr key={p.id} className="bg-muted/20">
+                        <td colSpan={narrowFields.length + 4} className="px-3 py-3">
+                          <div className="flex items-start justify-between gap-3 mb-3">
+                            <div className="leading-tight">
+                              <p className="font-semibold text-sm">{p.name}</p>
+                              <p className="text-[11px] text-muted-foreground font-mono">{p.sku}</p>
+                            </div>
+                            <div className="flex gap-1 shrink-0">
+                              <Button size="sm" className="h-8 gap-1 bg-red-600 hover:bg-red-700"
+                                onClick={saveEdit} disabled={updateProduct.isPending}>
+                                <Check className="h-4 w-4" />
+                                Save
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-8 gap-1"
+                                onClick={() => setEditing(null)}>
+                                <X className="h-4 w-4" />
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+
+                          {/* Four across at this width, three below it. Every
+                              field keeps its own label, so nobody has to count
+                              columns to work out what they are typing in — which
+                              is how values ended up under the wrong headings the
+                              first time this table was built. */}
+                          <div className="grid grid-cols-3 lg:grid-cols-4 gap-x-3 gap-y-2">
+                            {fields.map(f => (
+                              <div key={f.key} className="space-y-1">
+                                <label className="text-[11px] text-muted-foreground">{f.label}</label>
+                                <Input
+                                  className="h-8 text-sm"
+                                  type={f.type ?? 'text'}
+                                  value={editing[f.key]}
+                                  onChange={e => setEditing(v => v && ({ ...v, [f.key]: e.target.value }))}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  }
+
                   return (
                     <tr key={p.id} className="hover:bg-muted/30 transition-colors align-middle">
                       {/* Name and SKU in one cell. They belong together, and it
@@ -160,71 +256,34 @@ function ProductsTab() {
                         <p className="text-[10px] text-muted-foreground font-mono break-all">{p.sku}</p>
                       </td>
 
-                      {isEditing ? (
-                        <>
-                          {narrowFields.map(f => (
-                            <td key={f.key} className="px-1 py-2">
-                              <Input className="h-8 text-center w-full px-1 text-xs" type={f.type ?? 'text'}
-                                value={editing[f.key]}
-                                onChange={e => setEditing(v => v && ({ ...v, [f.key]: e.target.value }))} />
-                            </td>
-                          ))}
-                          {/* Three boxes in one cell, in the order they are read
-                              off a carton. */}
-                          <td className="px-1 py-2">
-                            {/* flex-1 min-w-0 w-0, not w-full. Three w-full
-                                children in one flex row each ask for the whole
-                                cell — 300% of it — and the table grew a scroll
-                                bar that no amount of column trimming could fix.
-                                They divide the cell instead.
-                                Spinners removed: at 25px wide they are two
-                                unusable arrows eating half the box. */}
-                            <div className="flex items-center gap-px">
-                              {BOX_FIELDS.map((f, i) => (
-                                <div key={f} className="contents">
-                                  {i > 0 && <span className="text-[10px] text-muted-foreground shrink-0">×</span>}
-                                  <Input
-                                    className="h-8 text-center flex-1 min-w-0 w-0 px-0.5 text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                    type="number"
-                                    value={editing[f]}
-                                    onChange={e => setEditing(v => v && ({ ...v, [f]: e.target.value }))} />
-                                </div>
-                              ))}
-                            </div>
-                          </td>
-                          <td className="px-1 py-2">
-                            <div className="flex gap-0.5">
-                              <Button size="icon" variant="ghost" className="h-7 w-7 text-green-600" onClick={saveEdit} disabled={updateProduct.isPending}>
-                                <Check className="h-4 w-4" />
-                              </Button>
-                              <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground" onClick={() => setEditing(null)}>
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </td>
-                        </>
-                      ) : (
-                        <>
-                          {narrowFields.map(f => (
-                            <td
-                              key={f.key}
-                              className={`px-1.5 py-2 text-center text-xs ${f.key === 'product_code' ? 'font-mono' : ''}`}
-                            >
-                              {dash((p as never)[f.key])}
-                            </td>
-                          ))}
-                          <td className="px-1.5 py-2 text-center text-xs whitespace-nowrap">
-                            {BOX_FIELDS.every(f => (p as never)[f] == null)
-                              ? '—'
-                              : BOX_FIELDS.map(f => (p as never)[f] ?? '?').join(' × ')}
-                          </td>
-                          <td className="px-1 py-2">
-                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(p)}>
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                          </td>
-                        </>
-                      )}
+                      {narrowFields.map(f => (
+                        <td
+                          key={f.key}
+                          className={`px-1.5 py-2 text-center text-xs ${f.key === 'product_code' ? 'font-mono' : ''}`}
+                        >
+                          {dash((p as never)[f.key])}
+                        </td>
+                      ))}
+                      <td className="px-1.5 py-2 text-center text-xs leading-tight">
+                        {HS_FIELDS.every(f => !p[f.key])
+                          ? <span className="text-muted-foreground/50">—</span>
+                          : HS_FIELDS.map(f => (
+                              <span key={f.key} className="block font-mono">
+                                <span className="text-[9px] text-muted-foreground mr-1">{f.short}</span>
+                                {p[f.key] || '—'}
+                              </span>
+                            ))}
+                      </td>
+                      <td className="px-1.5 py-2 text-center text-xs whitespace-nowrap">
+                        {BOX_FIELDS.every(f => (p as never)[f] == null)
+                          ? '—'
+                          : BOX_FIELDS.map(f => (p as never)[f] ?? '?').join(' × ')}
+                      </td>
+                      <td className="px-1 py-2">
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(p)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      </td>
                     </tr>
                   )
                 })}

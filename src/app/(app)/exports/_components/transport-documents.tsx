@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createClient } from '@/lib/supabase/client'
 import { Transport } from '@/types'
 import { CompanyInfo } from '@/components/pdf/delivery-note-pdf'
-import { buildLabelPages, colliQrText, transportCargo, weightsBySku } from '@/lib/transport-cargo'
+import { buildLabelPages, colliQrText, transportCargo, weightsBySku, hsCodesBySku } from '@/lib/transport-cargo'
 import { useProducts } from '@/hooks/use-products'
 import { toast } from 'sonner'
 
@@ -37,6 +37,8 @@ export function TransportDocuments({ transport }: { transport: Transport }) {
   // documents need the Products screen. Her instruction of 2026-08-19.
   const { data: products } = useProducts()
   const productWeights = weightsBySku(products)
+  // Both customs codes per sku; the invoice picks one by destination (097).
+  const hsCodes = hsCodesBySku(products)
 
   async function company(): Promise<CompanyInfo | undefined> {
     const supabase = createClient()
@@ -64,7 +66,7 @@ export function TransportDocuments({ transport }: { transport: Transport }) {
     if (type === 'commercial_invoice') {
       const { CommercialInvoicePDF } = await import('@/components/pdf/exports/commercial-invoice-pdf')
       return React.createElement(CommercialInvoicePDF, {
-        transport, company: co, batches: await transportBatches(),
+        transport, company: co, batches: await transportBatches(), hsCodes,
       })
     }
     if (type === 'packing_list') {

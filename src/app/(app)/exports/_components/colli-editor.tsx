@@ -29,6 +29,13 @@ import { colliGrossWeight, weightsBySku } from '@/lib/transport-cargo'
  * been packed out yet; the screen only points out where the packing does not
  * add up to what was ordered, it never blocks.
  */
+/** The three outside measurements of a box, in the order they are read off one. */
+const SIZE_FIELDS = [
+  { key: 'length_cm' as const, short: 'l' },
+  { key: 'width_cm' as const,  short: 'w' },
+  { key: 'height_cm' as const, short: 'h' },
+]
+
 export function ColliEditor({ order }: { order: Order }) {
   const setColli = useSetOrderColli()
   const [open, setOpen] = useState(false)
@@ -54,6 +61,13 @@ export function ColliEditor({ order }: { order: Order }) {
   function setWeight(index: number, value: string) {
     write(colli.map((c, i) =>
       i === index ? { ...c, weight_kg: value === '' ? null : Number(value) } : c
+    ))
+  }
+
+  /** One of the three outside measurements of a box (098). */
+  function setSize(index: number, key: 'length_cm' | 'width_cm' | 'height_cm', value: string) {
+    write(colli.map((c, i) =>
+      i === index ? { ...c, [key]: value === '' ? null : Number(value) } : c
     ))
   }
 
@@ -160,7 +174,30 @@ export function ColliEditor({ order }: { order: Order }) {
                   </div>
                 </div>
 
-                {/* The number that reaches the documents. Shown here so nobody
+                {/* The size of THIS box. It goes on the packing list next to
+                    the weight, because a carrier prices a pallet by both (098).
+                    Not taken from the product: that is a full carton, and this
+                    is whatever actually got packed. */}
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-xs text-muted-foreground shrink-0">Size cm</Label>
+                  {SIZE_FIELDS.map((f, i) => (
+                    <div key={f.key} className="contents">
+                      {i > 0 && <span className="text-xs text-muted-foreground shrink-0">×</span>}
+                      <Input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        className="h-6 w-14 text-xs text-right px-1.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        placeholder={f.short}
+                        defaultValue={c[f.key] ?? ''}
+                        onBlur={e => setSize(index, f.key, e.target.value)}
+                      />
+                    </div>
+                  ))}
+                  <span className="text-[11px] text-muted-foreground">l × w × h</span>
+                </div>
+
+                {/* The numbers that reach the documents. Shown here so nobody
                     has to open a PDF to find out what the load weighs. */}
                 <p className="text-xs text-muted-foreground">
                   Gross{' '}

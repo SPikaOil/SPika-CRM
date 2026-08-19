@@ -13,6 +13,10 @@ export interface ProductRecord {
   box_length_cm: number | null
   box_width_cm: number | null
   real_volume_ml: number | null
+  /** Customs code for Europe. The invoice picks by destination (097). */
+  hs_code_eu: string | null
+  /** Customs code for the United States (097). */
+  hs_code_us: string | null
   /**
    * Verrekenprijs — what a bottle costs US. Admin-only, and the database says so
    * too: migration 055 refuses the change unless the caller is an admin, because

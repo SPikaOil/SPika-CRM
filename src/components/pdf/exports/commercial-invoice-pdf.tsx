@@ -12,7 +12,8 @@ import { Transport, QuoteItem } from '@/types'
 import { CompanyInfo } from '../delivery-note-pdf'
 import { formatTht } from '@/lib/utils'
 import { batchLabel, type OrderBatches } from '@/lib/order-batches'
-import { orderColli } from '@/lib/transport-cargo'
+import { orderColli, type ProductHsCodes } from '@/lib/transport-cargo'
+import { customsRegion } from '@/lib/country'
 
 const RED = '#CC0000'
 const DARK = '#1a1a1a'
@@ -88,10 +89,28 @@ interface Props {
   company?: CompanyInfo
   /** Batch numbers per sku across the whole load. Empty prints nothing. */
   batches?: OrderBatches
+  /** Both customs codes per sku, from Products. The destination picks one. */
+  hsCodes?: ProductHsCodes
 }
 
-export function CommercialInvoicePDF({ transport, company = DEFAULT_COMPANY, batches }: Props) {
+export function CommercialInvoicePDF({
+  transport, company = DEFAULT_COMPANY, batches, hsCodes = {},
+}: Props) {
   const orders = transport.orders ?? []
+
+  /**
+   * Which customs code applies to this load.
+   *
+   * The same bottle is classified differently by European and American customs,
+   * so a product carries both and the destination decides — her instruction of
+   * 2026-08-19: "dat facturen de HS code pakken adhv land waar het heengaat."
+   * Transport 20260801 goes to The Netherlands, so it prints the EU code.
+   *
+   * The rule itself lives in lib/country.ts, next to the country names it has
+   * to recognise: `destination` is free text.
+   */
+  const region = customsRegion(transport.destination)
+  const hsFor = (sku: string) => hsCodes[sku]?.[region] ?? ''
 
   /**
    * What this invoice declares: WHAT IS IN THE CONTAINER.
@@ -279,10 +298,10 @@ export function CommercialInvoicePDF({ transport, company = DEFAULT_COMPANY, bat
                 </Text>
               )}
             </View>
-            {/* No HS code in the system yet. Left blank rather than dashed —
-                her rule of 2026-08-19: what is not filled in stays empty, and
-                the column stays because it does get filled in. */}
-            <Text style={[styles.tdText, styles.colHs]}></Text>
+            {/* The code for THIS destination. A product with none set for it
+                prints an empty cell — her rule: what is not filled in stays
+                empty, and the column stays because it does get filled in. */}
+            <Text style={[styles.tdText, styles.colHs]}>{hsFor(item.sku)}</Text>
             <Text style={[styles.tdText, styles.colQty]}>{item.qty}</Text>
             <Text style={[styles.tdText, styles.colUnit]}>{currency} {item.unit_price.toFixed(2)}</Text>
             <Text style={[styles.tdText, styles.colTotal]}>{currency} {item.line_total.toFixed(2)}</Text>

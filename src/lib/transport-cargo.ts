@@ -91,6 +91,23 @@ export function weightsBySku(
   return out
 }
 
+/**
+ * Both customs codes per sku, for the commercial invoice (migration 097).
+ *
+ * A product has two: European customs and American customs classify the same
+ * bottle differently. Which of the two is printed is decided by the destination
+ * of the transport — see customsRegion in lib/country.ts.
+ */
+export type ProductHsCodes = Record<string, { eu: string | null; us: string | null }>
+
+export function hsCodesBySku(
+  products: { sku: string; hs_code_eu: string | null; hs_code_us: string | null }[] | undefined,
+): ProductHsCodes {
+  const out: ProductHsCodes = {}
+  for (const p of products ?? []) out[p.sku] = { eu: p.hs_code_eu, us: p.hs_code_us }
+  return out
+}
+
 /** True when at least one package of this order has been weighed. */
 export function orderIsWeighed(order: Order): boolean {
   return orderColli(order).some(c => c.weight_kg !== null && c.weight_kg !== undefined)

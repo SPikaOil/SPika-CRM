@@ -11,7 +11,7 @@ import {
 import { Transport, QuoteItem } from '@/types'
 import { CompanyInfo } from '../delivery-note-pdf'
 import { formatTht } from '@/lib/utils'
-import { orderColli, transportGrossWeight, type ProductWeights } from '@/lib/transport-cargo'
+import { orderColli, transportGrossWeight, colliGrossWeight, type ProductWeights } from '@/lib/transport-cargo'
 import { isPosLine } from '@/lib/pos'
 import { type OrderBatches } from '@/lib/order-batches'
 
@@ -63,6 +63,8 @@ const styles = StyleSheet.create({
   colTht: { flex: 2, textAlign: 'center' },
   colQty: { flex: 1.5, textAlign: 'center' },
   colCartons: { flex: 1.5, textAlign: 'center' },
+  colBoxSize: { flex: 3, textAlign: 'center' },
+  colBoxWeight: { flex: 2, textAlign: 'right' },
   thText: { fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#ffffff', textTransform: 'uppercase' },
   tdText: { fontSize: 9, color: DARK },
   summaryBox: { marginTop: 14, padding: 10, backgroundColor: LIGHT, borderRadius: 2 },
@@ -127,10 +129,32 @@ export function PackingListPDF({
    * bottles above a summary that said 130.
    */
   const packedBySku = new Map<string, { sku: string; name: string; qty: number; boxes: number[] }>()
+
+  /**
+   * Every box on its own line: its number, its size and what it weighs (098).
+   *
+   * Her instruction of 2026-08-19 — "Zodat je per Colli het gewicht kan zien in
+   * app maar ook op de pakbon." A carrier prices a pallet by size and weight
+   * together, and a receiver checking off boxes needs to know which is which.
+   * The totals lower down are the sum of exactly this list.
+   */
+  const boxes: { number: number; size: string; kg: number }[] = []
+
   let boxNumber = 0
   for (const order of orders) {
     for (const colli of orderColli(order)) {
       boxNumber += 1
+      const dims = [colli.length_cm, colli.width_cm, colli.height_cm]
+      boxes.push({
+        number: boxNumber,
+        // Blank when nobody measured it, and a "?" for the one side that is
+        // missing when the other two are filled in — an incomplete measurement
+        // must not read as a complete one.
+        size: dims.every(d => d === null || d === undefined)
+          ? NONE
+          : dims.map(d => (d === null || d === undefined ? '?' : String(d))).join(' x '),
+        kg: colliGrossWeight(colli, productWeights).kg,
+      })
       for (const item of colli.items) {
         if (item.qty <= 0) continue
         const row = packedBySku.get(item.sku)
@@ -343,6 +367,29 @@ export function PackingListPDF({
             <Text style={[styles.tdText, styles.colQty]}>{row.qty}</Text>
           </View>
         ))}
+
+        {/* The boxes themselves: number, size and weight, one line each (098).
+            The table above answers "what is in the load", this answers "what am
+            I lifting" — which is what a carrier prices and what a receiver ticks
+            off. The totals below are the sum of exactly these lines. */}
+        {boxes.length > 0 && (
+          <>
+            <View style={[styles.tableHeader, { marginTop: 14 }]}>
+              <Text style={[styles.thText, styles.colDesc]}>COLLI</Text>
+              <Text style={[styles.thText, styles.colBoxSize]}>SIZE L x W x H (CM)</Text>
+              <Text style={[styles.thText, styles.colBoxWeight]}>GROSS WEIGHT</Text>
+            </View>
+            {boxes.map((b, i) => (
+              <View key={b.number} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]}>
+                <Text style={[styles.tdText, styles.colDesc]}>Colli {b.number}</Text>
+                <Text style={[styles.tdText, styles.colBoxSize]}>{b.size}</Text>
+                <Text style={[styles.tdText, styles.colBoxWeight]}>
+                  {b.kg > 0 ? `${b.kg.toFixed(2)} kg` : NONE}
+                </Text>
+              </View>
+            ))}
+          </>
+        )}
 
         {/* Summary */}
         <View style={styles.summaryBox}>

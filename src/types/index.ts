@@ -469,6 +469,16 @@ export interface Colli {
    * Null = not weighed. The bottles still count; only the box is unknown.
    */
   weight_kg?: number | null
+  /**
+   * The outside of THIS box in cm (098). Printed on the packing list.
+   *
+   * Not the carton spec on the product: box_length/width/height there is what a
+   * FULL carton measures, and a colli is a half-full one as often as a full one.
+   * A carrier charges by what is actually on the pallet.
+   */
+  length_cm?: number | null
+  width_cm?: number | null
+  height_cm?: number | null
 }
 
 export type TransportStatus = 'draft' | 'ready' | 'submitted' | 'cleared' | 'delivered'
