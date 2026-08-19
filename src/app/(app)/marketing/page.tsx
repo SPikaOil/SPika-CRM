@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import {
   Megaphone, Plus, Trash2, Pencil, Download, ExternalLink, Search,
   AlertTriangle, Lock, Image as ImageIcon, Film, FileText, Package, X, Loader2, CheckCircle2, ShieldCheck,
-  Users, CalendarRange,
+  Users, CalendarRange, Download as DownloadIcon,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
 import {
@@ -20,6 +20,7 @@ import {
 } from '@/lib/marketing'
 import { MarketingAsset } from '@/types'
 import { PosCatalogue } from './_components/pos-catalogue'
+import { usePosItems } from '@/hooks/use-pos-items'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -70,6 +71,7 @@ export default function MarketingPage() {
   // database would refuse the aim anyway — guard_marketing_aim().
   const canAllocate = can('marketing.allocate')
   const { data: assets, isLoading } = useMarketingAssets(true)
+  const { data: posItems } = usePosItems()
   const createAsset = useCreateMarketingAsset()
   const updateAsset = useUpdateMarketingAsset()
   const deleteAsset = useDeleteMarketingAsset()
@@ -300,6 +302,35 @@ export default function MarketingPage() {
         )}
       </div>
 
+      {/* A tab bar, not chips. The row below is a FILTER inside one view;
+          this is the view itself, and styling both as pills made them read as
+          one long row of equals. Underlined tabs say "these are two places". */}
+      <div className="flex gap-1 border-b -mb-1">
+        {([
+          { key: 'downloads', label: 'Downloads', icon: DownloadIcon, count: (assets ?? []).length, hint: 'Files a reseller downloads' },
+          { key: 'physical', label: 'Physical POS', icon: Package, count: (posItems ?? []).length, hint: 'Things we put in a box and ship' },
+        ] as const).map(t => (
+          <button
+            key={t.key}
+            onClick={() => setMode(t.key)}
+            title={t.hint}
+            className={`flex items-center gap-2 px-3 pb-2 pt-1 -mb-px border-b-2 text-sm font-semibold transition-colors ${
+              mode === t.key
+                ? 'border-red-600 text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <t.icon className="h-4 w-4" />
+            {t.label}
+            <span className={`text-[11px] font-medium rounded-full px-1.5 py-0.5 ${
+              mode === t.key ? 'bg-red-600 text-white' : 'bg-muted text-muted-foreground'
+            }`}>
+              {t.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
       {/* Demo banner — disappears by itself once migration 072 has run */}
       {onDemo && (
         <Card className="py-0 border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900">
@@ -327,22 +358,6 @@ export default function MarketingPage() {
             onChange={e => setSearch(e.target.value)}
             className="pl-8 h-8 text-xs"
           />
-        </div>
-        {/* Two modes, above the categories. Downloads have a file and a
-            download button; POS material has neither and gets shipped. */}
-        <div className="flex gap-1.5">
-          <button
-            onClick={() => setMode('downloads')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${mode === 'downloads' ? 'bg-foreground text-background border-foreground' : 'hover:bg-accent'}`}
-          >
-            Downloads
-          </button>
-          <button
-            onClick={() => setMode('physical')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${mode === 'physical' ? 'bg-foreground text-background border-foreground' : 'hover:bg-accent'}`}
-          >
-            Physical POS
-          </button>
         </div>
         {mode === 'downloads' && (
         <>
