@@ -24,6 +24,19 @@ interface Preview {
 // Realistic sample data so the preview reads like a real message
 const PREVIEWS: Preview[] = [
   {
+    key: 'team_invite', name: 'New team member', subject: 'Your SPika login',
+    audience: 'admin', when: 'An admin creates a login on the Team screen', branded: true,
+    html: T.emailTeamInvite({
+      name: 'Djamy Thijm',
+      invitedBy: 'artisanspikaoil@gmail.com',
+      role: 'warehouse',
+      link: APP + '/security',
+      // Shown with two-step ON so the full sequence is visible. An admin decides
+      // this per colleague, so most people will get the version without it.
+      mfaRequired: true,
+    }),
+  },
+  {
     key: 'access_request', name: 'New access request', subject: 'New access request from Restaurant Zeezicht',
     audience: 'admin', when: 'A company submits the request form on the portal', branded: true,
     html: T.emailAccessRequestAdmin({

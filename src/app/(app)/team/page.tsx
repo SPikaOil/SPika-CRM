@@ -5,7 +5,7 @@ import { checkPassword, MIN_PASSWORD_LENGTH, PASSWORD_RULE_TEXT } from '@/lib/pa
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Users, Plus, KeyRound, Edit2, UserX, Check, X, Loader2, ShieldCheck, ShieldAlert, ShieldOff, Truck, Megaphone, UserCircle2, Lock, Clock, FileSpreadsheet
+  Users, Plus, KeyRound, Send, Edit2, UserX, Check, X, Loader2, ShieldCheck, ShieldAlert, ShieldOff, Truck, Megaphone, UserCircle2, Lock, Clock, FileSpreadsheet
 } from 'lucide-react'
 import { downloadCsv, csvDate } from '@/lib/csv-export'
 import { useAuth } from '@/contexts/auth-context'
@@ -52,6 +52,33 @@ export default function TeamPage() {
   const [newPhone, setNewPhone] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [creating, setCreating] = useState(false)
+
+  const [resending, setResending] = useState<string | null>(null)
+
+  /**
+   * Ask the server for a fresh set-password link and mail it.
+   *
+   * Reports what actually happened. Without SMTP configured the old flows
+   * looked identical whether or not anything went out, and that is exactly how
+   * DT ended up waiting for a mail nobody had sent.
+   */
+  async function resendInvite(user: { id: string; email: string }) {
+    setResending(user.id)
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resend_invite: true }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Could not send it')
+      toast.success(`Login mail sent to ${json.to}`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not send it')
+    } finally {
+      setResending(null)
+    }
+  }
 
   // Reset password dialog
   const [resetUser, setResetUser] = useState<User | null>(null)
@@ -416,6 +443,18 @@ export default function TeamPage() {
                   >
                     <Edit2 className="h-4 w-4" />
                   </Button>
+                  {/* Send the set-password mail again. The first one always
+                      goes missing for somebody, and until now there was no way
+                      to send a second — or a first, since none was ever sent. */}
+                  <Button
+                    variant="ghost" size="icon" title="Send the login mail again"
+                    disabled={resending === user.id}
+                    onClick={() => resendInvite(user)}
+                  >
+                    {resending === user.id
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <Send className="h-4 w-4" />}
+                  </Button>
                   <Button
                     variant="ghost" size="icon" title="Reset password"
                     onClick={() => { setResetUser(user); setNewPw('') }}
@@ -515,7 +554,7 @@ export default function TeamPage() {
             <div className="space-y-1.5">
               <Label>Temporary password <span className="text-red-500">*</span></Label>
               <p className="text-[11px] text-muted-foreground">{PASSWORD_RULE_TEXT}</p>
-              <Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Min. 6 characters" />
+              <Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder={`Min. ${MIN_PASSWORD_LENGTH} characters`} />
               <p className="text-xs text-muted-foreground">The worker can change this after logging in.</p>
             </div>
           </div>

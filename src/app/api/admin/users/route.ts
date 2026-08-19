@@ -3,6 +3,10 @@ import { checkPassword } from '@/lib/password'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient as createServerClient } from '@/lib/supabase/server'
+import { sendEmail } from '@/lib/resend'
+import { emailTeamInvite } from '@/lib/email-templates'
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://s-pika-crm.vercel.app'
 
 // Guard: only admins can call these routes
 async function assertAdmin() {
@@ -104,5 +108,60 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: profileError.message }, { status: 500 })
   }
 
+  await sendSetPasswordLink({ admin, email, name, role, caller })
+
   return NextResponse.json(profile, { status: 201 })
+}
+
+/**
+ * Tell a new colleague their login exists, and let them set their own password.
+ *
+ * createUser runs with email_confirm: true — "treat this address as confirmed,
+ * send nothing" — so until now nobody was ever told. The admin typed a password
+ * to get the account made and then had to pass it on by hand, which means the
+ * admin knew it.
+ *
+ * generateLink rather than resetPasswordForEmail: that gives us the URL instead
+ * of sending Supabase's own bare template, so the mail goes out in our own house
+ * style through the same SMTP as everything else.
+ *
+ * Never fatal. The account was created; a mail problem must not undo that or
+ * make the screen say it failed. The result is reported back so the Team screen
+ * can say "created, but the mail did not go out" rather than nothing.
+ */
+async function sendSetPasswordLink({ admin, email, name, role, caller }: {
+  admin: ReturnType<typeof createAdminClient>
+  email: string
+  name: string
+  role: string
+  caller: { email?: string | null }
+}): Promise<{ sent: boolean }> {
+  try {
+    const { data: link, error } = await admin.auth.admin.generateLink({
+      type: 'recovery',
+      email,
+      options: { redirectTo: `${APP_URL}/security` },
+    })
+    if (error || !link?.properties?.action_link) return { sent: false }
+
+    // Only promised when it is true for this person — an admin decides two-step
+    // per colleague from the Team screen, so most of them will not see this.
+    const { data: profile } = await admin
+      .from('users').select('mfa_required').eq('email', email).single()
+
+    const result = await sendEmail({
+      to: email,
+      subject: 'Your SPika login',
+      html: emailTeamInvite({
+        name: name || email,
+        invitedBy: caller.email ?? 'An admin',
+        role,
+        link: link.properties.action_link,
+        mfaRequired: !!profile?.mfa_required,
+      }),
+    })
+    return { sent: result.ok }
+  } catch {
+    return { sent: false }
+  }
 }

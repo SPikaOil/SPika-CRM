@@ -431,3 +431,53 @@ export function emailPosRequest(p: {
     ${button('Open the CRM', APP_URL + '/dashboard')}
   `)
 }
+
+/**
+ * Welcome a new team member and let them set their own password.
+ *
+ * Sent when an admin creates a login. Until now nothing was sent at all:
+ * createUser() runs with email_confirm: true, which means "treat this address as
+ * confirmed, send nothing" — so a new colleague sat waiting for a mail that was
+ * never written. Danique, 2026-08-19, after creating DT.
+ *
+ * The link is a set-password link, not a password. An admin types a temporary
+ * one to get the account made; this is how it stops being theirs.
+ *
+ * Two-step is mentioned only when it applies to this person. An admin decides
+ * that per colleague from the Team screen (075), so promising it to everybody
+ * would be wrong for most of them.
+ */
+export function emailTeamInvite(p: {
+  name: string
+  invitedBy: string
+  role: string
+  link: string
+  mfaRequired: boolean
+}) {
+  p = escProps(p) as typeof p
+  return layout(`
+    <h2 style="margin:0 0 4px;font-size:20px;color:#111;">Welcome to SPika, ${p.name}</h2>
+    <p style="margin:0 0 20px;color:#6b7280;font-size:14px;">
+      ${p.invitedBy} created a login for you. Pick your own password with the button below —
+      after that, nobody else knows it.
+    </p>
+
+    <table style="margin-top:4px;width:100%;border-collapse:collapse;">
+      ${row('Your role', p.role)}
+    </table>
+
+    ${button('Set my password', p.link)}
+
+    <p style="margin:22px 0 6px;font-size:13px;font-weight:600;color:#111;">What happens next</p>
+    <ol style="margin:0;padding-left:18px;color:#6b7280;font-size:13px;line-height:1.7;">
+      <li>Choose your password.</li>
+      ${p.mfaRequired ? '<li>Link an authenticator app — your account needs a second step to sign in.</li>' : ''}
+      <li>You are in.</li>
+    </ol>
+
+    <p style="margin:20px 0 0;color:#9ca3af;font-size:12px;">
+      The link works once and expires. If it has run out, ask for a new one —
+      there is a button for it on the Team screen.
+    </p>
+  `)
+}

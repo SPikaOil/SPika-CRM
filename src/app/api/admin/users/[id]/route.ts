@@ -1,6 +1,10 @@
 import { checkPassword } from '@/lib/password'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendEmail } from '@/lib/resend'
+import { emailTeamInvite } from '@/lib/email-templates'
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://s-pika-crm.vercel.app'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 
 async function assertAdmin() {
@@ -83,6 +87,39 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       .update({ is_active: true }).eq('id', id).select().single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json(data)
+  }
+
+  // Send the set-password mail again. The first one always goes missing for
+  // somebody — a wrong address, a spam folder, a colleague who deleted it.
+  if (body.resend_invite === true) {
+    const { data: u } = await admin.from('users').select('email, name, role, mfa_required').eq('id', id).single()
+    if (!u?.email) return NextResponse.json({ error: 'No email on this account' }, { status: 400 })
+
+    const { data: link, error: linkErr } = await admin.auth.admin.generateLink({
+      type: 'recovery',
+      email: u.email,
+      options: { redirectTo: `${APP_URL}/security` },
+    })
+    if (linkErr || !link?.properties?.action_link) {
+      return NextResponse.json({ error: linkErr?.message ?? 'Could not make a link' }, { status: 500 })
+    }
+
+    const result = await sendEmail({
+      to: u.email,
+      subject: 'Your SPika login',
+      html: emailTeamInvite({
+        name: u.name || u.email,
+        invitedBy: caller.email ?? 'An admin',
+        role: u.role,
+        link: link.properties.action_link,
+        mfaRequired: !!u.mfa_required,
+      }),
+    })
+    // Says what actually happened rather than a cheerful nothing: without SMTP
+    // configured this used to look identical to a successful send.
+    return result.ok
+      ? NextResponse.json({ sent: true, to: u.email })
+      : NextResponse.json({ error: 'Email is not configured, so nothing was sent' }, { status: 500 })
   }
 
   // Require (or stop requiring) two-step verification on this account.
