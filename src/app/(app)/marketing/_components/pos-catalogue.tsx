@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Package, Plus, Pencil, Trash2, Link2, PackageX, X, ImageOff } from 'lucide-react'
 import { toast } from 'sonner'
 import { POS_KINDS, posKindLabel } from '@/lib/pos'
-import { parseDriveId, driveThumbnail, drivePreviewUrl } from '@/lib/marketing'
+import { parseDriveId, driveThumbnail, drivePreviewUrl, ASSET_GRID } from '@/lib/marketing'
 import {
   usePosItems, useSavePosItem, useDeletePosItem, type PosItem,
 } from '@/hooks/use-pos-items'
@@ -134,75 +134,91 @@ export function PosCatalogue({ canManage }: { canManage: boolean }) {
           </CardContent>
         </Card>
       ) : (
-        <Card className="py-0 gap-0">
-          <CardContent className="p-0 divide-y">
-            {(items ?? []).map(item => {
-              const artwork = (assets ?? []).find(a => a.id === item.asset_id)
-              return (
-                <div key={item.id} className="flex items-center gap-3 px-3 py-2.5">
-                  {/* The photo IS the point of the catalogue: a name like "12
-                      bottles (one side)" says nothing about what turns up. */}
-                  <div className={`h-11 w-11 rounded-md overflow-hidden flex items-center justify-center shrink-0 border ${
-                    item.is_available ? 'bg-muted' : 'bg-muted/50 opacity-60'
-                  }`}>
-                    {(item.photos ?? []).length > 0 ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={driveThumbnail(item.photos[0], 120)}
-                        alt={item.name}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : item.is_available ? (
-                      <Package className="h-4 w-4" />
-                    ) : (
-                      <PackageX className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className={`text-sm font-medium truncate ${!item.is_available ? 'text-muted-foreground' : ''}`}>
-                      {item.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
-                      <span>{posKindLabel(item.kind)}</span>
-                      {artwork && (
-                        <span className="flex items-center gap-1">
-                          <Link2 className="h-3 w-3" />
-                          {artwork.title}
-                        </span>
-                      )}
-                      {(item.photos ?? []).length > 1 && <span>· {item.photos.length} photos</span>}
-                      {item.notes && <span className="truncate">· {item.notes}</span>}
-                    </p>
-                  </div>
-                  {!item.is_available && (
-                    <Badge variant="outline" className="text-[10px] shrink-0">Out of stock</Badge>
+        <div className={ASSET_GRID}>
+          {/* The same card grid as the downloads, for the same reason: the
+              picture is the point. A name like "12 bottles (one side)" tells
+              nobody what arrives in the box. Rendered off Google's CDN by the
+              same helper the asset grid uses, so nobody has to open Drive. */}
+          {(items ?? []).map(item => {
+            const artwork = (assets ?? []).find(a => a.id === item.asset_id)
+            const photo = (item.photos ?? [])[0]
+            return (
+              <Card
+                key={item.id}
+                className={`py-0 gap-0 overflow-hidden group h-full flex flex-col ${
+                  item.is_available ? '' : 'opacity-60'
+                }`}
+              >
+                <div className="relative aspect-[7/6] bg-muted flex items-center justify-center overflow-hidden shrink-0">
+                  {photo ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={driveThumbnail(photo)}
+                      alt={item.name}
+                      loading="lazy"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center gap-1 text-muted-foreground">
+                      <ImageOff className="h-6 w-6" />
+                      <span className="text-[10px]">No photo yet</span>
+                    </div>
                   )}
+
+                  <Badge className="absolute top-1.5 left-1.5 bg-slate-900/85 text-white text-[10px] px-1.5 py-0">
+                    {posKindLabel(item.kind)}
+                  </Badge>
+                  {(item.photos ?? []).length > 1 && (
+                    <Badge className="absolute bottom-1.5 left-1.5 bg-black/60 text-white text-[10px] px-1.5 py-0">
+                      {item.photos.length} photos
+                    </Badge>
+                  )}
+                  {!item.is_available && (
+                    <Badge className="absolute top-1.5 right-1.5 bg-amber-600/90 text-white text-[10px] px-1.5 py-0 gap-1">
+                      <PackageX className="h-2.5 w-2.5" />
+                      Out
+                    </Badge>
+                  )}
+
                   {canManage && (
-                    <div className="flex gap-1 shrink-0">
+                    <div className="absolute bottom-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                       <button
                         onClick={() => openEdit(item)}
-                        className="h-7 w-7 rounded-md border flex items-center justify-center hover:bg-accent"
+                        className="h-6 w-6 rounded-md bg-background/90 border flex items-center justify-center hover:bg-accent"
                         aria-label="Edit"
                       >
-                        <Pencil className="h-3.5 w-3.5" />
+                        <Pencil className="h-3 w-3" />
                       </button>
                       <button
                         onClick={() => {
                           if (!confirm(`Remove "${item.name}" from the catalogue? It also disappears from every reseller's register.`)) return
                           deleteItem.mutate(item.id)
                         }}
-                        className="h-7 w-7 rounded-md border flex items-center justify-center hover:bg-red-50 hover:border-red-200 hover:text-red-600"
+                        className="h-6 w-6 rounded-md bg-background/90 border flex items-center justify-center hover:bg-red-50 hover:text-red-600"
                         aria-label="Delete"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 className="h-3 w-3" />
                       </button>
                     </div>
                   )}
                 </div>
-              )
-            })}
-          </CardContent>
-        </Card>
+
+                <CardContent className="p-2 flex-1 flex flex-col gap-0.5">
+                  <p className="text-xs font-medium leading-snug line-clamp-2">{item.name}</p>
+                  {artwork && (
+                    <p className="text-[10px] text-muted-foreground flex items-center gap-1 truncate">
+                      <Link2 className="h-2.5 w-2.5 shrink-0" />
+                      {artwork.title}
+                    </p>
+                  )}
+                  {item.notes && (
+                    <p className="text-[10px] text-muted-foreground line-clamp-2">{item.notes}</p>
+                  )}
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
