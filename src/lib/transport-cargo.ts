@@ -200,21 +200,35 @@ export function colliQrText(
   page: Pick<LabelPage, 'colliNumber' | 'totalColli' | 'order' | 'colli'>,
   /** Batch numbers per sku, so a scan names the batches inside this box. */
   batches?: Record<string, string[]>,
+  /** What one bottle weighs per sku, in grams. Without it the weight is the
+   *  packaging alone, which is exactly the fault this used to have. */
+  weights?: ProductWeights,
 ): string {
   const lines: string[] = [
     `${transport.transport_number} · Colli ${page.colliNumber}/${page.totalColli}`,
-    `Order ${page.order.order_number} — ${page.order.customer?.company_name ?? ''}`.trim(),
   ]
+
+  // NO order number and NO reseller name. Her instruction of 2026-08-19: this
+  // is the outside of a box, and who bought the goods is nobody's business
+  // between here and the warehouse door — the same rule that took them off the
+  // packing list. Which order a box belongs to stays in the app, where the
+  // transport number and the colli number above are enough to find it.
+
   for (const item of page.colli.items) lines.push(`${item.name} — ${item.qty}`)
   if (page.colli.items.length === 0) lines.push('(empty)')
+
   // A box can hold bottles from two batches, so every batch behind its contents
   // is named. Art. 10.3 puts traceability on us, and a scan is the fastest way
   // to answer "which batch is this?" without opening anything.
   const inBox = Array.from(new Set(page.colli.items.flatMap(it => batches?.[it.sku] ?? [])))
   if (inBox.length > 0) lines.push(`Batch: ${inBox.join(', ')}`)
-  if (page.colli.weight_kg !== null && page.colli.weight_kg !== undefined) {
-    lines.push(`${Number(page.colli.weight_kg).toFixed(2)} kg`)
-  }
+
+  // GROSS, like every other document since 097: the packaging plus the bottles
+  // inside. It encoded the packaging alone, so a scan of a box holding 42
+  // bottles answered 1.00 kg while the papers with it said 6.43.
+  const kg = colliGrossWeight(page.colli, weights ?? {}).kg
+  if (kg > 0) lines.push(`${kg.toFixed(2)} kg`)
+
   return lines.join('\n')
 }
 

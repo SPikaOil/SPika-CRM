@@ -90,7 +90,7 @@ export function TransportDocuments({ transport }: { transport: Transport }) {
       buildLabelPages(transport).map(async (p) => ({
         ...p,
         qrCodeDataUrl: await QRCode.toDataURL(
-          colliQrText(transport, p, perOrder.get(p.order.id)),
+          colliQrText(transport, p, perOrder.get(p.order.id), productWeights),
           { margin: 1, width: 240 },
         ),
       }))
