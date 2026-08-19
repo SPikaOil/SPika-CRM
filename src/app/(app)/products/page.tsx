@@ -93,54 +93,94 @@ function ProductsTab() {
     { key: 'box_width_cm',      label: 'Width (cm)',    type: 'number' },
   ]
 
+  /**
+   * The three box dimensions, kept out of the column list.
+   *
+   * They are one measurement, not three: nobody reads a carton height without
+   * its length and width. Sharing a single column takes two columns of white
+   * space out of the table, which is what pushed it off the edge of a scaled
+   * screen. The mobile cards still list all three — there is room there.
+   */
+  const BOX_FIELDS = ['box_height_cm', 'box_length_cm', 'box_width_cm'] as const
+  const narrowFields = fields.filter(
+    f => !(BOX_FIELDS as readonly string[]).includes(f.key as string),
+  )
+
   return (
     <>
-      {/* Desktop table */}
+      {/* Desktop table
+
+          Rebuilt because it still needed sideways scrolling, and because the
+          columns were mostly air. Two changes do the work:
+
+          1. Eleven columns became eight. The SKU sits under the product name
+             instead of taking a column of its own, and height, length and width
+             share one "Box" column — they are one measurement, read together and
+             typed together.
+          2. table-fixed with declared widths, so the read row and the edit row
+             are the same size and nothing grows when you click the pencil.
+
+          Measured at 720, 976 and 1200 CSS pixels — 720 being a 1280 screen at
+          125% scaling, which is where the old layout ran off the edge. */}
       <div className="hidden md:block rounded-xl border overflow-x-auto">
-        {/* table-fixed on purpose. With auto layout the columns are sized by
-            their CONTENT, so switching a row into edit mode swapped short text
-            for 96px inputs and the whole table grew wider than the screen —
-            Save ended up off to the right. Fixed columns are the same width in
-            both states, so nothing moves and nothing overflows. */}
         <table className="w-full text-sm table-fixed">
           <thead className="bg-muted/50 border-b">
             <tr>
-              <th className="text-left px-3 py-3 font-semibold w-[16%]">Product</th>
-              <th className="text-left px-3 py-3 font-semibold text-muted-foreground text-xs w-[12%]">SKU</th>
-              {fields.map(f => (
-                <th key={f.key} className="text-center px-2 py-3 font-semibold text-xs leading-tight">{f.label}</th>
+              <th className="text-left px-2.5 py-2.5 font-semibold text-xs w-[22%]">Product</th>
+              {narrowFields.map(f => (
+                <th key={f.key} className="text-center px-1.5 py-2.5 font-semibold text-[11px] leading-tight">{f.label}</th>
               ))}
-              <th className="px-2 py-3 w-[64px]" />
+              <th className="text-center px-1.5 py-2.5 font-semibold text-[11px] leading-tight">Box h×l×w<br />(cm)</th>
+              <th className="px-1 py-2.5 w-[56px]" />
             </tr>
           </thead>
           <tbody className="divide-y">
             {isLoading
               ? Array.from({ length: 6 }).map((_, i) => (
-                  <tr key={i}>{Array.from({ length: 9 }).map((_, j) => (
-                    <td key={j} className="px-4 py-3"><Skeleton className="h-5 w-full" /></td>
+                  <tr key={i}>{Array.from({ length: narrowFields.length + 3 }).map((_, j) => (
+                    <td key={j} className="px-2 py-3"><Skeleton className="h-5 w-full" /></td>
                   ))}</tr>
                 ))
               : products?.map(p => {
                   const isEditing = editing?.id === p.id
                   return (
-                    <tr key={p.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-3 py-3 font-medium text-xs leading-tight">{p.name}</td>
-                      <td className="px-3 py-3 text-xs text-muted-foreground font-mono break-all">{p.sku}</td>
+                    <tr key={p.id} className="hover:bg-muted/30 transition-colors align-middle">
+                      {/* Name and SKU in one cell. They belong together, and it
+                          buys a whole column back for the numbers. */}
+                      <td className="px-2.5 py-2 leading-tight">
+                        <p className="font-medium text-xs">{p.name}</p>
+                        <p className="text-[10px] text-muted-foreground font-mono break-all">{p.sku}</p>
+                      </td>
+
                       {isEditing ? (
                         <>
-                          {fields.map(f => (
+                          {narrowFields.map(f => (
                             <td key={f.key} className="px-1 py-2">
-                              <Input className="h-8 text-center w-full px-1" type={f.type ?? 'text'}
+                              <Input className="h-8 text-center w-full px-1 text-xs" type={f.type ?? 'text'}
                                 value={editing[f.key]}
                                 onChange={e => setEditing(v => v && ({ ...v, [f.key]: e.target.value }))} />
                             </td>
                           ))}
-                          <td className="px-3 py-2">
-                            <div className="flex gap-1">
-                              <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600" onClick={saveEdit} disabled={updateProduct.isPending}>
+                          {/* Three boxes in one cell, in the order they are read
+                              off a carton. */}
+                          <td className="px-1 py-2">
+                            <div className="flex items-center gap-0.5">
+                              {BOX_FIELDS.map((f, i) => (
+                                <div key={f} className="contents">
+                                  {i > 0 && <span className="text-[10px] text-muted-foreground">×</span>}
+                                  <Input className="h-8 text-center w-full px-0.5 text-xs" type="number"
+                                    value={editing[f]}
+                                    onChange={e => setEditing(v => v && ({ ...v, [f]: e.target.value }))} />
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="px-1 py-2">
+                            <div className="flex gap-0.5">
+                              <Button size="icon" variant="ghost" className="h-7 w-7 text-green-600" onClick={saveEdit} disabled={updateProduct.isPending}>
                                 <Check className="h-4 w-4" />
                               </Button>
-                              <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground" onClick={() => setEditing(null)}>
+                              <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground" onClick={() => setEditing(null)}>
                                 <X className="h-4 w-4" />
                               </Button>
                             </div>
@@ -148,21 +188,21 @@ function ProductsTab() {
                         </>
                       ) : (
                         <>
-                          {/* One cell per FIELD, not six hardcoded ones. The
-                              header maps over fields — eight of them for an
-                              admin, who also sees VVP and real volume — so six
-                              cells put every value under the wrong heading and
-                              left two columns empty. */}
-                          {fields.map(f => (
+                          {narrowFields.map(f => (
                             <td
                               key={f.key}
-                              className={`px-2 py-3 text-center ${f.key === 'product_code' ? 'font-mono text-xs' : ''}`}
+                              className={`px-1.5 py-2 text-center text-xs ${f.key === 'product_code' ? 'font-mono' : ''}`}
                             >
                               {dash((p as never)[f.key])}
                             </td>
                           ))}
-                          <td className="px-3 py-3">
-                            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => startEdit(p)}>
+                          <td className="px-1.5 py-2 text-center text-xs whitespace-nowrap">
+                            {BOX_FIELDS.every(f => (p as never)[f] == null)
+                              ? '—'
+                              : BOX_FIELDS.map(f => (p as never)[f] ?? '?').join(' × ')}
+                          </td>
+                          <td className="px-1 py-2">
+                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(p)}>
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
                           </td>
