@@ -31,7 +31,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CustomerForm } from '../_components/customer-form'
 import { ContactLog } from '../_components/contact-log'
-import { Customer } from '@/types'
+import { Customer, posRequestSubject } from '@/types'
 import { computeOrderRhythm, type OrderRhythm } from '@/lib/order-rhythm'
 
 // ── Order rhythm card ──────────────────────────────────────────────────────
@@ -507,7 +507,7 @@ export default function CustomerDetailPage({
                 {posRequests.map(req => (
                   <div key={req.id} className="flex items-start justify-between gap-3 text-sm">
                     <div className="min-w-0">
-                      <p className="leading-tight">{req.qty}× {req.asset?.title ?? 'POS material'}</p>
+                      <p className="leading-tight">{req.qty}× {posRequestSubject(req)}</p>
                       {req.note && <p className="text-[11px] text-muted-foreground leading-snug">{req.note}</p>}
                     </div>
                     <span className={`text-[10px] px-1.5 py-0 rounded font-medium shrink-0 ${POS_STATUS_TONES[req.status]}`}>

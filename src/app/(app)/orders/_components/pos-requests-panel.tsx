@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { PackagePlus, Check, Ban, Loader2 } from 'lucide-react'
 import { usePosRequests, useGrantPosRequest, useDeclinePosRequest } from '@/hooks/use-pos-requests'
 import { POS_STATUS_LABELS, POS_STATUS_TONES, PosStatus } from '@/lib/marketing'
-import { PosRequest, QuoteItem } from '@/types'
+import { PosRequest, QuoteItem, posRequestSubject } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -67,7 +67,7 @@ export function PosRequestsPanel({
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="text-sm font-medium leading-tight">
-                  {req.qty}× {req.asset?.title ?? 'POS material'}
+                  {req.qty}× {posRequestSubject(req)}
                 </p>
                 {req.note && (
                   <p className="text-[11px] text-muted-foreground leading-snug">{req.note}</p>

@@ -22,7 +22,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica',
     fontSize: 9,
     color: DARK,
-    paddingTop: 24,
+    paddingTop: 16,
     paddingBottom: 24,
     paddingHorizontal: 32,
     backgroundColor: '#ffffff',
@@ -31,7 +31,7 @@ const styles = StyleSheet.create({
   // FROM and the colli counter on the left, QR and transport number on the
   // right, both starting at the very top of the page. This replaced a logo
   // strip that sat above them and a second row below it.
-  headRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 2 },
+  headRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 0 },
   fromBlock: { flex: 1 },
   fromLabel: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: GRAY, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 3 },
   fromLine: { fontSize: 8.5, color: DARK, marginBottom: 1 },
@@ -51,16 +51,20 @@ const styles = StyleSheet.create({
   },
   colliText: { fontSize: 22, fontFamily: 'Helvetica-Bold', color: '#ffffff', letterSpacing: 1 },
 
-  divider: { marginVertical: 4 },
+  divider: { marginVertical: 3 },
 
-  shipToLabel: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: RED, textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 4 },
-  shipToName: { fontSize: 34, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 3, lineHeight: 1.1 },
-  shipToLine: { fontSize: 26, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 2, lineHeight: 1.15 },
+  shipToLabel: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: RED, textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 3 },
+  // 34/26/24 before. The address is the only thing on this label that could
+  // give height back: the handling icons keep their full 150pt and the QR its
+  // 78, both by her instruction. Still the biggest type on the page by far —
+  // it has to be readable off a pallet.
+  shipToName: { fontSize: 30, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 2, lineHeight: 1.1 },
+  shipToLine: { fontSize: 22, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 1, lineHeight: 1.15 },
 
   contentsLabel: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: GRAY, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 3 },
-  contentsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 1 },
+  contentsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 0 },
   contentsText: { fontSize: 9, color: DARK },
-  contentsWeight: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: DARK, marginTop: 2 },
+  contentsWeight: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: DARK, marginTop: 1 },
 })
 
 const DEFAULT_COMPANY: CompanyInfo = {
@@ -154,18 +158,19 @@ export function ShippingLabelPDF({
                 </View>
               </View>
 
-              {/* The QR and the transport number, stacked in the corner the
-                  banner used to occupy. */}
-              <View style={{ alignItems: 'center' }}>
-                {page.qrCodeDataUrl ? (
-                  <>
-                    <Image src={page.qrCodeDataUrl} style={{ width: 78, height: 78 }} />
-                    <Text style={{ fontSize: 6, color: GRAY, marginTop: 2 }}>SCAN FOR CONTENTS</Text>
-                  </>
-                ) : null}
-                <View style={[styles.refBox, { marginTop: 6 }]}>
+              {/* Transport number BESIDE the QR rather than under it. Stacked
+                  it cost 28pt of height, and every point here is a point the
+                  address gets to keep. */}
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                <View style={[styles.refBox, { marginTop: 2 }]}>
                   <Text style={styles.refText}>{transport.transport_number}</Text>
                 </View>
+                {page.qrCodeDataUrl ? (
+                  <View style={{ alignItems: 'center' }}>
+                    <Image src={page.qrCodeDataUrl} style={{ width: 78, height: 78 }} />
+                    <Text style={{ fontSize: 6, color: GRAY, marginTop: 2 }}>SCAN FOR CONTENTS</Text>
+                  </View>
+                ) : null}
               </View>
             </View>
 
@@ -173,59 +178,62 @@ export function ShippingLabelPDF({
               <Line x1={0} y1={0} x2={531} y2={0} strokeWidth={2} stroke={RED} />
             </Svg>
 
-            {/* Ship to */}
-            <View style={{ marginTop: 4 }}>
-              <Text style={styles.shipToLabel}>
-                {toWarehouse ? 'Ship To — Warehouse' : 'Ship To'}
-              </Text>
-              <Text style={styles.shipToName}>{nameLine}</Text>
-              {/* Who is expected there. Only once — when there is no name of its
-                  own, the Attn. has already been promoted to the line above. */}
-              {attn && nameLine !== `Attn. ${attn}` ? (
-                <Text style={styles.shipToLine}>Attn. {attn}</Text>
-              ) : null}
-              {streetLine ? <Text style={styles.shipToLine}>{streetLine}</Text> : null}
-              {cityLine ? <Text style={styles.shipToLine}>{cityLine}</Text> : null}
-              {destination ? (
-                <Text style={[styles.shipToLine, { color: RED, fontSize: 24, marginTop: 3 }]}>
-                  {destination.toUpperCase()}
-                </Text>
-              ) : null}
-            </View>
+            {/* Address on the left, handling icons on the right — her layout of
+                2026-08-19.
 
-            {/* Contents on the left, handling icons on the right.
-                They used to be stacked, and the icon strip alone was 150pt tall
-                — with everything else that put the label at 550pt on an 842pt
-                page. Side by side they cost the height of the taller of the
-                two instead of the sum, which is what brings the whole label
-                inside the top half. No text changed size. */}
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 6 }}>
+                The icons keep the size they have always had: 150pt tall, which
+                at their 984x512 draws them 288pt wide. That leaves 231pt for the
+                address, and the type is set as large as fits in that — measured
+                against the real lines in Helvetica-Bold rather than guessed:
+                the longest, "Van Maasdijkweg 72", is 192pt at 20. Side by side
+                they also cost one block of height instead of two, which is what
+                lets the address grow back at all. */}
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 4 }}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.contentsLabel}>
-                  Contents · Order {page.order.order_number}
+                <Text style={styles.shipToLabel}>
+                  {toWarehouse ? 'Ship To — Warehouse' : 'Ship To'}
                 </Text>
-                {page.colli.items.length === 0 ? (
-                  <Text style={styles.contentsText}>Not packed out</Text>
-                ) : page.colli.items.map((item) => (
-                  <View key={item.sku} style={styles.contentsRow}>
-                    <Text style={styles.contentsText}>{item.name}</Text>
-                    <Text style={styles.contentsText}>{item.qty}</Text>
-                  </View>
-                ))}
-                {/* The GROSS weight of this one box: the packaging typed on it
-                    plus the bottles inside, at the weight the Products screen
-                    holds. It used to print the packaging alone, so a box of 42
-                    bottles said 1.00 kg. Her instruction of 2026-08-19. */}
-                {colliGrossWeight(page.colli, productWeights).kg > 0 ? (
-                  <Text style={styles.contentsWeight}>
-                    {colliGrossWeight(page.colli, productWeights).kg.toFixed(2)} kg
+                <Text style={styles.shipToName}>{nameLine}</Text>
+                {/* Who is expected there. Only once — when there is no name of
+                    its own, the Attn. has already been promoted to the line
+                    above. */}
+                {attn && nameLine !== `Attn. ${attn}` ? (
+                  <Text style={styles.shipToLine}>Attn. {attn}</Text>
+                ) : null}
+                {streetLine ? <Text style={styles.shipToLine}>{streetLine}</Text> : null}
+                {cityLine ? <Text style={styles.shipToLine}>{cityLine}</Text> : null}
+                {destination ? (
+                  <Text style={[styles.shipToLine, { color: RED, marginTop: 3 }]}>
+                    {destination.toUpperCase()}
                   </Text>
                 ) : null}
               </View>
 
-              {/* 984x512 in the file, so 134pt wide draws 70pt tall. Sized to land the
-                  whole label inside the top half of the page — measured, see below. */}
-              <Image src="/fragile-icons.jpg" style={{ width: 134, height: 70, objectFit: 'contain' }} />
+              <Image src="/fragile-icons.jpg" style={{ width: 288, height: 150, objectFit: 'contain' }} />
+            </View>
+
+            {/* What is in THIS box */}
+            <View style={{ marginTop: 6 }}>
+              <Text style={styles.contentsLabel}>
+                Contents · Order {page.order.order_number}
+              </Text>
+              {page.colli.items.length === 0 ? (
+                <Text style={styles.contentsText}>Not packed out</Text>
+              ) : page.colli.items.map((item) => (
+                <View key={item.sku} style={styles.contentsRow}>
+                  <Text style={styles.contentsText}>{item.name}</Text>
+                  <Text style={styles.contentsText}>{item.qty}</Text>
+                </View>
+              ))}
+              {/* The GROSS weight of this one box: the packaging typed on it
+                  plus the bottles inside, at the weight the Products screen
+                  holds. It used to print the packaging alone, so a box of 42
+                  bottles said 1.00 kg. Her instruction of 2026-08-19. */}
+              {colliGrossWeight(page.colli, productWeights).kg > 0 ? (
+                <Text style={styles.contentsWeight}>
+                  {colliGrossWeight(page.colli, productWeights).kg.toFixed(2)} kg
+                </Text>
+              ) : null}
             </View>
 
             {transport.carrier ? (

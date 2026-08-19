@@ -1,10 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
-import { PosRequest, QuoteItem } from '@/types'
+import { PosRequest, QuoteItem, posRequestSubject } from '@/types'
 import { posOrderLine } from '@/lib/marketing'
+import { posOrderLineFor } from '@/lib/pos'
 import { toast } from 'sonner'
 
-const SELECT = '*, asset:marketing_assets(id, title, category), customer:customers(id, company_name)'
+// Both routes joined: a request points at a catalogue item (the route the
+// portal uses since 099) or at a marketing asset (the older one).
+const SELECT =
+  '*, asset:marketing_assets(id, title, category), pos_item:pos_items(id, name, sku, kind), customer:customers(id, company_name)'
 
 /**
  * @param scope  'open' for the dashboard counter, a customer id for that
@@ -36,7 +40,10 @@ export function useCreatePosRequest() {
   return useMutation({
     mutationFn: async (values: {
       customer_id: string
-      asset_id: string
+      /** From the catalogue — the route the portal uses (099). */
+      pos_item_id?: string
+      /** From a marketing asset — the older route. Exactly one of the two. */
+      asset_id?: string
       qty: number
       note?: string
       // For the e-mail only — never written to the row.
@@ -90,7 +97,12 @@ export function useGrantPosRequest() {
       orderId: string
       currentItems: QuoteItem[]
     }) => {
-      const line = posOrderLine(request.asset?.title ?? 'POS material', request.qty)
+      // The catalogue item when there is one, so the sku on the order line is
+      // the catalogue's own and two requests for the same stand land on the
+      // same line. Falls back to the title for a request from the old route.
+      const line = request.pos_item
+        ? posOrderLineFor(request.pos_item, request.qty)
+        : posOrderLine(posRequestSubject(request), request.qty)
       const already = currentItems.some(i => i.sku === line.sku)
       const items = already ? currentItems : [...currentItems, line as QuoteItem]
 

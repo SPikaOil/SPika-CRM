@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { isExportCustomer } from '@/lib/country'
 import { createClient } from '@/lib/supabase/client'
 import { usePosRequests } from '@/hooks/use-pos-requests'
-import { PosRequest } from '@/types'
+import { PosRequest, posRequestSubject } from '@/types'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
@@ -438,7 +438,7 @@ function PosRequestBanner({ requests }: { requests: PosRequest[] }) {
               <div className="min-w-0">
                 <p className="text-sm font-medium">{req.customer?.company_name ?? 'Unknown reseller'}</p>
                 <p className="text-xs text-muted-foreground">
-                  {req.qty}× {req.asset?.title ?? 'POS material'}
+                  {req.qty}× {posRequestSubject(req)}
                 </p>
                 {req.note && <p className="text-xs text-muted-foreground italic">{req.note}</p>}
               </div>

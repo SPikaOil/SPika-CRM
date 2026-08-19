@@ -680,7 +680,13 @@ export interface PosRequest {
   created_at: string
   updated_at: string
   customer_id: string
-  asset_id: string
+  /**
+   * What was asked for, when it came from a marketing asset. The older route —
+   * still readable, no longer offered (099).
+   */
+  asset_id?: string | null
+  /** What was asked for, from the catalogue. The route the portal uses (099). */
+  pos_item_id?: string | null
   qty: number
   note?: string | null
   status: 'open' | 'planned' | 'sent' | 'declined'
@@ -691,7 +697,19 @@ export interface PosRequest {
   handled_at?: string | null
   // Joined for display, never written.
   asset?: { id: string; title: string; category: string } | null
+  pos_item?: { id: string; name: string; sku: string | null; kind: string } | null
   customer?: { id: string; company_name: string } | null
+}
+
+/**
+ * What a request is FOR, whichever of the two routes it came in by.
+ *
+ * One place so no screen has to remember that a row carries either an asset or
+ * a catalogue item. A request must have exactly one of them (099), so this
+ * only falls through to the last string on a broken row.
+ */
+export function posRequestSubject(r: PosRequest): string {
+  return r.pos_item?.name ?? r.asset?.title ?? 'POS material'
 }
 
 /** Fields the Team page gets on top of the profile — see /api/admin/users. */
