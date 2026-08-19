@@ -124,8 +124,8 @@ function ProductsTab() {
                       {isEditing ? (
                         <>
                           {fields.map(f => (
-                            <td key={f.key} className="px-2 py-2">
-                              <Input className="h-8 text-center w-24 mx-auto" type={f.type ?? 'text'}
+                            <td key={f.key} className="px-1 py-2">
+                              <Input className="h-8 text-center w-full px-1" type={f.type ?? 'text'}
                                 value={editing[f.key]}
                                 onChange={e => setEditing(v => v && ({ ...v, [f.key]: e.target.value }))} />
                             </td>
@@ -143,12 +143,19 @@ function ProductsTab() {
                         </>
                       ) : (
                         <>
-                          <td className="px-3 py-3 text-center font-mono text-xs">{dash(p.product_code)}</td>
-                          <td className="px-3 py-3 text-center">{dash(p.weight_g)}</td>
-                          <td className="px-3 py-3 text-center">{dash(p.bottles_per_carton)}</td>
-                          <td className="px-3 py-3 text-center">{dash(p.box_height_cm)}</td>
-                          <td className="px-3 py-3 text-center">{dash(p.box_length_cm)}</td>
-                          <td className="px-3 py-3 text-center">{dash(p.box_width_cm)}</td>
+                          {/* One cell per FIELD, not six hardcoded ones. The
+                              header maps over fields — eight of them for an
+                              admin, who also sees VVP and real volume — so six
+                              cells put every value under the wrong heading and
+                              left two columns empty. */}
+                          {fields.map(f => (
+                            <td
+                              key={f.key}
+                              className={`px-2 py-3 text-center ${f.key === 'product_code' ? 'font-mono text-xs' : ''}`}
+                            >
+                              {dash((p as never)[f.key])}
+                            </td>
+                          ))}
                           <td className="px-3 py-3">
                             <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => startEdit(p)}>
                               <Pencil className="h-3.5 w-3.5" />
