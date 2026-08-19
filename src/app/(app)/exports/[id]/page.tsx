@@ -19,7 +19,7 @@ import {
   useTransportLocations, useCreateTransportLocation, useWarehouseMembers, useExportOrders, useSetOrderTransport,
 } from '@/hooks/use-transports'
 import { ColliEditor } from '../_components/colli-editor'
-import { OrderPosLine } from '../_components/order-pos-line'
+import { OrderPosLine } from '@/components/order-pos-line'
 import { TransportDocuments } from '../_components/transport-documents'
 import { ReceivedDocuments } from '../_components/received-documents'
 import { ArrivalCard } from '../_components/arrival-card'

@@ -8,6 +8,7 @@ import { useOrder, useUpdateOrder } from '@/hooks/use-orders'
 import { useTransportForOrder } from '@/hooks/use-transports'
 import { useUsers } from '@/hooks/use-users'
 import { useAuth } from '@/contexts/auth-context'
+import { OrderPosLine } from '@/components/order-pos-line'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -1639,6 +1640,15 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
           )}
         </CardContent>
       </Card>
+
+      {/* POS material on this order.
+
+          On the ORDER and not on one screen in the flow, because there is no
+          single moment where a stand gets decided. It can start in Curacao,
+          be ordered in the Netherlands, or come from China into a warehouse —
+          her correction of 2026-08-16. Wherever the order is opened, this is
+          here, and it is the same €0 line every time. */}
+      <OrderPosLine order={order as never} />
 
       {/* Edit Log — shown when post-signature changes have been made */}
       {isAdmin && (order.edit_log ?? []).length > 0 && (
