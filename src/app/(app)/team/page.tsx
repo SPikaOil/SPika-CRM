@@ -302,8 +302,10 @@ export default function TeamPage() {
   return (
     <div className="p-4 lg:p-6 max-w-7xl mx-auto w-full space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      {/* flex-wrap, or on a 375px screen "Add Member" hangs off the right and
+          drags the whole page sideways with it. */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2 min-w-0">
           <Users className="h-6 w-6 text-red-600" />
           <h1 className="text-2xl font-bold">Team</h1>
           <Badge variant="secondary">{activeUsers.length} members</Badge>
@@ -318,8 +320,12 @@ export default function TeamPage() {
             )}>
             <FileSpreadsheet className="h-4 w-4" />
           </Button>
-          <Button className="bg-red-600 hover:bg-red-700 gap-2" onClick={() => setShowCreate(true)}>
-            <Plus className="h-4 w-4" /> Add Member
+          <Button className="bg-red-600 hover:bg-red-700 gap-2 shrink-0" onClick={() => setShowCreate(true)}>
+            <Plus className="h-4 w-4" />
+            {/* The word costs 90px on a phone, where the plus is unambiguous
+                next to a list of people. */}
+            <span className="hidden sm:inline">Add Member</span>
+            <span className="sm:hidden">New</span>
           </Button>
         </div>
       </div>
@@ -377,7 +383,10 @@ export default function TeamPage() {
           const Icon = rc.icon
           return (
             <Card key={user.id} className="py-0">
-              <CardContent className="py-2 flex items-center gap-3">
+              {/* Stacked on a phone: five icon buttons beside the text left
+                  the email truncated to eight characters and "Last seen" over
+                  three lines. They get their own row instead. */}
+              <CardContent className="py-2 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                 <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${rc.color}`}>
                   <Icon className="h-4 w-4" />
                 </div>
@@ -421,7 +430,7 @@ export default function TeamPage() {
                     )}
                   </p>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
+                <div className="flex items-center gap-1 shrink-0 self-end sm:self-auto">
                   {/* Require two-step verification. Does not lock anyone out —
                       it sends them to the setup screen at their next page load
                       and keeps them there until they have an authenticator. */}

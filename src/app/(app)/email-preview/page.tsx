@@ -27,7 +27,7 @@ const PREVIEWS: Preview[] = [
     key: 'team_invite', name: 'New team member', subject: 'Your SPika login',
     audience: 'admin', when: 'An admin creates a login on the Team screen', branded: true,
     html: T.emailTeamInvite({
-      name: 'Djamy Thijm',
+      name: 'Jopie Milzink',
       invitedBy: 'artisanspikaoil@gmail.com',
       role: 'warehouse',
       link: APP + '/security',
@@ -80,7 +80,7 @@ const PREVIEWS: Preview[] = [
   {
     key: 'out_for_delivery', name: 'Out for delivery', subject: 'New delivery assigned to you',
     audience: 'team', when: 'You assign the order to someone', branded: true,
-    html: T.emailOutForDelivery({ orderNumber: '729132', customerName: 'Restaurant Zeezicht', workerName: 'Djamy' }),
+    html: T.emailOutForDelivery({ orderNumber: '729132', customerName: 'Restaurant Zeezicht', workerName: 'Jopie' }),
   },
   {
     key: 'delivered_customer', name: 'Delivered (customer)', subject: 'Your order #729132 has been delivered',
@@ -121,7 +121,7 @@ const PREVIEWS: Preview[] = [
     key: 'handover', name: 'Handover receipt', subject: 'Handover receipt',
     audience: 'team', when: 'A team member signs for bottles', branded: true,
     html: T.emailHandoverReceipt({
-      memberName: 'Djamy', batchNumber: 'B-2026-07', handoverDate: '25 Jul 2026',
+      memberName: 'Jopie', batchNumber: 'B-2026-07', handoverDate: '25 Jul 2026',
       items: [{ name: 'SPika Oil 100ml', qty: 24 }, { name: 'SPika Oil 50ml', qty: 48 }],
       signedAt: '25 Jul 2026 14:30', notes: 'Picked up at the warehouse',
     }),
@@ -129,12 +129,12 @@ const PREVIEWS: Preview[] = [
   {
     key: 'task_assigned', name: 'Task assigned', subject: 'New task assigned to you',
     audience: 'team', when: 'You assign a task', branded: true,
-    html: T.emailTaskAssigned({ workerName: 'Djamy', taskTitle: 'Bottle refill — Blue Bay', customerName: 'Blue Bay', dueDate: '28 Jul 2026' }),
+    html: T.emailTaskAssigned({ workerName: 'Jopie', taskTitle: 'Bottle refill — Blue Bay', customerName: 'Blue Bay', dueDate: '28 Jul 2026' }),
   },
   {
     key: 'task_completed', name: 'Task completed', subject: 'Task completed',
     audience: 'admin', when: 'A task is ticked off', branded: true,
-    html: T.emailTaskCompleted({ taskTitle: 'Bottle refill — Blue Bay', completedBy: 'Djamy', customerName: 'Blue Bay' }),
+    html: T.emailTaskCompleted({ taskTitle: 'Bottle refill — Blue Bay', completedBy: 'Jopie', customerName: 'Blue Bay' }),
   },
 ]
 
