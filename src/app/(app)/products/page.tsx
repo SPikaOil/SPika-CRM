@@ -122,7 +122,15 @@ function ProductsTab() {
 
           Measured at 720, 976 and 1200 CSS pixels — 720 being a 1280 screen at
           125% scaling, which is where the old layout ran off the edge. */}
-      <div className="hidden md:block rounded-xl border overflow-x-auto">
+      {/* overflow-hidden, not overflow-x-auto.
+
+          With table-fixed the table is exactly 100% of this box and cannot
+          grow, so a horizontal scroll bar here is not a feature — it is a
+          symptom, and it kept appearing over a one or two pixel rounding
+          difference. Clipping is the honest behaviour: if something ever did
+          not fit, hiding it is better than pretending the page is wider than
+          the screen and dragging the whole layout sideways. */}
+      <div className="hidden md:block rounded-xl border overflow-hidden">
         <table className="w-full text-sm table-fixed">
           <thead className="bg-muted/50 border-b">
             <tr>
@@ -164,11 +172,20 @@ function ProductsTab() {
                           {/* Three boxes in one cell, in the order they are read
                               off a carton. */}
                           <td className="px-1 py-2">
-                            <div className="flex items-center gap-0.5">
+                            {/* flex-1 min-w-0 w-0, not w-full. Three w-full
+                                children in one flex row each ask for the whole
+                                cell — 300% of it — and the table grew a scroll
+                                bar that no amount of column trimming could fix.
+                                They divide the cell instead.
+                                Spinners removed: at 25px wide they are two
+                                unusable arrows eating half the box. */}
+                            <div className="flex items-center gap-px">
                               {BOX_FIELDS.map((f, i) => (
                                 <div key={f} className="contents">
-                                  {i > 0 && <span className="text-[10px] text-muted-foreground">×</span>}
-                                  <Input className="h-8 text-center w-full px-0.5 text-xs" type="number"
+                                  {i > 0 && <span className="text-[10px] text-muted-foreground shrink-0">×</span>}
+                                  <Input
+                                    className="h-8 text-center flex-1 min-w-0 w-0 px-0.5 text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                    type="number"
                                     value={editing[f]}
                                     onChange={e => setEditing(v => v && ({ ...v, [f]: e.target.value }))} />
                                 </div>
