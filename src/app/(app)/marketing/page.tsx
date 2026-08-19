@@ -361,12 +361,14 @@ export default function MarketingPage() {
         </div>
         {mode === 'downloads' && (
         <>
-        {/* Wraps on a wide screen, scrolls sideways only on a phone — a
-            scrollbar under seven chips on a desktop looked like a defect. */}
-        <div className="flex gap-1.5 overflow-x-auto sm:overflow-visible sm:flex-wrap pb-1 sm:pb-0">
+        {/* Wraps everywhere, including on a phone.
+            It used to scroll sideways there, which hid four of the seven
+            categories behind a swipe nobody is told about — her note of
+            2026-08-16. Two short rows cost about 30px and hide nothing. */}
+        <div className="flex flex-wrap gap-1.5">
           <button
             onClick={() => setActiveCategory('all')}
-            className={`shrink-0 px-3 py-2 sm:px-2.5 sm:py-1.5 rounded-md text-xs font-medium transition-colors ${
+            className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
               activeCategory === 'all' ? 'bg-red-600 text-white' : 'bg-muted text-muted-foreground hover:bg-accent'
             }`}
           >
@@ -376,7 +378,7 @@ export default function MarketingPage() {
             <button
               key={c.key}
               onClick={() => setActiveCategory(c.key)}
-              className={`shrink-0 px-3 py-2 sm:px-2.5 sm:py-1.5 rounded-md text-xs font-medium transition-colors ${
+              className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
                 activeCategory === c.key ? 'bg-red-600 text-white' : 'bg-muted text-muted-foreground hover:bg-accent'
               }`}
             >
