@@ -14,6 +14,7 @@ import { formatTaxId } from '@/lib/tax-id'
 import { addressLines, isEuropeanAddress } from '@/lib/address'
 import { formatTht } from '@/lib/utils'
 import { batchLabel, type OrderBatches } from '@/lib/order-batches'
+import { orderColli } from '@/lib/transport-cargo'
 
 const RED = '#CC0000'
 const DARK = '#1a1a1a'
@@ -82,7 +83,47 @@ interface Props {
 export function CommercialInvoicePDF({ transport, order, company = DEFAULT_COMPANY, batches }: Props) {
   const customer = order.customer as any
   const items: QuoteItem[] = (order.items ?? []) as QuoteItem[]
-  const activeItems = items.filter(i => i.qty > 0)
+
+  /**
+   * What this invoice declares: WHAT IS IN THE TRANSPORT, never what was
+   * ordered.
+   *
+   * Her instruction of 2026-08-19: "Commercial invoice van een Transport is
+   * altijd enkel wat in het transport zit (...) die exact gelijk is aan pakbon,
+   * ook al is ie in de achtergrond gelinkt aan een andere order."
+   *
+   * Customs asks for this next to the packing list and lays the two side by
+   * side. Order 729134 went out with 43 of its 130 bottles, and this document
+   * declared 130 — a value for goods that were not in the container. The order
+   * is still what sets the price; it just no longer sets the quantity.
+   *
+   * A line is priced the way the order prices it: qty × (unit price − discount),
+   * the same arithmetic the order screen uses, so a part shipment is billed at
+   * the agreed price per bottle rather than at a rounded-off share.
+   *
+   * An order nobody has packed out contributes nothing here, exactly as it
+   * contributes nothing to the packing list. The two documents are then both
+   * empty, which is the truth, instead of one of them inventing a load.
+   */
+  const packedQty = new Map<string, number>()
+  for (const colli of orderColli(order)) {
+    for (const line of colli.items) {
+      if (line.qty <= 0) continue
+      packedQty.set(line.sku, (packedQty.get(line.sku) ?? 0) + line.qty)
+    }
+  }
+
+  const activeItems: QuoteItem[] = items
+    .map(item => {
+      const qty = packedQty.get(item.sku) ?? 0
+      return {
+        ...item,
+        qty,
+        line_total: parseFloat((qty * (item.unit_price - (item.discount ?? 0))).toFixed(2)),
+      }
+    })
+    .filter(i => i.qty > 0)
+
   const subtotal = activeItems.reduce((sum, i) => sum + i.line_total, 0)
   // The invoice is in the currency the customer was charged in — that lives on
   // the order, never on the journey.
