@@ -8,6 +8,9 @@ import { useCreateOrder } from '@/hooks/use-orders'
 import { useCustomers } from '@/hooks/use-customers'
 import { useUsers } from '@/hooks/use-users'
 import { useAuth } from '@/contexts/auth-context'
+import { PosPicker } from '@/components/pos-register'
+import { usePosItems, useCustomerPosItems } from '@/hooks/use-pos-items'
+import { posOrderLineFor } from '@/lib/pos'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PriceInput } from '@/components/ui/price-input'
@@ -152,6 +155,17 @@ function NewDeliveryNoteInner() {
   const taxRate = selectedCustomer?.customer_category === 'b2c' ? B2C_TAX_RATE : B2B_TAX_RATE
   const taxLabel = selectedCustomer?.customer_category === 'b2c' ? 'VAT (6%)' : 'VAT (0% — B2B exempt)'
 
+  // POS material going along with this order, as {pos_item_id: qty}.
+  const [posPicked, setPosPicked] = useState<Record<string, number>>({})
+  const { data: posRegister } = useCustomerPosItems(customerId || null)
+
+  // Free lines, so they never touch the subtotal or the tax — those are worked
+  // out from activeItems and stay exactly as they were.
+  const posLines = Object.entries(posPicked).flatMap(([itemId, qty]) => {
+    const row = (posRegister ?? []).find(r => r.pos_item_id === itemId)
+    return row?.item ? [posOrderLineFor(row.item, qty)] : []
+  })
+
   const activeItems = items.filter((i) => i.qty > 0)
   const subtotal = activeItems.reduce((sum, i) => sum + i.line_total, 0)
   const tax = subtotal * taxRate
@@ -175,7 +189,7 @@ function NewDeliveryNoteInner() {
       )
       const order = await createOrder.mutateAsync({
         customer_id: customerId,
-        items: activeItems,
+        items: [...activeItems, ...posLines],
         total,
         status: 'processing',
         assigned_to: assignedTo,
@@ -337,6 +351,16 @@ function NewDeliveryNoteInner() {
               />
               <p className="text-xs text-muted-foreground">Appears in the worker's Agenda</p>
             </div>
+
+            {/* Offers what is registered on THIS reseller. Renders nothing
+                when there is no register yet, so an order for a shop with no
+                POS material looks exactly as it did before. */}
+            <PosPicker
+              customerId={customerId}
+              value={posPicked}
+              onChange={setPosPicked}
+              label="POS material to send along"
+            />
           </CardContent>
         </Card>
 

@@ -150,6 +150,12 @@ export interface Customer {
   active_products: string[]
   table_bottle_return_price: number
   payment_term_days: number
+  /**
+   * @deprecated since migration 088. The racks live in customer_pos_items now,
+   * together with the rest of the POS material. The column is kept so the
+   * carry-over of 28 racks across 14 resellers stays checkable, and so
+   * nothing that still reads it breaks — same treatment as is_international.
+   */
   spika_stands: SpikaStand[]
   status: CustomerStatus
   // Consignment customer: goods stay SPika's until the customer sells them.

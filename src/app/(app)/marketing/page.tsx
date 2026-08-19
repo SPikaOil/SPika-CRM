@@ -19,6 +19,7 @@ import {
   VISIBILITIES, visibilityLabel, campaignPeriod, type Visibility,
 } from '@/lib/marketing'
 import { MarketingAsset } from '@/types'
+import { PosCatalogue } from './_components/pos-catalogue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -75,6 +76,10 @@ export default function MarketingPage() {
 
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState<string>('all')
+  // Downloads or things we ship. Her own sentence made this the split: 'POS is
+  // idd iets wat wij fysiek aanleveren, de rest met links naar drive zijn zaken
+  // die men kan downloaden'. It is a sharper line than any of the categories.
+  const [mode, setMode] = useState<'downloads' | 'physical'>('downloads')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<MarketingAsset | null>(null)
   const [form, setForm] = useState(EMPTY)
@@ -281,7 +286,7 @@ export default function MarketingPage() {
             Everything a retailer needs to sell SPika. Customers see this in their portal.
           </p>
         </div>
-        {canManage && (
+        {canManage && mode === 'downloads' && (
           <div className="flex gap-2 shrink-0">
             <Button onClick={checkAllLinks} size="sm" variant="outline" className="gap-1.5" disabled={sweeping}>
               {sweeping ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
@@ -323,6 +328,24 @@ export default function MarketingPage() {
             className="pl-8 h-8 text-xs"
           />
         </div>
+        {/* Two modes, above the categories. Downloads have a file and a
+            download button; POS material has neither and gets shipped. */}
+        <div className="flex gap-1.5">
+          <button
+            onClick={() => setMode('downloads')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${mode === 'downloads' ? 'bg-foreground text-background border-foreground' : 'hover:bg-accent'}`}
+          >
+            Downloads
+          </button>
+          <button
+            onClick={() => setMode('physical')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${mode === 'physical' ? 'bg-foreground text-background border-foreground' : 'hover:bg-accent'}`}
+          >
+            Physical POS
+          </button>
+        </div>
+        {mode === 'downloads' && (
+        <>
         {/* Wraps on a wide screen, scrolls sideways only on a phone — a
             scrollbar under seven chips on a desktop looked like a defect. */}
         <div className="flex gap-1.5 overflow-x-auto sm:overflow-visible sm:flex-wrap pb-1 sm:pb-0">
@@ -346,9 +369,15 @@ export default function MarketingPage() {
             </button>
           ))}
         </div>
+        </>
+        )}
       </div>
 
-      {/* Grid */}
+      {/* Downloads: the grid. Physical POS: the catalogue. */}
+      {mode === 'physical' ? (
+        <PosCatalogue canManage={canManage} />
+      ) : (
+        <>
       {isLoading ? (
         <div className={ASSET_GRID}>
           {Array.from({ length: 12 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-xl" />)}
@@ -386,6 +415,8 @@ export default function MarketingPage() {
             </section>
           ))}
         </div>
+      )}
+        </>
       )}
 
       {/* Add / edit */}

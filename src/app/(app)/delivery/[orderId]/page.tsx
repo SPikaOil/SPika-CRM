@@ -35,6 +35,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/contexts/auth-context'
+import { PosPicker } from '@/components/pos-register'
+import { useCustomerPosItems } from '@/hooks/use-pos-items'
+import { posOrderLineFor } from '@/lib/pos'
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
 
@@ -184,11 +187,28 @@ export default function DeliveryPage({
   )
   const totalOpen = Array.from(openPerSku.values()).reduce((s, n) => s + n, 0)
 
+  /**
+   * POS material handed over in THIS run.
+   *
+   * On the run and not on the order, because an order can go out in parts: the
+   * display may travel with the first pallet and the refill with the second,
+   * and each packing slip has to say what was actually in that box.
+   */
+  const { data: posRegister } = useCustomerPosItems((order as any)?.customer_id)
+  const [posPicked, setPosPicked] = useState<Record<string, number>>({})
+  const posLines = Object.entries(posPicked).flatMap(([itemId, qty]) => {
+    const row = (posRegister ?? []).find(r => r.pos_item_id === itemId)
+    return row?.item ? [posOrderLineFor(row.item, qty)] : []
+  })
+
   /** The lines going out in this run — what was typed, else everything still open. */
-  const runItems = deliveryItems
+  const goodsItems = deliveryItems
     .map(i => ({ ...i, qty: runQty[i.sku] ?? openPerSku.get(i.sku) ?? 0 }))
     .filter(i => i.qty > 0)
-  const runTotal = runItems.reduce((s, i) => s + i.qty, 0)
+  const runItems = [...goodsItems, ...posLines]
+  // POS is not goods: it must never decide whether the ORDER is complete, or a
+  // free wobbler would mark a half-delivered pallet as fully delivered.
+  const runTotal = goodsItems.reduce((s, i) => s + i.qty, 0)
   /** True when this run empties the order — then it is delivered, not partly. */
   const runCompletesOrder = runTotal >= totalOpen
 
@@ -727,6 +747,15 @@ export default function DeliveryPage({
                   </span>
                 </div>
               </div>
+
+              {/* Picked per RUN, not per order: the display may travel
+                  with the first pallet and the refill with the second. */}
+              <PosPicker
+                customerId={(order as any)?.customer_id}
+                value={posPicked}
+                onChange={setPosPicked}
+                label="POS material in this run"
+              />
 
               {/* Who runs it, and anything worth recording about this run only */}
               <div className="grid gap-3 sm:grid-cols-2">

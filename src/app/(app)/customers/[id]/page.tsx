@@ -19,6 +19,7 @@ import { usePosRequests } from '@/hooks/use-pos-requests'
 import { POS_STATUS_LABELS, POS_STATUS_TONES } from '@/lib/marketing'
 import { useCreateTask } from '@/hooks/use-tasks'
 import { useAuth } from '@/contexts/auth-context'
+import { PosRegister } from '@/components/pos-register'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -30,7 +31,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CustomerForm } from '../_components/customer-form'
 import { ContactLog } from '../_components/contact-log'
-import { Customer, SPIKA_STAND_TYPES } from '@/types'
+import { Customer } from '@/types'
 import { computeOrderRhythm, type OrderRhythm } from '@/lib/order-rhythm'
 
 // ── Order rhythm card ──────────────────────────────────────────────────────
@@ -154,7 +155,7 @@ export default function CustomerDetailPage({
   const { data: portalUsers } = useCustomerPortalUsers(id)
   const { data: posRequests } = usePosRequests({ customerId: id })
   const updateCustomer = useUpdateCustomer()
-  const { isAdmin, profile } = useAuth()
+  const { isAdmin, profile, can } = useAuth()
   const [editing, setEditing] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [isOpeningOB, setIsOpeningOB] = useState(false)
@@ -557,32 +558,14 @@ export default function CustomerDetailPage({
               {customer.discount_agreement && (
                 <Row label="Discount" value={customer.discount_agreement} className="sm:col-span-2" />
               )}
-              {(() => {
-                const stands: any[] = (customer as any).spika_stands ?? []
-                if (stands.length === 0) return null
-                const totalCapacity = stands.reduce((sum: number, s: any) => {
-                  const def = SPIKA_STAND_TYPES.find(st => st.value === s.type)
-                  return sum + (def?.capacity ?? 0) * (s.qty ?? 1)
-                }, 0)
-                return (
-                  <div className="sm:col-span-2">
-                    <p className="text-muted-foreground">SPika Stands</p>
-                    <div className="flex flex-wrap gap-1.5 mt-1">
-                      {stands.map((s: any) => {
-                        const def = SPIKA_STAND_TYPES.find(st => st.value === s.type)
-                        return (
-                          <span key={s.type} className="text-xs bg-muted px-2 py-1 rounded-md font-medium">
-                            {s.qty}× {def?.label ?? s.type}
-                          </span>
-                        )
-                      })}
-                      <span className="text-xs text-muted-foreground self-center ml-1">({totalCapacity} btls total capacity)</span>
-                    </div>
-                  </div>
-                )
-              })()}
             </CardContent>
           </Card>
+
+          {/* What is standing in their shop. Was customers.spika_stands, carried
+              into the register by migration 088. The bottle capacity that used
+              to be shown here is gone on purpose: the name says it. */}
+          <PosRegister customerId={id} canEdit={isAdmin || can('customers.edit')} />
+
 
           {/* Table Bottle Schedule */}
           {customer.track_table_bottles && isAdmin && (
