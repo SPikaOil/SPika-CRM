@@ -94,13 +94,16 @@ export type AssetVisibility = 'all' | 'staff'
  *
  * A shelf talker looked like POS material, but every reseller already owns a
  * shelf-card printer — sending them one is slower than letting them print it.
- * So `prints` is everything they run off themselves (Download), and `pos` is
- * only what we have printed and ship (We need this). Same artwork, different
- * logistics, and the reseller should never have to work out which.
+ * So `prints` is everything they run off themselves. What WE have printed and
+ * ship moved out of this list entirely in 090; it is a pos_items row now.
+ *
+ * Downloads only. There is no 'pos' category any more — physical material lives
+ * in the Physical POS catalogue (pos_items), because those things have no file
+ * to download and a bottle rack has no artwork at all. Migration 090 moved what
+ * was filed under it to 'prints'.
  */
 export const ASSET_CATEGORIES = [
   { key: 'prints',       label: 'Printables',          hint: 'Print it yourself — shelf cards, posters, flyers' },
-  { key: 'pos',          label: 'POS material',        hint: 'We print and ship it — wobblers, table tents, displays' },
   { key: 'photos',       label: 'Product photos',      hint: 'Pack shots, mood and lifestyle photography' },
   { key: 'clips',        label: 'Clips',               hint: 'Short video for social, explainers, recipes' },
   { key: 'brand',        label: 'Logos & brand',       hint: 'Logo variants, colours, do and do-not' },
@@ -150,7 +153,6 @@ export type UseLabel = (typeof USE_LABELS)[number]['key']
  */
 export const DEFAULT_USE_BY_CATEGORY: Record<string, UseLabel | ''> = {
   prints:  'print',
-  pos:     '',
   photos:  'social',
   clips:   'social',
   recipes: 'social',
