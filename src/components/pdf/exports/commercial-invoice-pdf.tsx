@@ -235,18 +235,20 @@ export function CommercialInvoicePDF({ transport, company = DEFAULT_COMPANY, bat
         </View>
 
         {/* Header.
-            Five blocks, not seven, and short labels. At seven the boxes were
-            103pt wide and both the labels and their values broke over two lines
-            — "COUNTRY OF / ORIGIN", "August 19, / 2026". Currency came out
-            because it already sits on every line below, and Order Ref because
-            it repeated the invoice number. */}
+            Five blocks, not seven. At seven each box was 74pt wide and both the
+            labels and their values broke over two lines — "COUNTRY OF / ORIGIN",
+            "August 19, / 2026". Currency came out because it already sits on
+            every line below, and Order Ref because it repeated the invoice
+            number. The labels themselves are untouched: at five blocks each box
+            is 103pt and "COUNTRY OF ORIGIN" needs about 94pt including padding,
+            so the full wording fits. Measured in the generated PDF. */}
         <View style={styles.metaRow}>
           {[
-            { label: 'Invoice #',   value: invoiceNumber },
-            { label: 'Transport #', value: transport.transport_number },
-            { label: 'Export Date', value: exportDate },
-            { label: 'Origin',      value: 'Curaçao' },
-            { label: 'Carrier',     value: transport.carrier?.name ?? '' },
+            { label: 'Invoice #',         value: invoiceNumber },
+            { label: 'Transport #',       value: transport.transport_number },
+            { label: 'Export Date',       value: exportDate },
+            { label: 'Country of Origin', value: 'Curaçao' },
+            { label: 'Carrier',           value: transport.carrier?.name ?? '' },
           ].map(({ label, value }) => (
             <View key={label} style={styles.metaBlock}>
               <Text style={styles.metaLabel}>{label}</Text>
