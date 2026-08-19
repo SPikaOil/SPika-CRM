@@ -33,44 +33,20 @@ import {
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
 import { UserMenu } from './user-menu'
+import { visibleNav } from '@/lib/navigation'
 
-// `permission: null` means everyone signed in sees it. Everything else is
-// governed by the Permissions screen, so an admin decides who sees which tab.
-const allNavItems = [
-  { href: '/dashboard',       label: 'Dashboard',       icon: LayoutDashboard, permission: null                 },
-  { href: '/customers',       label: 'Customers',        icon: Users,           permission: 'customers.view'     },
-  { href: '/leads',           label: 'Leads',            icon: Sprout,          permission: 'leads.view'         },
-  { href: '/quotations',      label: 'Quotations',       icon: ReceiptText,     permission: 'quotations.view'    },
-  { href: '/delivery-notes',  label: 'Delivery Notes',   icon: FileText,        permission: null                 },
-  { href: '/orders',          label: 'Orders',           icon: ShoppingCart,    permission: 'orders.view'        },
-  { href: '/products',         label: 'Products',         icon: Package,         permission: 'products.view'      },
-  { href: '/marketing',       label: 'Marketing',        icon: Megaphone,       permission: 'marketing.view'     },
-  { href: '/campaigns',       label: 'Campaigns',        icon: CalendarRange,   permission: 'marketing.view'     },
-  { href: '/resellers',       label: 'Resellers',        icon: Store,           permission: 'customernames.view' },
-  { href: '/sales-documents', label: 'Sales Docs',       icon: FolderOpen,      permission: 'salesdocs.view'     },
-  { href: '/tasks',           label: 'Tasks',            icon: ClipboardList,   permission: 'tasks.create'       },
-  { href: '/agenda',          label: 'Agenda',           icon: CalendarDays,    permission: null                 },
-  { href: '/reports',         label: 'Reports',          icon: BarChart2,       permission: 'reports.view'       },
-  { href: '/stock',           label: 'Stock & Production',      icon: Droplets,        permission: 'stock.view'         },
-  { href: '/handover',        label: 'Handover Btls',    icon: PackageCheck,    permission: null                 },
-  { href: '/warehouse',       label: 'Warehouse',        icon: Warehouse,       permission: 'warehouse.view'     },
-  { href: '/store-locator',   label: 'Store Locator',    icon: MapPin,          permission: 'storelocator.view'  },
-]
-
-const adminOnlyItems = [
-  { href: '/exports',           label: 'Export',      icon: Ship        },
-  { href: '/portal-management', label: 'Portal',      icon: Globe       },
-  { href: '/team',              label: 'Team',        icon: UserCog     },
-  { href: '/permissions',       label: 'Permissions', icon: ShieldCheck },
-  { href: '/email-preview',     label: 'Emails',      icon: Mail        },
-  { href: '/settings',          label: 'Settings',    icon: Settings    },
-]
+// The list lives in lib/navigation.ts, shared with the phone. There used to be
+// one here and another in bottom-nav.tsx, and Warehouse only ever made it into
+// this one — so on a phone that tab did not exist. One source now.
 
 export function Sidebar() {
   const pathname = usePathname()
   const { isAdmin, can } = useAuth()
 
-  const navItems = allNavItems.filter(i => !i.permission || can(i.permission))
+  const navItems = visibleNav(can, isAdmin).filter(i => !i.adminOnly && i.href !== '/settings'
+    && !['/portal-management', '/team', '/permissions', '/email-preview'].includes(i.href))
+  const adminOnlyItems = visibleNav(can, isAdmin).filter(i => i.adminOnly
+    || ['/portal-management', '/team', '/permissions', '/email-preview', '/settings'].includes(i.href))
 
   return (
     <aside className="hidden lg:flex flex-col w-64 border-r bg-background h-screen sticky top-0">

@@ -33,54 +33,14 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
+import { mobileMainNav, mobileMoreNav } from '@/lib/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useState, type ComponentType } from 'react'
 
-const adminMainItems = [
-  { href: '/dashboard',      label: 'Home',    icon: LayoutDashboard },
-  { href: '/customers',      label: 'Customers', icon: Users },
-  { href: '/delivery-notes', label: 'Notes',   icon: FileText },
-  { href: '/orders',         label: 'Orders',  icon: ShoppingCart },
-]
-
-const salesMainItems = [
-  { href: '/dashboard',       label: 'Home',      icon: LayoutDashboard },
-  { href: '/delivery-notes',  label: 'Notes',     icon: FileText },
-  { href: '/agenda',          label: 'Agenda',    icon: CalendarDays },
-  { href: '/handover',        label: 'Handover',  icon: PackageCheck },
-]
-
-// `permission: null` = visible to anyone signed in; `adminOnly` = owner only.
-type MoreItem = {
-  href: string
-  label: string
-  icon: ComponentType<{ className?: string }>
-  permission: string | null
-  adminOnly?: boolean
-}
-
-const adminMoreItems: MoreItem[] = [
-  { href: '/exports',             label: 'Export',      icon: Ship,          permission: null, adminOnly: true },
-  { href: '/leads',               label: 'Leads',       icon: Sprout,        permission: 'leads.view'        },
-  { href: '/agenda',              label: 'Agenda',      icon: CalendarDays,  permission: null                },
-  { href: '/quotations',          label: 'Quotations',  icon: ReceiptText,   permission: 'quotations.view'   },
-  { href: '/products',            label: 'Products',    icon: Package,       permission: 'products.view'     },
-  { href: '/marketing',           label: 'Marketing',   icon: Megaphone,     permission: 'marketing.view'    },
-  { href: '/campaigns',           label: 'Campaigns',   icon: CalendarRange, permission: 'marketing.view'    },
-  { href: '/resellers',           label: 'Resellers',   icon: Store,         permission: 'customernames.view'},
-  { href: '/sales-documents',     label: 'Sales Docs',  icon: FolderOpen,    permission: 'salesdocs.view'    },
-  { href: '/tasks',               label: 'Tasks',       icon: ClipboardList, permission: 'tasks.create'      },
-  { href: '/reports',              label: 'Reports',     icon: BarChart2,     permission: 'reports.view'      },
-  { href: '/stock',               label: 'Stock',       icon: Droplets,      permission: 'stock.view'        },
-  { href: '/warehouse',           label: 'Warehouse',   icon: Warehouse,     permission: 'warehouse.view'    },
-  { href: '/handover',            label: 'Handover',    icon: PackageCheck,  permission: null                },
-  { href: '/store-locator',       label: 'Locator',     icon: MapPin,        permission: 'storelocator.view' },
-  { href: '/portal-management',   label: 'Portal',      icon: Globe,         permission: 'portal.view'       },
-  { href: '/team',                label: 'Team',        icon: UserCog,       permission: 'team.manage'       },
-  { href: '/permissions',         label: 'Permissions', icon: ShieldCheck,   permission: 'permissions.manage' },
-  { href: '/email-preview',       label: 'Emails',      icon: Mail,          permission: 'settings.view'      },
-  { href: '/settings',            label: 'Settings',    icon: Settings,      permission: 'settings.view'     },
-]
+// Both lists come from lib/navigation.ts, shared with the desktop rail. They
+// used to be maintained separately and drifted: Warehouse was in the sidebar
+// and nowhere here, so the one person that page exists for could not open it
+// on the phone they actually work from.
 
 export function BottomNav() {
   const pathname = usePathname()
@@ -103,10 +63,8 @@ export function BottomNav() {
 
   // Driven by permission, not by "is this the owner" — otherwise a Manager
   // silently drops into the sales layout and loses tabs they may use.
-  const mainItems = can('orders.view') ? adminMainItems : salesMainItems
-  const moreItems = adminMoreItems.filter(i =>
-    (!i.adminOnly || isAdmin) && (!i.permission || can(i.permission))
-  )
+  const mainItems = mobileMainNav(can, isAdmin)
+  const moreItems = mobileMoreNav(can, isAdmin)
 
   // Check if current path is in the "more" menu to highlight the button
   const moreActive = moreItems.some(i => pathname.startsWith(i.href))
@@ -145,7 +103,7 @@ export function BottomNav() {
                   )}
                 >
                   <Icon className="h-5 w-5" />
-                  {item.label}
+                  {item.shortLabel ?? item.label}
                 </Link>
               )
             })}
@@ -197,7 +155,7 @@ export function BottomNav() {
                 )}
               >
                 <Icon className="h-5 w-5" />
-                {item.label}
+                {item.shortLabel ?? item.label}
               </Link>
             )
           })}
