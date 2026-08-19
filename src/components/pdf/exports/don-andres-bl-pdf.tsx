@@ -9,7 +9,7 @@ import {
   Image,
 } from '@react-pdf/renderer'
 import { Transport, QuoteItem } from '@/types'
-import { transportCargo, transportItemTotals } from '@/lib/transport-cargo'
+import { transportCargo, transportPackedTotals } from '@/lib/transport-cargo'
 import { CompanyInfo } from '../delivery-note-pdf'
 import { addressLines, isEuropeanAddress } from '@/lib/address'
 
@@ -79,7 +79,10 @@ export function DonAndresBLPDF({ transport, company = DEFAULT_COMPANY }: Props) 
   // order; the cargo is every order on board, added up.
   const order = (transport.orders ?? [])[0] as any
   const customer = order?.customer as any
-  const items = transportItemTotals(transport) as unknown as QuoteItem[]
+  // What is in the boxes, not what was ordered. A transport carries part of an
+  // order as often as all of it, and a carrier is told what it is actually
+  // carrying — see transportPackedTotals.
+  const items = transportPackedTotals(transport) as unknown as QuoteItem[]
   const cargo = transportCargo(transport)
   const activeItems = items.filter(i => i.qty > 0)
 

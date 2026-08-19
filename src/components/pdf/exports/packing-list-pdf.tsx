@@ -90,11 +90,49 @@ export function PackingListPDF({ transport, order, company = DEFAULT_COMPANY, ba
 
   const thtDate = '—'
 
-  const totalQty = activeItems.reduce((sum, i) => sum + i.qty, 0)
   // Real packing, not an estimate from bottle counts: these are the packages
   // somebody actually filled, with the weights they were given.
   const colli = orderColli(order)
   const colliWeight = orderColliWeight(order)
+
+  /**
+   * What is in the boxes, per product — which is what a packing list is.
+   *
+   * It used to be one row per BOX, and the total underneath came from the
+   * ORDER instead. Order 729134 printed one row saying 43 bottles above a
+   * summary saying 130, on the same sheet: two numbers from two sources, on a
+   * document a carrier and customs read.
+   *
+   * Both come from the packing now, so they cannot disagree. Which box a
+   * product sits in stays — as a column, not as the way the page is built.
+   */
+  const packedBySku = new Map<string, { sku: string; name: string; qty: number; boxes: number[] }>()
+  colli.forEach((c, boxIndex) => {
+    for (const it of c.items) {
+      const row = packedBySku.get(it.sku)
+      if (row) {
+        row.qty += it.qty
+        if (!row.boxes.includes(boxIndex + 1)) row.boxes.push(boxIndex + 1)
+      } else {
+        packedBySku.set(it.sku, { sku: it.sku, name: it.name, qty: it.qty, boxes: [boxIndex + 1] })
+      }
+    }
+  })
+  const packed = Array.from(packedBySku.values())
+  const totalQty = packed.reduce((sum, r) => sum + r.qty, 0)
+
+  /**
+   * Ordered, but not in this shipment.
+   *
+   * A transport is not an order. Send 150 bottles, have a carrier lose a
+   * pallet, and the rest follows on the same order — her words, 2026-08-19.
+   * So the document says what travels AND what is still to come, instead of
+   * implying the order left in one piece.
+   */
+  const backorder = activeItems
+    .map(i => ({ name: i.name, qty: i.qty - (packedBySku.get(i.sku)?.qty ?? 0) }))
+    .filter(r => r.qty > 0)
+  const backorderQty = backorder.reduce((sum, r) => sum + r.qty, 0)
 
   return (
     <Document>
@@ -153,64 +191,78 @@ export function PackingListPDF({ transport, order, company = DEFAULT_COMPANY, ba
           ))}
         </View>
 
-        {/* One row per colli — a packing list should say what is in each box,
-            not what the total happens to divide into. */}
+        {/* One row per PRODUCT, with the box it sits in as a column.
+            A packing list answers "what is in this shipment"; which carton a
+            bottle happens to be in is a detail on that answer, not the way to
+            organise the page. It used to be the other way round. */}
         <View style={styles.tableHeader}>
-          <Text style={[styles.thText, styles.colDesc]}>COLLI / CONTENTS</Text>
+          <Text style={[styles.thText, styles.colDesc]}>PRODUCT</Text>
+          <Text style={[styles.thText, styles.colCartons]}>COLLI</Text>
           <Text style={[styles.thText, styles.colTht]}>THT / BEST BEFORE</Text>
           <Text style={[styles.thText, styles.colQty]}>QTY</Text>
-          <Text style={[styles.thText, styles.colWeight]}>GROSS WEIGHT</Text>
         </View>
 
-        {colli.length === 0 ? (
+        {packed.length === 0 ? (
           <View style={styles.tableRow}>
             <Text style={[styles.tdText, styles.colDesc]}>Not packed out yet</Text>
+            <Text style={[styles.tdText, styles.colCartons]}>—</Text>
             <Text style={[styles.tdText, styles.colTht]}>—</Text>
             <Text style={[styles.tdText, styles.colQty]}>—</Text>
-            <Text style={[styles.tdText, styles.colWeight]}>—</Text>
           </View>
-        ) : colli.map((c, i) => {
-          const qty = c.items.reduce((sum, it) => sum + it.qty, 0)
-          const contents = c.items.length
-            ? c.items.map(it => `${it.name} x${it.qty}`).join(', ')
-            : 'Empty'
-          // The THT belongs to the product, so it is looked up on the order line
-          // this package was filled from.
-          const tht = c.items
-            .map(it => formatTht(items.find(x => x.sku === it.sku)?.tht_date))
-            .filter(Boolean)[0] ?? thtDate
+        ) : packed.map((r, i) => {
+          const line = items.find(x => x.sku === r.sku)
+          const inBox = batches?.[r.sku] ?? []
           return (
-            <View key={i} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]}>
+            <View key={r.sku} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]}>
               <View style={styles.colDesc}>
-                <Text style={styles.tdText}>Colli {i + 1} — {contents}</Text>
-                {/* Which batches are in this box. A box can hold bottles from
-                    two, so every batch behind its contents is named. */}
-                {(() => {
-                  const inBox = Array.from(new Set(
-                    c.items.flatMap(it => (batches?.[it.sku] ?? []))
-                  ))
-                  return inBox.length > 0 ? (
-                    <Text style={{ fontSize: 7, color: GRAY, marginTop: 1 }}>
-                      Batch: {inBox.join(', ')}
-                    </Text>
-                  ) : null
-                })()}
+                <Text style={styles.tdText}>{r.name}</Text>
+                {inBox.length > 0 && (
+                  <Text style={{ fontSize: 7, color: GRAY, marginTop: 1 }}>
+                    Batch: {inBox.join(', ')}
+                  </Text>
+                )}
               </View>
-              <Text style={[styles.tdText, styles.colTht]}>{tht}</Text>
-              <Text style={[styles.tdText, styles.colQty]}>{qty} btls</Text>
-              <Text style={[styles.tdText, styles.colWeight]}>
-                {c.weight_kg === null || c.weight_kg === undefined
-                  ? '—'
-                  : `${Number(c.weight_kg).toFixed(2)} kg`}
+              <Text style={[styles.tdText, styles.colCartons]}>
+                {r.boxes.length === colli.length && colli.length > 1
+                  ? 'all'
+                  : r.boxes.join(', ')}
               </Text>
+              <Text style={[styles.tdText, styles.colTht]}>{formatTht(line?.tht_date) || thtDate}</Text>
+              <Text style={[styles.tdText, styles.colQty]}>{r.qty}</Text>
             </View>
           )
         })}
 
+        {/* What was ordered and is NOT in this box. Named rather than left to
+            arithmetic, because the receiver counting bottles against an order
+            confirmation should not have to work out that more is coming. */}
+        {backorder.length > 0 && (
+          <View style={{ marginTop: 12, borderWidth: 0.5, borderColor: BORDER, borderRadius: 2 }}>
+            <View style={{ backgroundColor: LIGHT, paddingVertical: 4, paddingHorizontal: 6 }}>
+              <Text style={{ fontSize: 8, fontFamily: 'Helvetica-Bold', color: DARK, textTransform: 'uppercase' }}>
+                To follow — back order on {order.order_number}
+              </Text>
+            </View>
+            {backorder.map(r => (
+              <View key={r.name} style={{ flexDirection: 'row', paddingVertical: 4, paddingHorizontal: 6 }}>
+                <Text style={[styles.tdText, styles.colDesc, { color: GRAY }]}>{r.name}</Text>
+                <Text style={[styles.tdText, styles.colQty, { color: GRAY }]}>{r.qty}</Text>
+              </View>
+            ))}
+            <View style={{ flexDirection: 'row', paddingVertical: 4, paddingHorizontal: 6, borderTopWidth: 0.5, borderTopColor: BORDER }}>
+              <Text style={[styles.tdText, styles.colDesc, { fontFamily: 'Helvetica-Bold' }]}>Still to come</Text>
+              <Text style={[styles.tdText, styles.colQty, { fontFamily: 'Helvetica-Bold' }]}>{backorderQty}</Text>
+            </View>
+          </View>
+        )}
+
+
         {/* Summary */}
         <View style={styles.summaryBox}>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Total Bottles</Text>
+            {/* Named for what it counts. "Total bottles" next to a back-order
+                block invites the question this document exists to answer. */}
+            <Text style={styles.summaryLabel}>Bottles in this shipment</Text>
             <Text style={styles.summaryValue}>{totalQty} bottles</Text>
           </View>
           <View style={styles.summaryRow}>

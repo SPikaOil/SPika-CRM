@@ -140,7 +140,14 @@ export function colliQrText(
   return lines.join('\n')
 }
 
-/** Every product across a transport, added up — used by the transport-level documents. */
+/**
+ * Every product ORDERED across a transport, added up.
+ *
+ * @deprecated for documents. Nothing uses it since the bill of lading moved to
+ * transportPackedTotals: a transport carries part of an order as often as all
+ * of it, and a document that counts the order tells the carrier something that
+ * is not in the boxes. Kept for a screen that genuinely wants the order side.
+ */
 export function transportItemTotals(transport: Transport) {
   const totals = new Map<string, { sku: string; name: string; qty: number }>()
   for (const order of transport.orders ?? []) {
@@ -149,6 +156,31 @@ export function transportItemTotals(transport: Transport) {
       const existing = totals.get(item.sku)
       if (existing) existing.qty += item.qty
       else totals.set(item.sku, { sku: item.sku, name: item.name, qty: item.qty })
+    }
+  }
+  return Array.from(totals.values())
+}
+
+/**
+ * Every product actually PACKED across a transport, added up.
+ *
+ * transportItemTotals above sums what was ORDERED, which is a different number
+ * the moment a transport carries part of an order — and it always can. Order
+ * 729134 went out with 43 of its 130 bottles in one box, and the bill of lading
+ * declared 130 because it counted the order rather than the packing.
+ *
+ * A carrier is told what is in the boxes. That is this.
+ */
+export function transportPackedTotals(transport: Transport) {
+  const totals = new Map<string, { sku: string; name: string; qty: number }>()
+  for (const order of transport.orders ?? []) {
+    for (const colli of orderColli(order)) {
+      for (const item of colli.items) {
+        if (item.qty <= 0) continue
+        const existing = totals.get(item.sku)
+        if (existing) existing.qty += item.qty
+        else totals.set(item.sku, { sku: item.sku, name: item.name, qty: item.qty })
+      }
     }
   }
   return Array.from(totals.values())
