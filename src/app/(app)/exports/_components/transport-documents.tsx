@@ -7,24 +7,35 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createClient } from '@/lib/supabase/client'
 import { Transport, Order } from '@/types'
 import { CompanyInfo } from '@/components/pdf/delivery-note-pdf'
-import { buildLabelPages, colliQrText, transportCargo } from '@/lib/transport-cargo'
+import { buildLabelPages, colliQrText, transportCargo, weightsBySku } from '@/lib/transport-cargo'
+import { useProducts } from '@/hooks/use-products'
 import { toast } from 'sonner'
 
-type PerOrder = 'commercial_invoice' | 'packing_list'
-type PerTransport = 'bl' | 'shipping_label'
+type PerOrder = 'commercial_invoice'
+type PerTransport = 'packing_list' | 'bl' | 'shipping_label'
 
 /**
  * The customs paperwork for a transport.
  *
- * Commercial Invoice and Packing List are per ORDER — customs wants one per
- * consignee, and a transport can carry several. The B/L and the shipping labels
- * are per TRANSPORT: the carrier receives one load, and the labels are numbered
- * across it (Colli 1/4 … 4/4).
+ * The Commercial Invoice is per ORDER: it bills a reseller, and a transport can
+ * carry several. Everything else is per TRANSPORT — the carrier receives one
+ * load. The B/L declares it, the labels are numbered across it (Colli 1/4 …
+ * 4/4), and the packing list says what is in it and who receives it.
+ *
+ * The packing list used to be per order, which meant a separate sheet per
+ * reseller for a single load and an order number printed on a document that
+ * carries none. Moved here on 2026-08-19: one transport, one packing list.
  */
 export function TransportDocuments({ transport }: { transport: Transport }) {
   const [busy, setBusy] = useState<string | null>(null)
   const orders = transport.orders ?? []
   const cargo = transportCargo(transport)
+
+  // What a bottle weighs, per sku. The gross weight on the packing list and the
+  // B/L is the packaging typed on each colli plus the bottles inside it, so the
+  // documents need the Products screen. Her instruction of 2026-08-19.
+  const { data: products } = useProducts()
+  const productWeights = weightsBySku(products)
 
   async function company(): Promise<CompanyInfo | undefined> {
     const supabase = createClient()
@@ -42,21 +53,29 @@ export function TransportDocuments({ transport }: { transport: Transport }) {
 
   async function buildOrderDoc(type: PerOrder, order: Order, co?: CompanyInfo) {
     const React = await import('react')
-    if (type === 'commercial_invoice') {
-      const { CommercialInvoicePDF } = await import('@/components/pdf/exports/commercial-invoice-pdf')
-      const b = await (await import('@/lib/order-batches')).fetchOrderBatches(order.id)
-      return React.createElement(CommercialInvoicePDF, { transport, order, company: co, batches: b })
-    }
-    const { PackingListPDF } = await import('@/components/pdf/exports/packing-list-pdf')
+    const { CommercialInvoicePDF } = await import('@/components/pdf/exports/commercial-invoice-pdf')
     const b = await (await import('@/lib/order-batches')).fetchOrderBatches(order.id)
-    return React.createElement(PackingListPDF, { transport, order, company: co, batches: b })
+    return React.createElement(CommercialInvoicePDF, { transport, order, company: co, batches: b })
+  }
+
+  /** The batches of every order on the load, merged into one map for a document
+   *  that has one row per product rather than one per order. */
+  async function transportBatches() {
+    const { fetchOrderBatches, mergeBatches } = await import('@/lib/order-batches')
+    return mergeBatches(await Promise.all(orders.map(o => fetchOrderBatches(o.id))))
   }
 
   async function buildTransportDoc(type: PerTransport, co?: CompanyInfo) {
     const React = await import('react')
+    if (type === 'packing_list') {
+      const { PackingListPDF } = await import('@/components/pdf/exports/packing-list-pdf')
+      return React.createElement(PackingListPDF, {
+        transport, company: co, batches: await transportBatches(), productWeights,
+      })
+    }
     if (type === 'bl') {
       const { DonAndresBLPDF } = await import('@/components/pdf/exports/don-andres-bl-pdf')
-      return React.createElement(DonAndresBLPDF, { transport, company: co })
+      return React.createElement(DonAndresBLPDF, { transport, company: co, productWeights })
     }
     const { ShippingLabelPDF } = await import('@/components/pdf/exports/shipping-label-pdf')
     const QRCode = (await import('qrcode')).default
@@ -74,7 +93,7 @@ export function TransportDocuments({ transport }: { transport: Transport }) {
         ),
       }))
     )
-    return React.createElement(ShippingLabelPDF, { transport, pages, company: co })
+    return React.createElement(ShippingLabelPDF, { transport, pages, company: co, productWeights })
   }
 
   async function download(key: string, build: (co?: CompanyInfo) => Promise<any>, filename: string) {
@@ -110,10 +129,10 @@ export function TransportDocuments({ transport }: { transport: Transport }) {
         const stem = `${safe(order.order_number)}${name ? ` - ${name}` : ''}`
         zip.file(`${stem} - Commercial Invoice.pdf`,
           await pdf((await buildOrderDoc('commercial_invoice', order, co)) as any).toBlob())
-        zip.file(`${stem} - Packing List.pdf`,
-          await pdf((await buildOrderDoc('packing_list', order, co)) as any).toBlob())
       }
 
+      zip.file(`${base} - Packing List.pdf`,
+        await pdf((await buildTransportDoc('packing_list', co)) as any).toBlob())
       zip.file(`${base} - Bill of Lading.pdf`, await pdf((await buildTransportDoc('bl', co)) as any).toBlob())
       if (cargo.colli > 0) {
         zip.file(`${base} - Shipping Labels.pdf`,
@@ -141,7 +160,7 @@ export function TransportDocuments({ transport }: { transport: Transport }) {
           <p className="text-sm text-muted-foreground">Put an order on this transport first</p>
         ) : (
           <>
-            {/* Per order — customs wants one set per consignee */}
+            {/* Per order — an invoice bills one reseller */}
             <div className="space-y-2">
               {orders.map(order => {
                 const name = safe(order.customer?.company_name ?? '')
@@ -160,26 +179,26 @@ export function TransportDocuments({ transport }: { transport: Transport }) {
                           `${stem} - Commercial Invoice.pdf`)}>
                         {spinner(`ci-${order.id}`)}Commercial Invoice
                       </Button>
-                      <Button size="sm" variant="outline" className="h-7 text-xs"
-                        disabled={!!busy}
-                        onClick={() => download(`pl-${order.id}`,
-                          co => buildOrderDoc('packing_list', order, co),
-                          `${stem} - Packing List.pdf`)}>
-                        {spinner(`pl-${order.id}`)}Packing List
-                      </Button>
                     </div>
                   </div>
                 )
               })}
             </div>
 
-            {/* Per transport — one load, one B/L, labels numbered across it */}
+            {/* Per transport — one load, one packing list, one B/L, and labels
+                numbered across it */}
             <div className="rounded-lg border p-2.5 space-y-1.5">
               <p className="text-xs font-semibold flex items-center gap-1.5">
                 <Package className="h-3.5 w-3.5" />
                 Whole transport
               </p>
               <div className="flex gap-2 flex-wrap">
+                <Button size="sm" variant="outline" className="h-7 text-xs"
+                  disabled={!!busy}
+                  onClick={() => download('pl', co => buildTransportDoc('packing_list', co),
+                    `${safe(transport.transport_number)} - Packing List.pdf`)}>
+                  {spinner('pl')}Packing List
+                </Button>
                 <Button size="sm" variant="outline" className="h-7 text-xs"
                   disabled={!!busy}
                   onClick={() => download('bl', co => buildTransportDoc('bl', co),

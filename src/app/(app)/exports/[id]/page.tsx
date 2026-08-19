@@ -17,6 +17,7 @@ import { useAuth } from '@/contexts/auth-context'
 import {
   useTransport, useUpdateTransport, useDeleteTransport, useCarriers,
   useTransportLocations, useCreateTransportLocation, useWarehouseMembers, useExportOrders, useSetOrderTransport,
+  useWarehouseDeliveryAddresses,
 } from '@/hooks/use-transports'
 import { ColliEditor } from '../_components/colli-editor'
 import { OrderPosLine } from '@/components/order-pos-line'
@@ -26,6 +27,8 @@ import { ArrivalCard } from '../_components/arrival-card'
 import { ShortagePanel } from '../_components/shortage-panel'
 import { TransportStatus } from '@/types'
 import { fmtOwnCurrency, formatCurrency, transportQrPayload } from '@/lib/utils'
+import { transportGrossWeight, weightsBySku } from '@/lib/transport-cargo'
+import { useProducts } from '@/hooks/use-products'
 
 const statusColors: Record<TransportStatus, string> = {
   draft:     'bg-gray-100 text-gray-700',
@@ -50,6 +53,9 @@ const EMPTY_LOCATION = {
 // A Select item cannot carry an empty value, so an unmanned address gets one.
 const NOBODY = '__nobody__'
 
+// Same trick for "no drop-off picked" — the load goes to the warehouse itself.
+const WAREHOUSE_ITSELF = '__warehouse__'
+
 export default function TransportDetailPage({
   params,
 }: {
@@ -63,7 +69,10 @@ export default function TransportDetailPage({
   const { data: carriers } = useCarriers()
   const { data: locations } = useTransportLocations()
   const { data: warehouseMembers } = useWarehouseMembers()
+  const { data: dropOffs } = useWarehouseDeliveryAddresses()
   const { data: exportOrders } = useExportOrders()
+  // Bottle weights, for the gross weight of the load.
+  const { data: products } = useProducts()
   const update = useUpdateTransport()
   const remove = useDeleteTransport()
   const createLocation = useCreateTransportLocation()
@@ -102,7 +111,6 @@ export default function TransportDetailPage({
   const freight = num(t.freight_cost)
   const other = num(t.other_costs)
   const totalCost = freight === null && other === null ? null : (freight ?? 0) + (other ?? 0)
-  const totalWeight = num(t.total_weight_kg)
 
   // Colli drives the QR on the shipping label. The count is the number of
   // packages actually packed out per order, so an order nobody has packed yet
@@ -110,11 +118,21 @@ export default function TransportDetailPage({
   const totalColli = orders.reduce((sum, o) => sum + (o.colli_contents?.length ?? 0), 0)
   const unpacked = orders.filter(o => (o.colli_contents?.length ?? 0) === 0).length
 
-  // Weight of the load as weighed per package. The transport keeps its own
-  // manual total as well: the two are filled in by different people at
-  // different moments, and neither should silently overwrite the other.
-  const colliWeight = orders.reduce((sum, o) =>
+  // Gross weight of the load, worked out rather than typed: the packaging of
+  // every box plus the bottles in it, at the weight the Products screen holds.
+  // Her instruction of 2026-08-19. `missing` names any product with no weight
+  // set — those bottles are not counted, so the total is too low and says so.
+  const packagingWeight = orders.reduce((sum, o) =>
     sum + (o.colli_contents ?? []).reduce((s, c) => s + Number(c.weight_kg ?? 0), 0), 0)
+  const gross = transportGrossWeight(t, weightsBySku(products))
+
+  // The doors of THIS warehouse, and the one this load uses. Read from the list
+  // as well as from the joined row so the picker is right on the first paint —
+  // the same lesson as the warehouse trigger above.
+  const dropOffsHere = (dropOffs ?? []).filter(a => a.location_id === t.location_id)
+  const dropOff = t.delivery_address
+    ?? dropOffsHere.find(a => a.id === t.delivery_address_id)
+    ?? null
 
   function save(values: Parameters<typeof update.mutate>[0]['values']) {
     update.mutate({ id, values })
@@ -224,17 +242,37 @@ export default function TransportDetailPage({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs">Delivery address</Label>
+            <Label className="text-xs">Warehouse</Label>
             <Select
               value={t.ship_to === 'warehouse' ? (t.location_id ?? '') : 'customer'}
               onValueChange={(v) => {
                 if (!v) return
                 if (v === '__new') { setAddingLocation(true); return }
-                if (v === 'customer') { save({ ship_to: 'customer', location_id: null }); return }
-                save({ ship_to: 'warehouse', location_id: v })
+                if (v === 'customer') {
+                  save({ ship_to: 'customer', location_id: null, delivery_address_id: null })
+                  return
+                }
+                // A drop-off belongs to one warehouse, so switching warehouse
+                // has to let go of the door as well — otherwise the papers
+                // would print an address that is nowhere near the new one.
+                save({ ship_to: 'warehouse', location_id: v, delivery_address_id: null })
               }}
             >
-              <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
+              {/* The label is written out here rather than left to the Select.
+                  Radix remembers the label of the item that was mounted when
+                  the value was set, and the warehouse list arrives one render
+                  later than the transport does — so the trigger sat there
+                  showing the raw id, 4402b887-904a-..., instead of NBC NL 1.
+                  Read from our own data and it is right on the first paint. */}
+              <SelectTrigger className="h-8 w-full">
+                <SelectValue>
+                  {t.ship_to === 'warehouse'
+                    ? (t.location?.name
+                        ?? (locations ?? []).find(l => l.id === t.location_id)?.name
+                        ?? 'Pick a warehouse')
+                    : 'To the customer'}
+                </SelectValue>
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="customer">To the customer</SelectItem>
                 {(locations ?? []).map(l => (
@@ -250,6 +288,61 @@ export default function TransportDetailPage({
               </p>
             )}
           </div>
+
+          {/* Which door of that warehouse. DPD and the others drop part of a
+              load somewhere else and the warehouse collects it there, so the
+              address on the papers is often not the warehouse's own (095). Only
+              this address is printed — the name in the list is for us. */}
+          {t.ship_to === 'warehouse' && t.location_id && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Delivery address</Label>
+              <Select
+                value={t.delivery_address_id ?? WAREHOUSE_ITSELF}
+                onValueChange={(v) => {
+                  if (!v) return
+                  save({ delivery_address_id: v === WAREHOUSE_ITSELF ? null : v })
+                }}
+              >
+                {/* The picker shows the DISPLAY name — that one is ours. What
+                    actually gets printed is spelled out underneath, so nobody
+                    has to open a PDF to see it. */}
+                <SelectTrigger className="h-8 w-full">
+                  <SelectValue>
+                    {dropOff
+                      ? (dropOff.label || dropOff.name || dropOff.street || 'Delivery address')
+                      : 'The warehouse itself'}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={WAREHOUSE_ITSELF}>The warehouse itself</SelectItem>
+                  {dropOffsHere.map(a => (
+                    <SelectItem key={a.id} value={a.id}>{a.label || a.name || a.street}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {dropOff ? (
+                <p className="text-xs text-muted-foreground">
+                  On the packing list:{' '}
+                  <span className="text-foreground">
+                    {[dropOff.name, dropOff.street,
+                      [dropOff.zip, dropOff.city].filter(Boolean).join(' '), dropOff.country]
+                      .filter(Boolean).join(', ')}
+                  </span>
+                  {!dropOff.name && ' — no name set for this address yet'}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Goes to the warehouse address above.
+                </p>
+              )}
+              {dropOffsHere.length === 0 && (
+                <p className="text-[11px] text-muted-foreground">
+                  No delivery addresses for this warehouse yet — add them under{' '}
+                  <Link href="/settings" className="text-red-600 underline">Settings</Link>.
+                </p>
+              )}
+            </div>
+          )}
 
           {addingLocation && (
             <div className="sm:col-span-2 rounded-lg border p-3 space-y-2">
@@ -331,6 +424,30 @@ export default function TransportDetailPage({
             />
           </div>
 
+          {/* Who the load is addressed to at the other end. Not on the warehouse
+              itself, because it can be someone else every transport. A delivery
+              address carries a default; leaving this empty uses it (095). */}
+          <div className="space-y-1.5">
+            <Label className="text-xs">Attn. — who receives it</Label>
+            <Input
+              key={t.delivery_address_id ?? 'none'}
+              className="h-8"
+              defaultValue={t.receiver_contact ?? ''}
+              placeholder={
+                dropOff?.receiver_contact
+                  ? `${dropOff.receiver_contact} (from the address)`
+                  : 'Name of the contact person at the receiver'
+              }
+              onBlur={e => e.target.value !== (t.receiver_contact ?? '') && save({ receiver_contact: e.target.value })}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Printed on the packing list as &ldquo;Attn.&rdquo;{' '}
+              {dropOff?.receiver_contact
+                ? 'Leave it empty to use the name kept on this delivery address.'
+                : 'Under the receiver.'}
+            </p>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs">ETD — departure</Label>
@@ -357,12 +474,12 @@ export default function TransportDetailPage({
             <Label className="text-xs">Note on the packing list</Label>
             <Input
               className="h-8"
-              defaultValue={(t as any).notes_on_documents ?? ''}
+              defaultValue={t.notes_on_documents ?? ''}
               placeholder="e.g. 3 extra label sheets enclosed"
-              onBlur={e => e.target.value !== ((t as any).notes_on_documents ?? '') && save({ notes_on_documents: e.target.value } as never)}
+              onBlur={e => e.target.value !== (t.notes_on_documents ?? '') && save({ notes_on_documents: e.target.value })}
             />
             <p className="text-[11px] text-muted-foreground">
-              Printed under the goods on every packing list in this transport.
+              Printed under the goods on the packing list of this transport.
             </p>
           </div>
         </CardContent>
@@ -387,17 +504,23 @@ export default function TransportDetailPage({
                 Added up from the packing below
               </p>
             </div>
+            {/* Gross weight is worked out, not typed. Only the packaging of each
+                box is entered, down in the packing; the bottles come from the
+                weight on the Products screen. Her instruction of 2026-08-19.
+                The old hand-typed total is what put 1.00 kg on a load of 42
+                bottles, so the field is gone rather than left to drift. */}
             <div className="space-y-1.5">
-              <Label className="text-xs">Total weight (kg)</Label>
-              <Input type="number" step="0.01" min="0" className="h-8" placeholder="Not filled in"
-                defaultValue={totalWeight ?? ''}
-                onBlur={e => save({ total_weight_kg: e.target.value === '' ? null : Number(e.target.value) })} />
-              {colliWeight > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {colliWeight.toFixed(2)} kg weighed per colli
-                  {totalWeight !== null && Math.abs(colliWeight - totalWeight) > 0.01 && (
-                    <span className="text-amber-600"> — differs from the total above</span>
-                  )}
+              <Label className="text-xs">Gross weight</Label>
+              <p className="h-8 flex items-center font-semibold">
+                {gross.kg > 0 ? `${gross.kg.toFixed(2)} kg` : '—'}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Packaging {packagingWeight.toFixed(2)} kg + contents{' '}
+                {(gross.kg - packagingWeight).toFixed(2)} kg
+              </p>
+              {gross.missing.length > 0 && (
+                <p className="text-xs text-amber-600">
+                  Too low — no Weight (g) on Products for {gross.missing.join(', ')}
                 </p>
               )}
             </div>

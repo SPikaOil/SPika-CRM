@@ -455,11 +455,54 @@ export interface ColliItem {
 /** One package of an order. An order's colli count is how many of these it has. */
 export interface Colli {
   items: ColliItem[]
-  /** Gross weight of this one package in kg. Optional — null = not weighed. */
+  /**
+   * The PACKAGING of this one package in kg — the empty box, the filler, the
+   * tape. Not the gross weight.
+   *
+   * Her instruction of 2026-08-19: this is the only weight anybody types, and
+   * the app works out the rest. The bottles are already listed above, and every
+   * product carries its weight in grams, so gross = this + what is inside it.
+   * Typing a gross weight by hand meant re-typing it every time a box was
+   * repacked, and a customs document is not the place to discover that nobody
+   * did. See colliGrossWeight in lib/transport-cargo.ts.
+   *
+   * Null = not weighed. The bottles still count; only the box is unknown.
+   */
   weight_kg?: number | null
 }
 
 export type TransportStatus = 'draft' | 'ready' | 'submitted' | 'cleared' | 'delivered'
+
+/**
+ * A door a warehouse actually receives goods at (migration 095).
+ *
+ * A warehouse has ONE physical address and can have several of these: carriers
+ * like DPD drop part of a load somewhere else and the warehouse collects it
+ * there. Only this address is printed on the packing list — never the warehouse
+ * name, and never `label`.
+ */
+export interface WarehouseDeliveryAddress {
+  id: string
+  location_id: string
+  /**
+   * DISPLAY NAME — in-app only, e.g. "Warehouse NL 1" or "DPD Rotterdam". How
+   * you recognise this address in a dropdown. NEVER printed on a document. Her
+   * instruction, 2026-08-19. The name that IS printed is `name` below.
+   */
+  label: string
+  /**
+   * The name the goods are addressed to at this door — "NBC", or a person.
+   * PRINTED on the packing list, above the street (096).
+   */
+  name: string
+  street: string
+  zip: string
+  city: string
+  country: string
+  /** Default Attn. here. A transport's own receiver_contact overrides it. */
+  receiver_contact: string
+  created_at: string
+}
 
 /** One of our own warehouse / drop addresses, used when a transport does not go straight to the customer. */
 export interface TransportLocation {
@@ -495,6 +538,22 @@ export interface Transport {
   freight_cost: number | null
   other_costs: number | null
   notes: string
+  /** Printed on the transport's documents. `notes` above is internal (091). */
+  notes_on_documents?: string
+  /**
+   * Attn. — the person the load is addressed to at the receiving end. Printed
+   * on the packing list. It can be someone else every time, which is why it
+   * sits here and not on transport_locations (094).
+   *
+   * Empty falls back to the delivery address's own default (095).
+   */
+  receiver_contact?: string
+  /**
+   * Which door of the warehouse this load goes to (095). Null = the warehouse's
+   * own physical address. Only this address is printed on the packing list.
+   */
+  delivery_address_id?: string | null
+  delivery_address?: WarehouseDeliveryAddress | null
   status: TransportStatus
   /** Whether the load stays at the warehouse as stock, or is only forwarded. */
   stores_at_warehouse?: boolean

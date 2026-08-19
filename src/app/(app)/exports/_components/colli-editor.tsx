@@ -10,13 +10,20 @@ import {
 } from '@/components/ui/select'
 import { Colli, Order, QuoteItem } from '@/types'
 import { useSetOrderColli } from '@/hooks/use-transports'
+import { useProducts } from '@/hooks/use-products'
+import { colliGrossWeight, weightsBySku } from '@/lib/transport-cargo'
 
 /**
  * The packing detail of one order: how many colli it is split into, what is in
- * each of them and what each weighs.
+ * each of them, and what the empty box weighs.
  *
  * The number of colli is the LENGTH of the array — there is no separate count
  * field, so "3 colli" and the three packages below it can never disagree.
+ *
+ * ONE weight is typed here and it is the PACKAGING: the box, the filler, the
+ * tape. The bottles are already listed in the box and every product carries its
+ * weight on the Products screen, so the gross weight is worked out rather than
+ * re-typed after every repack. Her instruction of 2026-08-19.
  *
  * Nothing here is mandatory. A transport can leave with colli that have not
  * been packed out yet; the screen only points out where the packing does not
@@ -25,6 +32,8 @@ import { useSetOrderColli } from '@/hooks/use-transports'
 export function ColliEditor({ order }: { order: Order }) {
   const setColli = useSetOrderColli()
   const [open, setOpen] = useState(false)
+  const { data: products } = useProducts()
+  const weights = weightsBySku(products)
 
   const colli: Colli[] = order.colli_contents ?? []
   const orderItems = ((order.items ?? []) as QuoteItem[]).filter(i => i.qty > 0)
@@ -83,8 +92,16 @@ export function ColliEditor({ order }: { order: Order }) {
     .map(i => ({ name: i.name, ordered: i.qty, inColli: packed.get(i.sku) ?? 0 }))
     .filter(m => m.inColli !== m.ordered)
 
-  const weighed = colli.filter(c => c.weight_kg !== null && c.weight_kg !== undefined)
-  const colliWeight = weighed.reduce((sum, c) => sum + Number(c.weight_kg), 0)
+  // Gross for the whole order: every box plus its contents. `missing` names the
+  // products with no weight on the Products screen — their bottles are simply
+  // not counted, which makes the total too LOW, so it is said out loud instead
+  // of quietly ending up on a customs paper.
+  const grossPerColli = colli.map(c => colliGrossWeight(c, weights))
+  const grossTotal = grossPerColli.reduce((sum, g) => sum + g.kg, 0)
+  const missingWeights = Array.from(new Set(grossPerColli.flatMap(g => g.missing)))
+  const missingNames = missingWeights.map(
+    sku => orderItems.find(i => i.sku === sku)?.name ?? sku,
+  )
 
   return (
     <div className="space-y-2">
@@ -96,7 +113,7 @@ export function ColliEditor({ order }: { order: Order }) {
           {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
           <PackageCheck className="h-3.5 w-3.5" />
           {colli.length} {colli.length === 1 ? 'colli' : 'colli'}
-          {weighed.length > 0 && ` · ${colliWeight.toFixed(2)} kg`}
+          {grossTotal > 0 && ` · ${grossTotal.toFixed(2)} kg gross`}
         </button>
         {colli.length === 0 && (
           <span className="text-xs text-red-600">not packed yet</span>
@@ -121,13 +138,15 @@ export function ColliEditor({ order }: { order: Order }) {
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs font-semibold">Colli {index + 1}</p>
                   <div className="flex items-center gap-1.5">
-                    <Label className="text-xs text-muted-foreground">kg</Label>
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">
+                      Packaging kg
+                    </Label>
                     <Input
                       type="number"
                       step="0.01"
                       min="0"
                       className="h-6 w-20 text-xs text-right px-2"
-                      placeholder="—"
+                      placeholder="0.00"
                       defaultValue={c.weight_kg ?? ''}
                       onBlur={e => setWeight(index, e.target.value)}
                     />
@@ -140,6 +159,17 @@ export function ColliEditor({ order }: { order: Order }) {
                     </button>
                   </div>
                 </div>
+
+                {/* The number that reaches the documents. Shown here so nobody
+                    has to open a PDF to find out what the load weighs. */}
+                <p className="text-xs text-muted-foreground">
+                  Gross{' '}
+                  <span className="font-semibold text-foreground">
+                    {grossPerColli[index].kg.toFixed(2)} kg
+                  </span>{' '}
+                  — packaging {Number(c.weight_kg ?? 0).toFixed(2)} kg + contents{' '}
+                  {(grossPerColli[index].kg - Number(c.weight_kg ?? 0)).toFixed(2)} kg
+                </p>
 
                 {c.items.length === 0 ? (
                   <p className="text-xs text-muted-foreground">Empty</p>
@@ -184,6 +214,23 @@ export function ColliEditor({ order }: { order: Order }) {
               </div>
             )
           })}
+
+          {/* A product with no weight on the Products screen makes the gross
+              weight too low, and too low is the direction that gets a load
+              stopped. Said here rather than discovered on the B/L. */}
+          {missingNames.length > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900 p-2.5">
+              <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-1">
+                Gross weight is too low — no weight set for these
+              </p>
+              {missingNames.map(name => (
+                <p key={name} className="text-xs text-amber-700 dark:text-amber-400">{name}</p>
+              ))}
+              <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                Fill in Weight (g) on the Products screen and this corrects itself.
+              </p>
+            </div>
+          )}
 
           {mismatches.length > 0 && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900 p-2.5">

@@ -25,9 +25,70 @@ export function orderColliCount(order: Order): number {
   return orderColli(order).length
 }
 
-/** Sum of the weights actually filled in for this order's packages. */
+/** Sum of the PACKAGING weights filled in for this order's packages. */
 export function orderColliWeight(order: Order): number {
   return orderColli(order).reduce((sum, c) => sum + Number(c.weight_kg ?? 0), 0)
+}
+
+/** What one bottle weighs, per sku, in GRAMS. Straight off the Products screen. */
+export type ProductWeights = Record<string, number | null | undefined>
+
+/**
+ * The gross weight of one package: the box plus everything in it.
+ *
+ * Her instruction of 2026-08-19 — "ik geef hier in gewicht van de verpakking en
+ * de app rekent adhv info in products". Only the packaging is typed. The
+ * bottles are already listed in the colli and every product carries a weight in
+ * grams, so the document works the total out and cannot fall behind a repack.
+ *
+ * `missing` names the skus with no weight on the Products screen. Their bottles
+ * are simply not in the total, which makes the number too LOW — the one
+ * direction that matters on a customs paper, so it is reported rather than
+ * hidden and the screen says so out loud.
+ */
+export function colliGrossWeight(colli: Colli, weights: ProductWeights) {
+  let kg = Number(colli.weight_kg ?? 0)
+  const missing: string[] = []
+  for (const item of colli.items) {
+    if (item.qty <= 0) continue
+    const grams = weights[item.sku]
+    if (grams === null || grams === undefined || !Number.isFinite(Number(grams))) {
+      if (!missing.includes(item.sku)) missing.push(item.sku)
+      continue
+    }
+    kg += (Number(grams) * item.qty) / 1000
+  }
+  return { kg, missing }
+}
+
+/**
+ * The gross weight of a whole transport: every package, box and contents.
+ *
+ * This is the figure that goes on the packing list and the bill of lading. It
+ * replaces the hand-typed total that used to sit on the transport, which is why
+ * transport 20260801 declared 1.00 kg for 42 bottles — that 1.00 was the empty
+ * box and nobody had added the 5.43 kg inside it.
+ */
+export function transportGrossWeight(transport: Transport, weights: ProductWeights) {
+  let kg = 0
+  const missing: string[] = []
+  for (const order of transport.orders ?? []) {
+    for (const colli of orderColli(order)) {
+      const one = colliGrossWeight(colli, weights)
+      kg += one.kg
+      for (const sku of one.missing) if (!missing.includes(sku)) missing.push(sku)
+    }
+  }
+  return { kg, missing }
+}
+
+/** Product weights in grams, keyed by sku, for the helpers above. */
+export function weightsBySku(
+  products: { sku: string; weight_g: number | null }[] | undefined,
+): ProductWeights {
+  const out: ProductWeights = {}
+  for (const p of products ?? []) out[p.sku] = p.weight_g
+  return out
 }
 
 /** True when at least one package of this order has been weighed. */

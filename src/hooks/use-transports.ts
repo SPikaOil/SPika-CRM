@@ -1,11 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
-import { Transport, TransportLocation, Carrier, Order, Colli } from '@/types'
+import { Transport, TransportLocation, WarehouseDeliveryAddress, Carrier, Order, Colli } from '@/types'
 import { isExportCustomer } from '@/lib/country'
 import { toast } from 'sonner'
 
 const TRANSPORT_SELECT =
-  '*, carrier:carriers(*), location:transport_locations(*), orders:orders(*, customer:customers(*))'
+  '*, carrier:carriers(*), location:transport_locations(*), delivery_address:warehouse_delivery_addresses(*), orders:orders(*, customer:customers(*))'
 
 export function useTransports() {
   const supabase = createClient()
@@ -367,6 +367,78 @@ export function useDeleteTransportLocation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transport_locations'] })
       toast.success('Location removed')
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+}
+
+/**
+ * The doors a warehouse receives at (migration 095).
+ *
+ * A warehouse has one physical address; this is where the goods actually land.
+ * DPD and the others drop part of a load elsewhere and the warehouse collects
+ * it there, so there can be several per warehouse and the transport says which
+ * one this load used.
+ */
+export function useWarehouseDeliveryAddresses() {
+  const supabase = createClient()
+  return useQuery({
+    queryKey: ['warehouse_delivery_addresses'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('warehouse_delivery_addresses')
+        .select('*')
+        .order('label')
+      if (error) throw error
+      return data as WarehouseDeliveryAddress[]
+    },
+  })
+}
+
+export function useSaveWarehouseDeliveryAddress() {
+  const supabase = createClient()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, values }: { id?: string; values: Partial<WarehouseDeliveryAddress> }) => {
+      const { data, error } = id
+        ? await supabase.from('warehouse_delivery_addresses').update(values).eq('id', id).select().single()
+        : await supabase.from('warehouse_delivery_addresses').insert(values).select().single()
+      if (error) throw error
+      return data as WarehouseDeliveryAddress
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['warehouse_delivery_addresses'] })
+      toast.success('Delivery address saved')
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+}
+
+/**
+ * Remove a delivery address.
+ *
+ * Refused while a transport still points at it. The foreign key would null the
+ * column instead, which would silently move a load back to the warehouse
+ * address after its papers were printed from another one.
+ */
+export function useDeleteWarehouseDeliveryAddress() {
+  const supabase = createClient()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { count } = await supabase
+        .from('transports')
+        .select('*', { count: 'exact', head: true })
+        .eq('delivery_address_id', id)
+      if ((count ?? 0) > 0) {
+        throw new Error(`Still in use by ${count} transport(s).`)
+      }
+      const { error } = await supabase.from('warehouse_delivery_addresses').delete().eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['warehouse_delivery_addresses'] })
+      toast.success('Delivery address removed')
     },
     onError: (err: Error) => toast.error(err.message),
   })

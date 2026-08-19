@@ -8,11 +8,11 @@ import {
   Svg,
   Image,
 } from '@react-pdf/renderer'
-import { Transport, Order, QuoteItem } from '@/types'
+import { Transport, QuoteItem } from '@/types'
 import { CompanyInfo } from '../delivery-note-pdf'
-import { addressLines, isEuropeanAddress } from '@/lib/address'
 import { formatTht } from '@/lib/utils'
-import { orderColli, orderColliWeight } from '@/lib/transport-cargo'
+import { orderColli, transportGrossWeight, type ProductWeights } from '@/lib/transport-cargo'
+import { isPosLine } from '@/lib/pos'
 import { type OrderBatches } from '@/lib/order-batches'
 
 const RED = '#CC0000'
@@ -20,6 +20,21 @@ const DARK = '#1a1a1a'
 const GRAY = '#666666'
 const LIGHT = '#f5f5f5'
 const BORDER = '#dddddd'
+
+/**
+ * What a field says when there is nothing to put in it: nothing.
+ *
+ * Her decision of 2026-08-19 — "als niet ingevuld laat leeg staan maar wel op
+ * pakbon, deze zal ingevuld worden". The label stays on the document, the value
+ * is simply blank, and the blank is temporary because the field gets filled in
+ * before the load goes.
+ *
+ * It is a constant rather than a bare '' so this stays one decision in one
+ * place, and so nobody puts an em dash back: the standard Helvetica this
+ * document uses has no glyph for it and react-pdf draws nothing anyway, which
+ * would look identical while pretending to be a placeholder.
+ */
+const NONE = ''
 
 const styles = StyleSheet.create({
   page: {
@@ -48,7 +63,6 @@ const styles = StyleSheet.create({
   colTht: { flex: 2, textAlign: 'center' },
   colQty: { flex: 1.5, textAlign: 'center' },
   colCartons: { flex: 1.5, textAlign: 'center' },
-  colWeight: { flex: 1.5, textAlign: 'right' },
   thText: { fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#ffffff', textTransform: 'uppercase' },
   tdText: { fontSize: 9, color: DARK },
   summaryBox: { marginTop: 14, padding: 10, backgroundColor: LIGHT, borderRadius: 2 },
@@ -68,19 +82,32 @@ const DEFAULT_COMPANY: CompanyInfo = {
   coc_number: '145141',
 }
 
+/**
+ * The packing list of a TRANSPORT.
+ *
+ * One transport, one packing list — her decision of 2026-08-19. A transport can
+ * carry several orders; it cannot have several packing lists. This used to be
+ * built per order, which produced a separate sheet per reseller for one load
+ * and put an order number on a document that has no business carrying one.
+ *
+ * Two things go on it and nothing else: what is in the load, and who receives
+ * it. No order number, no reseller, no prices, no back order. Which orders sit
+ * in the load stays in the system, where the warehouse looks it up. A carrier
+ * and a customs officer are handed the contents and the address.
+ */
 interface Props {
   transport: Transport
-  order: Order
   company?: CompanyInfo
   /** Batch numbers per sku, from the stock movements. Empty prints nothing. */
   batches?: OrderBatches
+  /** What one bottle weighs per sku, in grams, from Products. Drives the gross
+   *  weight together with the packaging weight typed on each colli. */
+  productWeights?: ProductWeights
 }
 
-export function PackingListPDF({ transport, order, company = DEFAULT_COMPANY, batches }: Props) {
-  const customer = order.customer as any
-  const items: QuoteItem[] = (order.items ?? []) as QuoteItem[]
-  const activeItems = items.filter(i => i.qty > 0)
-
+export function PackingListPDF({
+  transport, company = DEFAULT_COMPANY, batches, productWeights = {},
+}: Props) {
   const fmt = (d: Date) =>
     d.toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })
 
@@ -88,51 +115,129 @@ export function PackingListPDF({ transport, order, company = DEFAULT_COMPANY, ba
     ? fmt(new Date(transport.etd + 'T12:00:00'))
     : fmt(new Date())
 
-  const thtDate = '—'
-
-  // Real packing, not an estimate from bottle counts: these are the packages
-  // somebody actually filled, with the weights they were given.
-  const colli = orderColli(order)
-  const colliWeight = orderColliWeight(order)
+  const orders = transport.orders ?? []
 
   /**
-   * What is in the boxes, per product — which is what a packing list is.
+   * What is in the boxes, per product, across the whole load — and which boxes
+   * each product sits in, counted over the transport rather than per order, so
+   * the numbers match the shipping labels on the boxes themselves.
    *
-   * It used to be one row per BOX, and the total underneath came from the
-   * ORDER instead. Order 729134 printed one row saying 43 bottles above a
-   * summary saying 130, on the same sheet: two numbers from two sources, on a
-   * document a carrier and customs read.
-   *
-   * Both come from the packing now, so they cannot disagree. Which box a
-   * product sits in stays — as a column, not as the way the page is built.
+   * Every figure here comes from the packing. The old sheet took its rows from
+   * the boxes and its total from the order, so transport 20260801 printed 43
+   * bottles above a summary that said 130.
    */
   const packedBySku = new Map<string, { sku: string; name: string; qty: number; boxes: number[] }>()
-  colli.forEach((c, boxIndex) => {
-    for (const it of c.items) {
-      const row = packedBySku.get(it.sku)
-      if (row) {
-        row.qty += it.qty
-        if (!row.boxes.includes(boxIndex + 1)) row.boxes.push(boxIndex + 1)
-      } else {
-        packedBySku.set(it.sku, { sku: it.sku, name: it.name, qty: it.qty, boxes: [boxIndex + 1] })
+  let boxNumber = 0
+  for (const order of orders) {
+    for (const colli of orderColli(order)) {
+      boxNumber += 1
+      for (const item of colli.items) {
+        if (item.qty <= 0) continue
+        const row = packedBySku.get(item.sku)
+        if (row) {
+          row.qty += item.qty
+          if (!row.boxes.includes(boxNumber)) row.boxes.push(boxNumber)
+        } else {
+          packedBySku.set(item.sku, {
+            sku: item.sku, name: item.name, qty: item.qty, boxes: [boxNumber],
+          })
+        }
       }
     }
-  })
+  }
   const packed = Array.from(packedBySku.values())
+  const colliCount = boxNumber
   const totalQty = packed.reduce((sum, r) => sum + r.qty, 0)
 
   /**
-   * Ordered, but not in this shipment.
+   * POS material travelling with the load — a stand, a box of wobblers.
    *
-   * A transport is not an order. Send 150 bottles, have a carrier lose a
-   * pallet, and the rest follows on the same order — her words, 2026-08-19.
-   * So the document says what travels AND what is still to come, instead of
-   * implying the order left in one piece.
+   * It rides along rather than sitting in a colli of bottles, so it is not in
+   * the packing above and would otherwise disappear off the document the moment
+   * the packing list stopped printing order lines. It is in the truck, so it is
+   * on the list. Counted apart from the bottles: a stand is not a bottle, and
+   * it is not a colli either.
    */
-  const backorder = activeItems
-    .map(i => ({ name: i.name, qty: i.qty - (packedBySku.get(i.sku)?.qty ?? 0) }))
-    .filter(r => r.qty > 0)
-  const backorderQty = backorder.reduce((sum, r) => sum + r.qty, 0)
+  const posBySku = new Map<string, { sku: string; name: string; qty: number }>()
+  for (const order of orders) {
+    for (const line of (order.items ?? []) as QuoteItem[]) {
+      if (!isPosLine(line) || line.qty <= 0 || packedBySku.has(line.sku)) continue
+      const row = posBySku.get(line.sku)
+      if (row) row.qty += line.qty
+      else posBySku.set(line.sku, { sku: line.sku, name: line.name, qty: line.qty })
+    }
+  }
+  const pos = Array.from(posBySku.values())
+
+  /**
+   * Gross weight: worked out, never typed.
+   *
+   * Every box contributes its packaging weight plus the bottles inside it, at
+   * the weight the Products screen holds for each one. Her instruction of
+   * 2026-08-19. The transport's own total_weight_kg is deliberately ignored —
+   * that hand-typed field is what declared 1.00 kg for 42 bottles.
+   */
+  const gross = transportGrossWeight(transport, productWeights)
+  const grossWeightText = gross.kg > 0 ? `${gross.kg.toFixed(2)} kg` : NONE
+
+  /** THT per product, taken from whichever order line carries it. */
+  const thtFor = (sku: string) => {
+    for (const order of orders) {
+      const line = ((order.items ?? []) as QuoteItem[]).find(i => i.sku === sku)
+      if (line?.tht_date) return formatTht(line.tht_date)
+    }
+    return NONE
+  }
+
+  /**
+   * Who receives this load.
+   *
+   * A transport goes to one address, so there is one consignee. When a delivery
+   * address is picked, THAT address is the consignee and nothing else — the
+   * warehouse's own name stays off the paper.
+   *
+   * Two names live on a delivery address and only one is printed (096):
+   *
+   *   name   who the goods are addressed to there — "NBC", or a person. Printed.
+   *   label  our display name — "Warehouse NL 1". In the app only, never here.
+   *
+   * Her instruction of 2026-08-19: "wel op pakbon naam, maar niet display naam".
+   * A carrier needs a name at the door; it just must not be our internal one.
+   * An address with no `name` prints its street and nothing above it, rather
+   * than quietly falling back to the label she asked to keep off.
+   *
+   * Attn. is the transport's own, falling back to the default kept on the
+   * address. It matters most here: the drop-off is usually not the warehouse,
+   * so the name is what tells the driver who is expecting this.
+   */
+  const drop = transport.delivery_address
+  const attn = (transport.receiver_contact ?? '').trim()
+    || (drop?.receiver_contact ?? '').trim()
+  const receiver: string[] = (() => {
+    if (drop) {
+      return [
+        drop.name,
+        drop.street,
+        [drop.zip, drop.city].filter(Boolean).join(' '),
+        drop.country,
+        attn ? `Attn. ${attn}` : '',
+      ].filter(Boolean)
+    }
+    const loc = transport.location
+    if (transport.ship_to === 'warehouse' && loc) {
+      return [
+        loc.name,
+        loc.street,
+        [loc.zip, loc.city].filter(Boolean).join(' '),
+        loc.country,
+        attn ? `Attn. ${attn}` : '',
+      ].filter(Boolean)
+    }
+    return [
+      transport.destination || NONE,
+      attn ? `Attn. ${attn}` : '',
+    ].filter(Boolean)
+  })()
 
   return (
     <Document>
@@ -162,27 +267,25 @@ export function PackingListPDF({ transport, order, company = DEFAULT_COMPANY, ba
           </View>
           <View style={styles.addressBlock}>
             <Text style={styles.addressLabel}>Consignee</Text>
-            <Text style={[styles.addressLine, { fontFamily: 'Helvetica-Bold' }]}>
-              {customer?.company_name ?? '—'}
-            </Text>
-            <Text style={styles.addressLine}>{customer?.contact_person ?? ''}</Text>
-            {/* Shared layout — see lib/address.ts */}
-            {addressLines(customer?.billing_address as any, isEuropeanAddress(customer?.billing_address as any)).map((line, i) => (
-              <Text key={`p${i}`} style={styles.addressLine}>{line}</Text>
+            {receiver.map((line, i) => (
+              <Text
+                key={`receiver-${i}`}
+                style={i === 0 ? [styles.addressLine, { fontFamily: 'Helvetica-Bold' }] : styles.addressLine}
+              >
+                {line}
+              </Text>
             ))}
-            <Text style={styles.addressLine}>Destination: {transport.destination || '—'}</Text>
           </View>
         </View>
 
-        {/* Meta */}
+        {/* No order number here, on purpose. */}
         <View style={styles.metaRow}>
           {[
-            { label: 'Transport #',    value: transport.transport_number },
-            { label: 'Order #',        value: order.order_number },
-            { label: 'ETD',            value: exportDate },
-            { label: 'Carrier',        value: transport.carrier?.name ?? '—' },
-            { label: 'Total Colli',    value: `${colli.length} colli` },
-            { label: 'Gross Weight',   value: colliWeight > 0 ? `${colliWeight.toFixed(2)} kg` : '—' },
+            { label: 'Transport #',  value: transport.transport_number },
+            { label: 'ETD',          value: exportDate },
+            { label: 'Carrier',      value: transport.carrier?.name ?? NONE },
+            { label: 'Total Colli',  value: `${colliCount}` },
+            { label: 'Gross Weight', value: grossWeightText },
           ].map(({ label, value }) => (
             <View key={label} style={styles.metaBlock}>
               <Text style={styles.metaLabel}>{label}</Text>
@@ -191,10 +294,7 @@ export function PackingListPDF({ transport, order, company = DEFAULT_COMPANY, ba
           ))}
         </View>
 
-        {/* One row per PRODUCT, with the box it sits in as a column.
-            A packing list answers "what is in this shipment"; which carton a
-            bottle happens to be in is a detail on that answer, not the way to
-            organise the page. It used to be the other way round. */}
+        {/* One row per product, with the boxes it sits in. */}
         <View style={styles.tableHeader}>
           <Text style={[styles.thText, styles.colDesc]}>PRODUCT</Text>
           <Text style={[styles.thText, styles.colCartons]}>COLLI</Text>
@@ -202,20 +302,21 @@ export function PackingListPDF({ transport, order, company = DEFAULT_COMPANY, ba
           <Text style={[styles.thText, styles.colQty]}>QTY</Text>
         </View>
 
-        {packed.length === 0 ? (
+        {packed.length === 0 && pos.length === 0 && (
           <View style={styles.tableRow}>
-            <Text style={[styles.tdText, styles.colDesc]}>Not packed out yet</Text>
-            <Text style={[styles.tdText, styles.colCartons]}>—</Text>
-            <Text style={[styles.tdText, styles.colTht]}>—</Text>
-            <Text style={[styles.tdText, styles.colQty]}>—</Text>
+            <Text style={[styles.tdText, styles.colDesc]}>Nothing packed out yet</Text>
+            <Text style={[styles.tdText, styles.colCartons]}>{NONE}</Text>
+            <Text style={[styles.tdText, styles.colTht]}>{NONE}</Text>
+            <Text style={[styles.tdText, styles.colQty]}>{NONE}</Text>
           </View>
-        ) : packed.map((r, i) => {
-          const line = items.find(x => x.sku === r.sku)
-          const inBox = batches?.[r.sku] ?? []
+        )}
+
+        {packed.map((row, i) => {
+          const inBox = batches?.[row.sku] ?? []
           return (
-            <View key={r.sku} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]}>
+            <View key={row.sku} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]}>
               <View style={styles.colDesc}>
-                <Text style={styles.tdText}>{r.name}</Text>
+                <Text style={styles.tdText}>{row.name}</Text>
                 {inBox.length > 0 && (
                   <Text style={{ fontSize: 7, color: GRAY, marginTop: 1 }}>
                     Batch: {inBox.join(', ')}
@@ -223,84 +324,68 @@ export function PackingListPDF({ transport, order, company = DEFAULT_COMPANY, ba
                 )}
               </View>
               <Text style={[styles.tdText, styles.colCartons]}>
-                {r.boxes.length === colli.length && colli.length > 1
-                  ? 'all'
-                  : r.boxes.join(', ')}
+                {row.boxes.length === colliCount && colliCount > 1 ? 'all' : row.boxes.join(', ')}
               </Text>
-              <Text style={[styles.tdText, styles.colTht]}>{formatTht(line?.tht_date) || thtDate}</Text>
-              <Text style={[styles.tdText, styles.colQty]}>{r.qty}</Text>
+              <Text style={[styles.tdText, styles.colTht]}>{thtFor(row.sku)}</Text>
+              <Text style={[styles.tdText, styles.colQty]}>{row.qty}</Text>
             </View>
           )
         })}
 
-        {/* What was ordered and is NOT in this box. Named rather than left to
-            arithmetic, because the receiver counting bottles against an order
-            confirmation should not have to work out that more is coming. */}
-        {backorder.length > 0 && (
-          <View style={{ marginTop: 12, borderWidth: 0.5, borderColor: BORDER, borderRadius: 2 }}>
-            <View style={{ backgroundColor: LIGHT, paddingVertical: 4, paddingHorizontal: 6 }}>
-              <Text style={{ fontSize: 8, fontFamily: 'Helvetica-Bold', color: DARK, textTransform: 'uppercase' }}>
-                To follow — back order on {order.order_number}
-              </Text>
-            </View>
-            {backorder.map(r => (
-              <View key={r.name} style={{ flexDirection: 'row', paddingVertical: 4, paddingHorizontal: 6 }}>
-                <Text style={[styles.tdText, styles.colDesc, { color: GRAY }]}>{r.name}</Text>
-                <Text style={[styles.tdText, styles.colQty, { color: GRAY }]}>{r.qty}</Text>
-              </View>
-            ))}
-            <View style={{ flexDirection: 'row', paddingVertical: 4, paddingHorizontal: 6, borderTopWidth: 0.5, borderTopColor: BORDER }}>
-              <Text style={[styles.tdText, styles.colDesc, { fontFamily: 'Helvetica-Bold' }]}>Still to come</Text>
-              <Text style={[styles.tdText, styles.colQty, { fontFamily: 'Helvetica-Bold' }]}>{backorderQty}</Text>
-            </View>
+        {pos.map((row, i) => (
+          <View
+            key={row.sku}
+            style={[styles.tableRow, (packed.length + i) % 2 === 1 ? styles.tableRowAlt : {}]}
+          >
+            <Text style={[styles.tdText, styles.colDesc]}>{row.name}</Text>
+            <Text style={[styles.tdText, styles.colCartons]}>loose</Text>
+            <Text style={[styles.tdText, styles.colTht]}>{NONE}</Text>
+            <Text style={[styles.tdText, styles.colQty]}>{row.qty}</Text>
           </View>
-        )}
-
+        ))}
 
         {/* Summary */}
         <View style={styles.summaryBox}>
           <View style={styles.summaryRow}>
-            {/* Named for what it counts. "Total bottles" next to a back-order
-                block invites the question this document exists to answer. */}
-            <Text style={styles.summaryLabel}>Bottles in this shipment</Text>
+            <Text style={styles.summaryLabel}>Total Bottles</Text>
             <Text style={styles.summaryValue}>{totalQty} bottles</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Total Colli</Text>
-            <Text style={styles.summaryValue}>{colli.length} colli</Text>
+            <Text style={styles.summaryValue}>{colliCount} colli</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Gross Weight</Text>
-            <Text style={styles.summaryValue}>
-              {colliWeight > 0 ? `${colliWeight.toFixed(2)} kg` : '—'}
-            </Text>
+            <Text style={styles.summaryValue}>{grossWeightText}</Text>
           </View>
         </View>
 
-        {/* Marks & Numbers */}
-        {/* Whatever the receiver has to be told: extra label sheets, a
-            display travelling loose, anything not on a line of its own.
-            transports.notes is NOT this field — that one is internal and has
-            been used as such. See migration 091. */}
-        {!!(transport as any).notes_on_documents && (
+        {/* Whatever the receiver has to be told: extra label sheets, a display
+            travelling loose. transports.notes is NOT this field — that one is
+            internal and stays off every document (091). */}
+        {!!transport.notes_on_documents && (
           <View style={styles.marksBox}>
             <Text style={{ fontSize: 8, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 4 }}>
               Note
             </Text>
-            <Text style={{ fontSize: 9, color: DARK }}>
-              {(transport as any).notes_on_documents}
-            </Text>
+            <Text style={{ fontSize: 9, color: DARK }}>{transport.notes_on_documents}</Text>
           </View>
         )}
 
+        {/* What is written on the outside of the boxes. The receiver and the
+            transport number — never the reseller the goods end up with. */}
         <View style={styles.marksBox}>
           <Text style={{ fontSize: 8, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 4 }}>
             Marks &amp; Numbers
           </Text>
           <Text style={{ fontSize: 8, color: GRAY }}>
-            {customer?.company_name ?? ''}{'\n'}
+            {receiver[0] ?? ''}{'\n'}
             {transport.destination || ''}{'\n'}
-            {transport.transport_number} · {order.order_number}
+            {transport.transport_number}{'\n'}
+            {/* The box numbers written on the load, matching the shipping
+                labels. An en dash drops out of this font the same way an em
+                dash does, so the range is spelled with a hyphen. */}
+            {colliCount > 0 ? `Colli 1-${colliCount}` : ''}
           </Text>
         </View>
 

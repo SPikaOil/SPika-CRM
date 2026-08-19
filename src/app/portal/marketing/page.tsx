@@ -1,9 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Megaphone, Download, Loader2, AlertTriangle, Film, Image as ImageIcon, FileText, Package, PackagePlus, X } from 'lucide-react'
+import { Megaphone, Download, Loader2, Film, Image as ImageIcon, FileText, Package, PackagePlus, X } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
-import { useMarketingAssets, useTrackDownload, isDemoAsset } from '@/hooks/use-marketing-assets'
+import { useMarketingAssets, useTrackDownload } from '@/hooks/use-marketing-assets'
 import { useCreatePosRequest } from '@/hooks/use-pos-requests'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -54,8 +54,6 @@ export default function PortalMarketingPage() {
     )
   }
 
-  const onDemo = (assets ?? []).some(isDemoAsset)
-
   const categoriesInUse = useMemo(
     () => ASSET_CATEGORIES.filter(c => (assets ?? []).some(a => a.category === c.key)),
     [assets]
@@ -80,17 +78,6 @@ export default function PortalMarketingPage() {
           Photos, shelf material and clips to use in your store and on social. Free to use.
         </p>
       </div>
-
-      {onDemo && (
-        <Card className="py-0 border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900">
-          <CardContent className="py-2.5 px-3 flex items-start gap-2.5">
-            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-            <p className="text-[11px] text-amber-900 dark:text-amber-200">
-              Example data — this is the layout, not the real material yet.
-            </p>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Category chips */}
       {categoriesInUse.length > 1 && (

@@ -3,13 +3,13 @@
 import { useMemo, useState } from 'react'
 import {
   Megaphone, Plus, Trash2, Pencil, Download, ExternalLink, Search,
-  AlertTriangle, Lock, Image as ImageIcon, Film, FileText, Package, X, Loader2, CheckCircle2, ShieldCheck,
+  Lock, Image as ImageIcon, Film, FileText, Package, Loader2, CheckCircle2, ShieldCheck,
   Users, CalendarRange, Download as DownloadIcon,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
 import {
   useMarketingAssets, useCreateMarketingAsset, useUpdateMarketingAsset,
-  useDeleteMarketingAsset, isDemoAsset, useAssetAudiences, useSaveAssetAudience,
+  useDeleteMarketingAsset, useAssetAudiences, useSaveAssetAudience,
 } from '@/hooks/use-marketing-assets'
 import { useCampaigns } from '@/hooks/use-campaigns'
 import { useCustomerNames } from '@/hooks/use-customer-names'
@@ -151,8 +151,6 @@ export default function MarketingPage() {
       setLinkMessage('Could not run the check.')
     }
   }
-
-  const onDemo = (assets ?? []).some(isDemoAsset)
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -330,21 +328,6 @@ export default function MarketingPage() {
           </button>
         ))}
       </div>
-
-      {/* Demo banner — disappears by itself once migration 072 has run */}
-      {onDemo && (
-        <Card className="py-0 border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900">
-          <CardContent className="py-1.5 px-2.5 flex items-start gap-2">
-            <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
-            <p className="text-[11px] leading-snug text-amber-900 dark:text-amber-200">
-              <span className="font-semibold">Example data — nothing here is real yet.</span>{' '}
-              <span className="font-normal text-amber-800 dark:text-amber-300/80">
-                The <code>marketing_assets</code> table has not been created. Judge the layout, not the content.
-              </span>
-            </p>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Filters */}
       {/* Search on its own row, like Leads and Customers. Sharing a row with
@@ -700,7 +683,7 @@ export default function MarketingPage() {
           <DialogFooter className="sm:justify-between">
             {/* Only when editing, and only here. Reaching it takes opening the
                 card, scrolling down, tapping, and confirming. */}
-            {editing && !isDemoAsset(editing) ? (
+            {editing ? (
               <Button
                 variant="outline"
                 className="text-red-600 border-red-200 hover:bg-red-50 sm:mr-auto"

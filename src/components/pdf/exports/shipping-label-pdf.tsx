@@ -11,7 +11,7 @@ import {
 import { Transport } from '@/types'
 import { formatPostcode, countryLabel } from '@/lib/address'
 import { CompanyInfo } from '../delivery-note-pdf'
-import { LabelPage } from '@/lib/transport-cargo'
+import { LabelPage, colliGrossWeight, type ProductWeights } from '@/lib/transport-cargo'
 
 const RED = '#CC0000'
 const DARK = '#1a1a1a'
@@ -75,6 +75,8 @@ interface Props {
   /** One entry per package. Each becomes its own page — three colli, three labels. */
   pages: LabelPage[]
   company?: CompanyInfo
+  /** What one bottle weighs per sku, in grams, from Products. */
+  productWeights?: ProductWeights
 }
 
 /**
@@ -86,22 +88,39 @@ interface Props {
  * second copy of something you can already read. It holds what you cannot see
  * without opening the box.
  */
-export function ShippingLabelPDF({ transport, pages, company = DEFAULT_COMPANY }: Props) {
+export function ShippingLabelPDF({
+  transport, pages, company = DEFAULT_COMPANY, productWeights = {},
+}: Props) {
   return (
     <Document>
       {pages.map((page) => {
         const customer = page.order.customer as any
         const location = transport.location
+        // The door this load is actually delivered to, when one is picked (095).
+        // It wins over the warehouse's own address: the box has to arrive where
+        // the carrier drops it, not where it is eventually stored. Its `label`
+        // is in-app only and never goes on a box.
+        const drop = transport.delivery_address
 
-        // Where the box is actually going: our own warehouse when the transport
-        // is routed there, otherwise the customer's own delivery address.
-        const toWarehouse = transport.ship_to === 'warehouse' && location
-        const addr = toWarehouse
-          ? location
-          : (customer?.delivery_address?.street ? customer.delivery_address : customer?.billing_address) ?? {}
+        // Where the box is actually going: the drop-off, else our warehouse when
+        // the transport is routed there, else the customer's own address.
+        const toWarehouse = transport.ship_to === 'warehouse' && (drop || location)
+        const addr = drop
+          ? drop
+          : toWarehouse
+            ? location
+            : (customer?.delivery_address?.street ? customer.delivery_address : customer?.billing_address) ?? {}
 
-        const nameLine = toWarehouse ? location!.name : (customer?.company_name ?? '—')
-        const streetLine = addr?.street ?? ''
+        // A drop-off carries two names and only one may be printed (096): its
+        // `name` is who the goods are addressed to there, its `label` is our own
+        // display name and stays in the app. The warehouse's name stays off the
+        // box too — it would send the driver to the wrong building.
+        const attn = (transport.receiver_contact ?? '').trim()
+          || (drop?.receiver_contact ?? '').trim()
+        const nameLine = drop
+          ? (drop.name || (attn ? `Attn. ${attn}` : (drop.street || '-')))
+          : toWarehouse ? location!.name : (customer?.company_name ?? '-')
+        const streetLine = nameLine === (addr?.street ?? '') ? '' : (addr?.street ?? '')
         const cityLine = [formatPostcode((addr?.zip ?? '').trim()), addr?.city].filter(Boolean).join(' ')
         const destination = countryLabel(
           transport.destination || addr?.country || ''
@@ -149,6 +168,11 @@ export function ShippingLabelPDF({ transport, pages, company = DEFAULT_COMPANY }
                 {toWarehouse ? 'Ship To — Warehouse' : 'Ship To'}
               </Text>
               <Text style={styles.shipToName}>{nameLine}</Text>
+              {/* Who is expected there. Only once — when there is no name of its
+                  own, the Attn. has already been promoted to the line above. */}
+              {attn && nameLine !== `Attn. ${attn}` ? (
+                <Text style={styles.shipToLine}>Attn. {attn}</Text>
+              ) : null}
               {streetLine ? <Text style={styles.shipToLine}>{streetLine}</Text> : null}
               {cityLine ? <Text style={styles.shipToLine}>{cityLine}</Text> : null}
               {destination ? (
@@ -171,9 +195,13 @@ export function ShippingLabelPDF({ transport, pages, company = DEFAULT_COMPANY }
                   <Text style={styles.contentsText}>{item.qty}</Text>
                 </View>
               ))}
-              {page.colli.weight_kg !== null && page.colli.weight_kg !== undefined ? (
+              {/* The GROSS weight of this one box: the packaging typed on it
+                  plus the bottles inside, at the weight the Products screen
+                  holds. It used to print the packaging alone, so a box of 42
+                  bottles said 1.00 kg. Her instruction of 2026-08-19. */}
+              {colliGrossWeight(page.colli, productWeights).kg > 0 ? (
                 <Text style={styles.contentsWeight}>
-                  {Number(page.colli.weight_kg).toFixed(2)} kg
+                  {colliGrossWeight(page.colli, productWeights).kg.toFixed(2)} kg
                 </Text>
               ) : null}
             </View>

@@ -9,7 +9,7 @@ import {
   Image,
 } from '@react-pdf/renderer'
 import { Transport, QuoteItem } from '@/types'
-import { transportCargo, transportPackedTotals } from '@/lib/transport-cargo'
+import { transportCargo, transportPackedTotals, transportGrossWeight, type ProductWeights } from '@/lib/transport-cargo'
 import { CompanyInfo } from '../delivery-note-pdf'
 import { addressLines, isEuropeanAddress } from '@/lib/address'
 
@@ -72,9 +72,13 @@ interface Props {
   /** One B/L per transport — the carrier receives the whole load, not one order. */
   transport: Transport
   company?: CompanyInfo
+  /** What one bottle weighs per sku, in grams, from Products. */
+  productWeights?: ProductWeights
 }
 
-export function DonAndresBLPDF({ transport, company = DEFAULT_COMPANY }: Props) {
+export function DonAndresBLPDF({
+  transport, company = DEFAULT_COMPANY, productWeights = {},
+}: Props) {
   // A transport goes to one address, so the consignee is taken from its first
   // order; the cargo is every order on board, added up.
   const order = (transport.orders ?? [])[0] as any
@@ -96,7 +100,12 @@ export function DonAndresBLPDF({ transport, company = DEFAULT_COMPANY }: Props) 
   const totalQty = activeItems.reduce((sum, i) => sum + i.qty, 0)
   // Packages and weight come from the real packing, never from a bottle count.
   const totalColli = cargo.colli
-  const totalWeight = cargo.weight
+  // Gross weight is worked out, not typed: the packaging weight of every box
+  // plus the bottles inside it, at the weight the Products screen holds. Same
+  // rule as the packing list, so the two papers on one load agree. Her
+  // instruction of 2026-08-19.
+  const gross = transportGrossWeight(transport, productWeights)
+  const totalWeight = gross.kg > 0 ? gross.kg : null
 
   const isDonAndres = transport.carrier?.bl_template === 'don_andres'
   const portOfDischarge = transport.destination || (isDonAndres ? 'Bonaire' : '—')

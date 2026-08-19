@@ -43,6 +43,26 @@ export async function fetchOrderBatches(orderId: string | null | undefined): Pro
   return out
 }
 
+/**
+ * The batches of several orders as one map, for a document that covers a whole
+ * transport rather than one order — the packing list, since 2026-08-19.
+ *
+ * A transport can carry the same product out of two orders picked from two
+ * different batches. The row on the packing list is one row, so it has to name
+ * both.
+ */
+export function mergeBatches(all: OrderBatches[]): OrderBatches {
+  const out: OrderBatches = {}
+  for (const one of all) {
+    for (const [sku, numbers] of Object.entries(one)) {
+      const list = out[sku] ?? []
+      for (const n of numbers) if (!list.includes(n)) list.push(n)
+      out[sku] = list
+    }
+  }
+  return out
+}
+
 /** The batch numbers for one product line, ready to print. Empty string when none. */
 export function batchLabel(batches: OrderBatches | undefined, sku: string): string {
   const list = batches?.[sku] ?? []
