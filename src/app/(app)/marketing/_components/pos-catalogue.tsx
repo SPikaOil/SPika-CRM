@@ -1,8 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Package, Plus, Pencil, Trash2, Link2, PackageX } from 'lucide-react'
+import { Package, Plus, Pencil, Trash2, Link2, PackageX, X, ImageOff } from 'lucide-react'
+import { toast } from 'sonner'
 import { POS_KINDS, posKindLabel } from '@/lib/pos'
+import { parseDriveId, driveThumbnail, drivePreviewUrl } from '@/lib/marketing'
 import {
   usePosItems, useSavePosItem, useDeletePosItem, type PosItem,
 } from '@/hooks/use-pos-items'
@@ -24,6 +26,7 @@ import {
 const EMPTY = {
   name: '', kind: 'display' as string, sku: '', asset_id: '',
   is_available: true, notes: '', sort_order: 0,
+  photos: [] as string[],
 }
 
 /**
@@ -43,10 +46,12 @@ export function PosCatalogue({ canManage }: { canManage: boolean }) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<PosItem | null>(null)
   const [form, setForm] = useState(EMPTY)
+  const [photoDraft, setPhotoDraft] = useState('')
 
   function openNew() {
     setEditing(null)
     setForm(EMPTY)
+    setPhotoDraft('')
     setDialogOpen(true)
   }
 
@@ -60,8 +65,23 @@ export function PosCatalogue({ canManage }: { canManage: boolean }) {
       is_available: item.is_available,
       notes: item.notes ?? '',
       sort_order: item.sort_order,
+      photos: item.photos ?? [],
     })
+    setPhotoDraft('')
     setDialogOpen(true)
+  }
+
+  /**
+   * Paste a Drive link, get a file id. Refuses anything else rather than
+   * storing a row that renders a broken image later — the same check the asset
+   * form makes, and the same reason.
+   */
+  function addPhoto() {
+    const id = parseDriveId(photoDraft)
+    if (!id) { toast.error('That does not look like a Google Drive link'); return }
+    if (form.photos.includes(id)) { toast.error('That photo is already on this item'); return }
+    setForm(f => ({ ...f, photos: [...f.photos, id] }))
+    setPhotoDraft('')
   }
 
   function handleSave() {
@@ -77,6 +97,7 @@ export function PosCatalogue({ canManage }: { canManage: boolean }) {
         is_available: form.is_available,
         notes: form.notes.trim(),
         sort_order: form.sort_order,
+        photos: form.photos,
       },
       { onSuccess: () => setDialogOpen(false) },
     )
@@ -119,12 +140,23 @@ export function PosCatalogue({ canManage }: { canManage: boolean }) {
               const artwork = (assets ?? []).find(a => a.id === item.asset_id)
               return (
                 <div key={item.id} className="flex items-center gap-3 px-3 py-2.5">
-                  <div className={`h-8 w-8 rounded-md flex items-center justify-center shrink-0 ${
-                    item.is_available ? 'bg-muted' : 'bg-muted/50'
+                  {/* The photo IS the point of the catalogue: a name like "12
+                      bottles (one side)" says nothing about what turns up. */}
+                  <div className={`h-11 w-11 rounded-md overflow-hidden flex items-center justify-center shrink-0 border ${
+                    item.is_available ? 'bg-muted' : 'bg-muted/50 opacity-60'
                   }`}>
-                    {item.is_available
-                      ? <Package className="h-4 w-4" />
-                      : <PackageX className="h-4 w-4 text-muted-foreground" />}
+                    {(item.photos ?? []).length > 0 ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={driveThumbnail(item.photos[0], 120)}
+                        alt={item.name}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : item.is_available ? (
+                      <Package className="h-4 w-4" />
+                    ) : (
+                      <PackageX className="h-4 w-4 text-muted-foreground" />
+                    )}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className={`text-sm font-medium truncate ${!item.is_available ? 'text-muted-foreground' : ''}`}>
@@ -138,6 +170,7 @@ export function PosCatalogue({ canManage }: { canManage: boolean }) {
                           {artwork.title}
                         </span>
                       )}
+                      {(item.photos ?? []).length > 1 && <span>· {item.photos.length} photos</span>}
                       {item.notes && <span className="truncate">· {item.notes}</span>}
                     </p>
                   </div>
@@ -220,6 +253,62 @@ export function PosCatalogue({ canManage }: { canManage: boolean }) {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Photos of the finished object, not the print file. A rack has
+                no artwork but does have a picture; a wobbler has both, and they
+                are different things. Drive links, like everything else here. */}
+            <div className="space-y-1.5">
+              <Label>
+                Photos{' '}
+                <span className="text-muted-foreground text-xs font-normal">
+                  (what it looks like — folded, built, in a shop)
+                </span>
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  value={photoDraft}
+                  onChange={e => setPhotoDraft(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addPhoto() } }}
+                  placeholder="Paste a Google Drive link"
+                />
+                <Button type="button" variant="outline" onClick={addPhoto}>Add</Button>
+              </div>
+              {form.photos.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {form.photos.map((id, i) => (
+                    <div key={id} className="relative group">
+                      <a href={drivePreviewUrl(id)} target="_blank" rel="noopener noreferrer">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={driveThumbnail(id, 200)}
+                          alt={`Photo ${i + 1}`}
+                          className="h-16 w-16 rounded-md object-cover border"
+                        />
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, photos: f.photos.filter(x => x !== id) }))}
+                        className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-background border flex items-center justify-center hover:bg-red-50 hover:border-red-200 hover:text-red-600"
+                        aria-label="Remove photo"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                      {i === 0 && (
+                        <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] text-center rounded-b-md">
+                          thumbnail
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {form.photos.length === 0 && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <ImageOff className="h-3 w-3" />
+                  No photo yet — the list shows a plain box icon instead.
+                </p>
+              )}
             </div>
 
             <div className="space-y-1.5">

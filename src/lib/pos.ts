@@ -31,6 +31,11 @@ export function posKindLabel(key: string | null | undefined): string {
  * The sku comes from the CATALOGUE, not from the name. Until now it was derived
  * from an asset title, which meant rewording an item quietly produced a
  * different sku on the next order and the two could never be counted together.
+ *
+ * NO PHOTO, deliberately. Her instruction of 2026-08-16: the photos are for the
+ * app only and must never reach an invoice or a packing slip. This function is
+ * the single door between the catalogue and a document, so the rule is enforced
+ * by what it returns — six fields, none of them an image.
  */
 export function posOrderLineFor(item: { sku?: string | null; name: string }, qty: number) {
   return {

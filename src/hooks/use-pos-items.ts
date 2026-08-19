@@ -11,6 +11,8 @@ export interface PosItem {
   kind: PosKind
   sku: string | null
   asset_id: string | null
+  /** Drive file ids showing what it looks like. First one is the thumbnail. */
+  photos: string[]
   is_available: boolean
   notes: string
   sort_order: number

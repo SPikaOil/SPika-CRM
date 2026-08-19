@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Package, Plus, Trash2, X } from 'lucide-react'
 import { posKindLabel } from '@/lib/pos'
+import { driveThumbnail } from '@/lib/marketing'
 import {
   usePosItems, useCustomerPosItems, useSaveCustomerPosItem, useDeleteCustomerPosItem,
 } from '@/hooks/use-pos-items'
@@ -107,6 +108,20 @@ export function PosRegister({ customerId, canEdit }: { customerId: string; canEd
           <div className="divide-y">
             {(register ?? []).map(row => (
               <div key={row.id} className="flex items-center gap-2 py-1.5">
+                {/* On screen only. The €0 line that reaches a packing slip
+                    carries a name and a quantity and nothing else. */}
+                {(row.item?.photos ?? []).length > 0 ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={driveThumbnail(row.item!.photos[0], 100)}
+                    alt={row.item?.name ?? ''}
+                    className="h-9 w-9 rounded-md object-cover border shrink-0"
+                  />
+                ) : (
+                  <div className="h-9 w-9 rounded-md border bg-muted flex items-center justify-center shrink-0">
+                    <Package className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                )}
                 <span className="text-sm font-medium w-8 shrink-0">{row.qty}×</span>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm truncate">{row.item?.name ?? 'Unknown item'}</p>
@@ -142,6 +157,11 @@ export function PosRegister({ customerId, canEdit }: { customerId: string; canEd
  * Offers what is registered on this reseller. Everything picked becomes a €0
  * line, which is why it lands on the packing slip without anything extra: the
  * delivery note PDF prints the lines it is given.
+ *
+ * The photo stays here on screen. Her instruction of 2026-08-16: photos are for
+ * the app, never for an invoice or a packing slip. posOrderLineFor() returns
+ * six fields and none of them is an image, so a document could not carry one
+ * even if somebody tried.
  */
 export function PosPicker({
   customerId, value, onChange, label = 'POS material with this delivery',
@@ -175,6 +195,14 @@ export function PosPicker({
                   onChange(next)
                 }}
               />
+              {(row.item?.photos ?? []).length > 0 && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={driveThumbnail(row.item!.photos[0], 80)}
+                  alt=""
+                  className="h-7 w-7 rounded object-cover border shrink-0"
+                />
+              )}
               <span className="text-sm flex-1 truncate">{row.item?.name ?? 'Unknown item'}</span>
               <span className="text-xs text-muted-foreground shrink-0">has {row.qty}</span>
               {picked > 0 && (
