@@ -95,7 +95,7 @@ export function TransportDocuments({ transport }: { transport: Transport }) {
         ),
       }))
     )
-    return React.createElement(ShippingLabelPDF, { transport, pages, company: co, productWeights })
+    return React.createElement(ShippingLabelPDF, { transport, pages, company: co })
   }
 
   async function download(key: string, build: (co?: CompanyInfo) => Promise<any>, filename: string) {

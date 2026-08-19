@@ -11,7 +11,7 @@ import {
 import { Transport } from '@/types'
 import { formatPostcode, countryLabel } from '@/lib/address'
 import { CompanyInfo } from '../delivery-note-pdf'
-import { LabelPage, colliGrossWeight, type ProductWeights } from '@/lib/transport-cargo'
+import { LabelPage } from '@/lib/transport-cargo'
 
 const RED = '#CC0000'
 const DARK = '#1a1a1a'
@@ -61,10 +61,6 @@ const styles = StyleSheet.create({
   shipToName: { fontSize: 30, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 2, lineHeight: 1.1 },
   shipToLine: { fontSize: 22, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 1, lineHeight: 1.15 },
 
-  contentsLabel: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: GRAY, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 3 },
-  contentsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 0 },
-  contentsText: { fontSize: 9, color: DARK },
-  contentsWeight: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: DARK, marginTop: 1 },
 })
 
 const DEFAULT_COMPANY: CompanyInfo = {
@@ -82,8 +78,6 @@ interface Props {
   /** One entry per package. Each becomes its own page — three colli, three labels. */
   pages: LabelPage[]
   company?: CompanyInfo
-  /** What one bottle weighs per sku, in grams, from Products. */
-  productWeights?: ProductWeights
 }
 
 /**
@@ -95,9 +89,7 @@ interface Props {
  * second copy of something you can already read. It holds what you cannot see
  * without opening the box.
  */
-export function ShippingLabelPDF({
-  transport, pages, company = DEFAULT_COMPANY, productWeights = {},
-}: Props) {
+export function ShippingLabelPDF({ transport, pages, company = DEFAULT_COMPANY }: Props) {
   return (
     <Document>
       {pages.map((page) => {
@@ -212,29 +204,11 @@ export function ShippingLabelPDF({
               <Image src="/fragile-icons.jpg" style={{ width: 288, height: 150, objectFit: 'contain' }} />
             </View>
 
-            {/* What is in THIS box */}
-            <View style={{ marginTop: 6 }}>
-              <Text style={styles.contentsLabel}>
-                Contents · Order {page.order.order_number}
-              </Text>
-              {page.colli.items.length === 0 ? (
-                <Text style={styles.contentsText}>Not packed out</Text>
-              ) : page.colli.items.map((item) => (
-                <View key={item.sku} style={styles.contentsRow}>
-                  <Text style={styles.contentsText}>{item.name}</Text>
-                  <Text style={styles.contentsText}>{item.qty}</Text>
-                </View>
-              ))}
-              {/* The GROSS weight of this one box: the packaging typed on it
-                  plus the bottles inside, at the weight the Products screen
-                  holds. It used to print the packaging alone, so a box of 42
-                  bottles said 1.00 kg. Her instruction of 2026-08-19. */}
-              {colliGrossWeight(page.colli, productWeights).kg > 0 ? (
-                <Text style={styles.contentsWeight}>
-                  {colliGrossWeight(page.colli, productWeights).kg.toFixed(2)} kg
-                </Text>
-              ) : null}
-            </View>
+            {/* The contents used to be printed here as well — order number,
+                every product with its quantity, and the weight. Off the sheet
+                since 2026-08-19: it is already in the QR, and a label is read
+                from a distance while a scan answers "what is in this one?".
+                Printing it twice only made the label taller. */}
 
             {transport.carrier ? (
               <Text style={{ fontSize: 9, color: GRAY, marginTop: 6 }}>
