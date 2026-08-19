@@ -13,6 +13,7 @@ import { useBatchStock } from '@/hooks/use-batches'
 import { formatTht } from '@/lib/utils'
 import { SPIKA_PRODUCTS } from '@/lib/products'
 import { ShopifyWeekCard } from '../stock/_components/shopify-week-card'
+import { PosStockPanel } from '@/components/pos-stock-panel'
 
 /**
  * What is actually sitting in the warehouses, and what is on its way there.
@@ -205,6 +206,11 @@ export default function WarehousePage() {
           is booked on this page — pick the transport it came in on, or say it
           left Curaçao straight away. */}
       <ShopifyWeekCard />
+
+      {/* Displays and wobblers live on the same shelves as the bottles, so they
+          are counted on the same page. Their own table though — a rack has no
+          batch and no sku, which is why stock_movements could never hold it. */}
+      <PosStockPanel />
     </div>
   )
 }

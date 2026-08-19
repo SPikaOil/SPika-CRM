@@ -317,6 +317,44 @@ export default function DeliveryPage({
    * It follows the RUN, not the order — a partial delivery only takes out what
    * physically went out, and the rest stays on the shelf over there.
    */
+  /**
+   * Book the POS material out of stock when it is handed over.
+   *
+   * The bottles already come off the warehouse on this screen; a display that
+   * travelled with them has to leave too, or the count on the shelf and the
+   * count in the app start drifting apart from the very first delivery.
+   *
+   * Best-effort on purpose. A delivery that has been signed for happened,
+   * whatever the stock table thinks, and a failure here must never leave the
+   * driver stuck at the door — the same reasoning as bookOffWarehouse.
+   */
+  async function bookOutPosMaterial() {
+    const picked = Object.entries(posPicked)
+    if (picked.length === 0) return
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const rows = picked.map(([pos_item_id, qty]) => ({
+        pos_item_id,
+        qty: -Math.abs(qty),
+        reason: 'to_customer',
+        // Where it physically left from: the warehouse when the transport
+        // stored there, otherwise Curacao.
+        location_id: (order as never as { transport?: { location_id?: string | null; stores_at_warehouse?: boolean } })
+          .transport?.stores_at_warehouse
+          ? (order as never as { transport?: { location_id?: string | null } }).transport?.location_id ?? null
+          : null,
+        order_id: orderId,
+        customer_id: (order as never as { customer_id?: string }).customer_id ?? null,
+        created_by: user?.id ?? null,
+      }))
+      await supabase.from('pos_movements').insert(rows)
+    } catch {
+      // Recorded nowhere else, so it is worth knowing about, but never worth
+      // failing a signed delivery over.
+      console.warn('[pos] could not book the POS material out of stock')
+    }
+  }
+
   async function bookOffWarehouse() {
     const transportId = (order as any)?.transport_id
     if (!transportId) return
@@ -493,6 +531,7 @@ export default function DeliveryPage({
         } as any).eq('id', orderId)
 
         await bookOffWarehouse()
+        await bookOutPosMaterial()
 
         // Tell OURSELVES, never the customer. Danique, 2026-08-14: the e-mail
         // addresses on a customer card are ours for internal use, and a customer
