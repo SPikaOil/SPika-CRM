@@ -8,10 +8,8 @@ import {
   Svg,
   Image,
 } from '@react-pdf/renderer'
-import { Transport, Order, QuoteItem } from '@/types'
+import { Transport, QuoteItem } from '@/types'
 import { CompanyInfo } from '../delivery-note-pdf'
-import { formatTaxId } from '@/lib/tax-id'
-import { addressLines, isEuropeanAddress } from '@/lib/address'
 import { formatTht } from '@/lib/utils'
 import { batchLabel, type OrderBatches } from '@/lib/order-batches'
 import { orderColli } from '@/lib/transport-cargo'
@@ -72,62 +70,120 @@ const DEFAULT_COMPANY: CompanyInfo = {
   coc_number: '145141',
 }
 
+/**
+ * The commercial invoice of a TRANSPORT.
+ *
+ * One per transport, like the packing list, and customs must be able to lay the
+ * two side by side and see the same load twice. Her instruction of 2026-08-19:
+ * "Commercial invoice van een Transport is altijd enkel wat in het transport
+ * zit (...) die exact gelijk is aan pakbon", and then plainly: "de order is
+ * niet leidend in een transport."
+ *
+ * So the consignee is the address the load actually goes to — the delivery
+ * address of the warehouse — and not the reseller who happens to have bought
+ * the goods. The orders behind it still set every price; they set nothing else.
+ */
 interface Props {
   transport: Transport
-  order: Order
   company?: CompanyInfo
-  /** Batch numbers per sku, from the stock movements. Empty prints nothing. */
+  /** Batch numbers per sku across the whole load. Empty prints nothing. */
   batches?: OrderBatches
 }
 
-export function CommercialInvoicePDF({ transport, order, company = DEFAULT_COMPANY, batches }: Props) {
-  const customer = order.customer as any
-  const items: QuoteItem[] = (order.items ?? []) as QuoteItem[]
+export function CommercialInvoicePDF({ transport, company = DEFAULT_COMPANY, batches }: Props) {
+  const orders = transport.orders ?? []
 
   /**
-   * What this invoice declares: WHAT IS IN THE TRANSPORT, never what was
-   * ordered.
+   * What this invoice declares: WHAT IS IN THE CONTAINER.
    *
-   * Her instruction of 2026-08-19: "Commercial invoice van een Transport is
-   * altijd enkel wat in het transport zit (...) die exact gelijk is aan pakbon,
-   * ook al is ie in de achtergrond gelinkt aan een andere order."
+   * Every product packed across every order on board, added up, priced the way
+   * the order carrying it prices it: qty × (unit price − discount), the same
+   * arithmetic the order screen uses. A part shipment is then billed at the
+   * agreed price per bottle rather than at a rounded-off share.
    *
-   * Customs asks for this next to the packing list and lays the two side by
-   * side. Order 729134 went out with 43 of its 130 bottles, and this document
-   * declared 130 — a value for goods that were not in the container. The order
-   * is still what sets the price; it just no longer sets the quantity.
+   * It used to bill one whole ORDER. Transport 20260801 handed customs a
+   * packing list saying 42 bottles and an invoice saying 130 — a declared value
+   * for goods that were not in the container.
    *
-   * A line is priced the way the order prices it: qty × (unit price − discount),
-   * the same arithmetic the order screen uses, so a part shipment is billed at
-   * the agreed price per bottle rather than at a rounded-off share.
-   *
-   * An order nobody has packed out contributes nothing here, exactly as it
-   * contributes nothing to the packing list. The two documents are then both
-   * empty, which is the truth, instead of one of them inventing a load.
+   * An order nobody has packed out contributes nothing, exactly as it
+   * contributes nothing to the packing list. Both documents are then empty,
+   * which is the truth.
    */
-  const packedQty = new Map<string, number>()
-  for (const colli of orderColli(order)) {
-    for (const line of colli.items) {
-      if (line.qty <= 0) continue
-      packedQty.set(line.sku, (packedQty.get(line.sku) ?? 0) + line.qty)
+  const billed = new Map<string, QuoteItem>()
+  for (const order of orders) {
+    const lines = (order.items ?? []) as QuoteItem[]
+    for (const colli of orderColli(order)) {
+      for (const packed of colli.items) {
+        if (packed.qty <= 0) continue
+        const line = lines.find(l => l.sku === packed.sku)
+        const unit = line?.unit_price ?? 0
+        const discount = line?.discount ?? 0
+        const value = packed.qty * (unit - discount)
+        const existing = billed.get(packed.sku)
+        if (existing) {
+          existing.qty += packed.qty
+          existing.line_total = parseFloat((existing.line_total + value).toFixed(2))
+        } else {
+          billed.set(packed.sku, {
+            sku: packed.sku,
+            name: packed.name,
+            qty: packed.qty,
+            unit_price: unit,
+            discount,
+            line_total: parseFloat(value.toFixed(2)),
+            tht_date: line?.tht_date,
+          })
+        }
+      }
     }
   }
-
-  const activeItems: QuoteItem[] = items
-    .map(item => {
-      const qty = packedQty.get(item.sku) ?? 0
-      return {
-        ...item,
-        qty,
-        line_total: parseFloat((qty * (item.unit_price - (item.discount ?? 0))).toFixed(2)),
-      }
-    })
-    .filter(i => i.qty > 0)
-
+  const activeItems = Array.from(billed.values())
   const subtotal = activeItems.reduce((sum, i) => sum + i.line_total, 0)
-  // The invoice is in the currency the customer was charged in — that lives on
-  // the order, never on the journey.
-  const currency = order.currency ?? 'XCG'
+
+  /**
+   * The invoice number and the currency, both from the FIRST order on board.
+   *
+   * Her instruction: "in gevallen dat een transport meerdere orders heeft, dat
+   * de commercial invoice van het transport de eerste factuur# pakt van de
+   * eerste order, anders gaat dat fout." One transport, one number, picked by a
+   * rule instead of by whichever order the code happened to reach first.
+   */
+  const first = orders[0]
+  const invoiceNumber = first?.order_number ?? transport.transport_number
+  const currency = first?.currency ?? 'XCG'
+
+  /**
+   * Who receives it: the same address the packing list prints, because the two
+   * papers describe one load arriving at one door. The delivery address when
+   * one is picked, otherwise the warehouse, otherwise the destination.
+   *
+   * `label` is our own display name and never appears here — migration 096.
+   */
+  const drop = transport.delivery_address
+  const attn = (transport.receiver_contact ?? '').trim()
+    || (drop?.receiver_contact ?? '').trim()
+  const consignee: string[] = (() => {
+    if (drop) {
+      return [
+        drop.name,
+        drop.street,
+        [drop.zip, drop.city].filter(Boolean).join(' '),
+        drop.country,
+        attn ? `Attn. ${attn}` : '',
+      ].filter(Boolean)
+    }
+    const loc = transport.location
+    if (transport.ship_to === 'warehouse' && loc) {
+      return [
+        loc.name,
+        loc.street,
+        [loc.zip, loc.city].filter(Boolean).join(' '),
+        loc.country,
+        attn ? `Attn. ${attn}` : '',
+      ].filter(Boolean)
+    }
+    return [transport.destination, attn ? `Attn. ${attn}` : ''].filter(Boolean)
+  })()
 
   const fmt = (d: Date) =>
     d.toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -163,40 +219,34 @@ export function CommercialInvoicePDF({ transport, order, company = DEFAULT_COMPA
             <Text style={styles.addressLine}>{company.phone}</Text>
             <Text style={styles.addressLine}>CRIB# {company.crib_number}</Text>
           </View>
+          {/* The address the load goes to, not the reseller who bought it —
+              the same block the packing list prints. */}
           <View style={styles.addressBlock}>
-            <Text style={styles.addressLabel}>Consignee / Buyer</Text>
-            <Text style={[styles.addressLine, { fontFamily: 'Helvetica-Bold' }]}>
-              {customer?.company_name ?? '—'}
-            </Text>
-            <Text style={styles.addressLine}>{customer?.contact_person ?? ''}</Text>
-            {/* Same layout as the invoice and the shipping label. Customs wants
-                the full address including the postcode, which the old
-                "city, country" line left off entirely. */}
-            {addressLines(customer?.billing_address as any, isEuropeanAddress(customer?.billing_address as any)).map((line, i) => (
-              <Text key={`c${i}`} style={styles.addressLine}>{line}</Text>
+            <Text style={styles.addressLabel}>Consignee</Text>
+            {consignee.map((line, i) => (
+              <Text
+                key={`c${i}`}
+                style={i === 0 ? [styles.addressLine, { fontFamily: 'Helvetica-Bold' }] : styles.addressLine}
+              >
+                {line}
+              </Text>
             ))}
-            {(() => {
-              const taxId = formatTaxId(
-                (customer?.billing_address as any)?.country ?? '',
-                customer?.vat_number,
-                customer?.crib_number,
-              )
-              return taxId ? <Text style={styles.addressLine}>{taxId}</Text> : null
-            })()}
-            <Text style={styles.addressLine}>Destination: {transport.destination || '—'}</Text>
           </View>
         </View>
 
-        {/* Meta */}
+        {/* Header.
+            Five blocks, not seven, and short labels. At seven the boxes were
+            103pt wide and both the labels and their values broke over two lines
+            — "COUNTRY OF / ORIGIN", "August 19, / 2026". Currency came out
+            because it already sits on every line below, and Order Ref because
+            it repeated the invoice number. */}
         <View style={styles.metaRow}>
           {[
-            { label: 'Invoice #',    value: order.order_number },
-            { label: 'Transport #',  value: transport.transport_number },
-            { label: 'Order Ref',    value: order?.order_number ?? '—' },
-            { label: 'Export Date',  value: exportDate },
-            { label: 'Currency',     value: currency },
-            { label: 'Country of Origin', value: 'Curaçao' },
-            { label: 'Carrier',      value: transport.carrier?.name ?? '—' },
+            { label: 'Invoice #',   value: invoiceNumber },
+            { label: 'Transport #', value: transport.transport_number },
+            { label: 'Export Date', value: exportDate },
+            { label: 'Origin',      value: 'Curaçao' },
+            { label: 'Carrier',     value: transport.carrier?.name ?? '' },
           ].map(({ label, value }) => (
             <View key={label} style={styles.metaBlock}>
               <Text style={styles.metaLabel}>{label}</Text>
@@ -218,16 +268,19 @@ export function CommercialInvoicePDF({ transport, order, company = DEFAULT_COMPA
           <View key={i} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]}>
             <View style={styles.colDesc}>
               <Text style={styles.tdText}>{item.name}</Text>
-              {(item as any).tht_date && (
+              {item.tht_date && (
                 <Text style={{ fontSize: 7, color: GRAY, marginTop: 1 }}>
                   {[
-                    `THT: ${formatTht((item as any).tht_date)}`,
+                    `THT: ${formatTht(item.tht_date)}`,
                     batchLabel(batches, item.sku) ? `Batch: ${batchLabel(batches, item.sku)}` : '',
                   ].filter(Boolean).join('   ·   ')}
                 </Text>
               )}
             </View>
-            <Text style={[styles.tdText, styles.colHs]}>—</Text>
+            {/* No HS code in the system yet. Left blank rather than dashed —
+                her rule of 2026-08-19: what is not filled in stays empty, and
+                the column stays because it does get filled in. */}
+            <Text style={[styles.tdText, styles.colHs]}></Text>
             <Text style={[styles.tdText, styles.colQty]}>{item.qty}</Text>
             <Text style={[styles.tdText, styles.colUnit]}>{currency} {item.unit_price.toFixed(2)}</Text>
             <Text style={[styles.tdText, styles.colTotal]}>{currency} {item.line_total.toFixed(2)}</Text>

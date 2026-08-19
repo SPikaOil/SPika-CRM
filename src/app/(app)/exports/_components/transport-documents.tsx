@@ -5,26 +5,27 @@ import { Download, Loader2, FileText, Package } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createClient } from '@/lib/supabase/client'
-import { Transport, Order } from '@/types'
+import { Transport } from '@/types'
 import { CompanyInfo } from '@/components/pdf/delivery-note-pdf'
 import { buildLabelPages, colliQrText, transportCargo, weightsBySku } from '@/lib/transport-cargo'
 import { useProducts } from '@/hooks/use-products'
 import { toast } from 'sonner'
 
-type PerOrder = 'commercial_invoice'
-type PerTransport = 'packing_list' | 'bl' | 'shipping_label'
+type PerTransport = 'commercial_invoice' | 'packing_list' | 'bl' | 'shipping_label'
 
 /**
  * The customs paperwork for a transport.
  *
- * The Commercial Invoice is per ORDER: it bills a reseller, and a transport can
- * carry several. Everything else is per TRANSPORT — the carrier receives one
- * load. The B/L declares it, the labels are numbered across it (Colli 1/4 …
- * 4/4), and the packing list says what is in it and who receives it.
+ * Every document here is per TRANSPORT. The carrier receives one load: the B/L
+ * declares it, the labels are numbered across it (Colli 1/4 … 4/4), the packing
+ * list says what is in it and who receives it, and the commercial invoice puts
+ * a value on exactly that same load.
  *
- * The packing list used to be per order, which meant a separate sheet per
- * reseller for a single load and an order number printed on a document that
- * carries none. Moved here on 2026-08-19: one transport, one packing list.
+ * Both the packing list and the invoice used to be per ORDER, which meant a
+ * separate set per reseller for one shipment and an order's full quantity on a
+ * paper describing a part shipment. Her rule, 2026-08-19: "de order is niet
+ * leidend in een transport." The orders behind a load still set the prices;
+ * they set nothing else.
  */
 export function TransportDocuments({ transport }: { transport: Transport }) {
   const [busy, setBusy] = useState<string | null>(null)
@@ -51,13 +52,6 @@ export function TransportDocuments({ transport }: { transport: Transport }) {
     return (s ?? '').replace(/[#/\\:*?"<>|]/g, '').trim()
   }
 
-  async function buildOrderDoc(type: PerOrder, order: Order, co?: CompanyInfo) {
-    const React = await import('react')
-    const { CommercialInvoicePDF } = await import('@/components/pdf/exports/commercial-invoice-pdf')
-    const b = await (await import('@/lib/order-batches')).fetchOrderBatches(order.id)
-    return React.createElement(CommercialInvoicePDF, { transport, order, company: co, batches: b })
-  }
-
   /** The batches of every order on the load, merged into one map for a document
    *  that has one row per product rather than one per order. */
   async function transportBatches() {
@@ -67,6 +61,12 @@ export function TransportDocuments({ transport }: { transport: Transport }) {
 
   async function buildTransportDoc(type: PerTransport, co?: CompanyInfo) {
     const React = await import('react')
+    if (type === 'commercial_invoice') {
+      const { CommercialInvoicePDF } = await import('@/components/pdf/exports/commercial-invoice-pdf')
+      return React.createElement(CommercialInvoicePDF, {
+        transport, company: co, batches: await transportBatches(),
+      })
+    }
     if (type === 'packing_list') {
       const { PackingListPDF } = await import('@/components/pdf/exports/packing-list-pdf')
       return React.createElement(PackingListPDF, {
@@ -124,13 +124,8 @@ export function TransportDocuments({ transport }: { transport: Transport }) {
       const zip = new JSZip()
       const base = safe(transport.transport_number)
 
-      for (const order of orders) {
-        const name = safe(order.customer?.company_name ?? '')
-        const stem = `${safe(order.order_number)}${name ? ` - ${name}` : ''}`
-        zip.file(`${stem} - Commercial Invoice.pdf`,
-          await pdf((await buildOrderDoc('commercial_invoice', order, co)) as any).toBlob())
-      }
-
+      zip.file(`${base} - Commercial Invoice.pdf`,
+        await pdf((await buildTransportDoc('commercial_invoice', co)) as any).toBlob())
       zip.file(`${base} - Packing List.pdf`,
         await pdf((await buildTransportDoc('packing_list', co)) as any).toBlob())
       zip.file(`${base} - Bill of Lading.pdf`, await pdf((await buildTransportDoc('bl', co)) as any).toBlob())
@@ -160,39 +155,35 @@ export function TransportDocuments({ transport }: { transport: Transport }) {
           <p className="text-sm text-muted-foreground">Put an order on this transport first</p>
         ) : (
           <>
-            {/* Per order — an invoice bills one reseller */}
-            <div className="space-y-2">
-              {orders.map(order => {
-                const name = safe(order.customer?.company_name ?? '')
-                const stem = `${safe(order.order_number)}${name ? ` - ${name}` : ''}`
-                return (
-                  <div key={order.id} className="rounded-lg border p-2.5 space-y-1.5">
-                    <p className="text-xs font-semibold flex items-center gap-1.5">
-                      <FileText className="h-3.5 w-3.5" />
-                      {order.order_number} — {order.customer?.company_name}
-                    </p>
-                    <div className="flex gap-2 flex-wrap">
-                      <Button size="sm" variant="outline" className="h-7 text-xs"
-                        disabled={!!busy}
-                        onClick={() => download(`ci-${order.id}`,
-                          co => buildOrderDoc('commercial_invoice', order, co),
-                          `${stem} - Commercial Invoice.pdf`)}>
-                        {spinner(`ci-${order.id}`)}Commercial Invoice
-                      </Button>
-                    </div>
-                  </div>
-                )
-              })}
+            {/* Which orders are on board. Read-only: no document is generated
+                per order any more, but the warehouse still has to be able to
+                see what this load is made of. */}
+            <div className="rounded-lg border p-2.5">
+              <p className="text-xs font-semibold flex items-center gap-1.5 mb-1">
+                <FileText className="h-3.5 w-3.5" />
+                Orders in this load
+              </p>
+              {orders.map(order => (
+                <p key={order.id} className="text-xs text-muted-foreground">
+                  {order.order_number} — {order.customer?.company_name}
+                </p>
+              ))}
             </div>
 
-            {/* Per transport — one load, one packing list, one B/L, and labels
-                numbered across it */}
+            {/* Per transport — one load, one set of papers, all describing the
+                same goods arriving at the same door */}
             <div className="rounded-lg border p-2.5 space-y-1.5">
               <p className="text-xs font-semibold flex items-center gap-1.5">
                 <Package className="h-3.5 w-3.5" />
                 Whole transport
               </p>
               <div className="flex gap-2 flex-wrap">
+                <Button size="sm" variant="outline" className="h-7 text-xs"
+                  disabled={!!busy}
+                  onClick={() => download('ci', co => buildTransportDoc('commercial_invoice', co),
+                    `${safe(transport.transport_number)} - Commercial Invoice.pdf`)}>
+                  {spinner('ci')}Commercial Invoice
+                </Button>
                 <Button size="sm" variant="outline" className="h-7 text-xs"
                   disabled={!!busy}
                   onClick={() => download('pl', co => buildTransportDoc('packing_list', co),
