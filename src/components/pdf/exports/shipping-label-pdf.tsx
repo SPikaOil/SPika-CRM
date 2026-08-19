@@ -28,7 +28,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
 
-  fromRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
+  // FROM and the colli counter on the left, QR and transport number on the
+  // right, both starting at the very top of the page. This replaced a logo
+  // strip that sat above them and a second row below it.
+  headRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 2 },
   fromBlock: { flex: 1 },
   fromLabel: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: GRAY, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 3 },
   fromLine: { fontSize: 8.5, color: DARK, marginBottom: 1 },
@@ -44,13 +47,13 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 3,
     alignSelf: 'flex-start',
-    marginBottom: 8,
+    marginTop: 10,
   },
   colliText: { fontSize: 22, fontFamily: 'Helvetica-Bold', color: '#ffffff', letterSpacing: 1 },
 
-  divider: { marginVertical: 8 },
+  divider: { marginVertical: 4 },
 
-  shipToLabel: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: RED, textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 6 },
+  shipToLabel: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: RED, textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 4 },
   shipToName: { fontSize: 34, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 3, lineHeight: 1.1 },
   shipToLine: { fontSize: 26, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 2, lineHeight: 1.15 },
 
@@ -128,34 +131,42 @@ export function ShippingLabelPDF({
 
         return (
           <Page key={page.colliNumber} size="A4" style={styles.page}>
-            {/* Logo + the QR holding this box's contents */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-              <Image src="/spika-banner.png" style={{ flex: 1, height: 48, objectFit: 'contain' }} />
-              {page.qrCodeDataUrl ? (
-                <View style={{ alignItems: 'center', marginLeft: 12 }}>
-                  <Image src={page.qrCodeDataUrl} style={{ width: 78, height: 78 }} />
-                  <Text style={{ fontSize: 6, color: GRAY, marginTop: 2 }}>SCAN FOR CONTENTS</Text>
-                </View>
-              ) : null}
-            </View>
+            {/* NO LOGO on a shipping label, and it stays that way — her
+                instruction of 2026-08-19. A label is read by a driver and a
+                receiving clerk; the banner took 48pt off the top and told them
+                nothing they needed.
 
-            {/* From + transport number */}
-            <View style={styles.fromRow}>
+                What it left behind is filled rather than left empty: FROM and
+                the colli counter now sit beside the QR instead of below it, so
+                the whole label closes higher up the page. Nothing here changed
+                size — only where it sits. */}
+            <View style={styles.headRow}>
               <View style={styles.fromBlock}>
                 <Text style={styles.fromLabel}>From</Text>
                 <Text style={styles.fromName}>{company.name}</Text>
                 <Text style={styles.fromLine}>{company.address_line1}</Text>
                 <Text style={styles.fromLine}>{company.address_line2}</Text>
-              </View>
-              <View style={styles.refBox}>
-                <Text style={styles.refText}>{transport.transport_number}</Text>
-              </View>
-            </View>
 
-            <View style={styles.colliBox}>
-              <Text style={styles.colliText}>
-                COLLI {page.colliNumber} / {page.totalColli}
-              </Text>
+                <View style={styles.colliBox}>
+                  <Text style={styles.colliText}>
+                    COLLI {page.colliNumber} / {page.totalColli}
+                  </Text>
+                </View>
+              </View>
+
+              {/* The QR and the transport number, stacked in the corner the
+                  banner used to occupy. */}
+              <View style={{ alignItems: 'center' }}>
+                {page.qrCodeDataUrl ? (
+                  <>
+                    <Image src={page.qrCodeDataUrl} style={{ width: 78, height: 78 }} />
+                    <Text style={{ fontSize: 6, color: GRAY, marginTop: 2 }}>SCAN FOR CONTENTS</Text>
+                  </>
+                ) : null}
+                <View style={[styles.refBox, { marginTop: 6 }]}>
+                  <Text style={styles.refText}>{transport.transport_number}</Text>
+                </View>
+              </View>
             </View>
 
             <Svg height={2} style={styles.divider}>
@@ -182,31 +193,40 @@ export function ShippingLabelPDF({
               ) : null}
             </View>
 
-            {/* What is in THIS box */}
-            <View style={{ marginTop: 10 }}>
-              <Text style={styles.contentsLabel}>
-                Contents · Order {page.order.order_number}
-              </Text>
-              {page.colli.items.length === 0 ? (
-                <Text style={styles.contentsText}>Not packed out</Text>
-              ) : page.colli.items.map((item) => (
-                <View key={item.sku} style={styles.contentsRow}>
-                  <Text style={styles.contentsText}>{item.name}</Text>
-                  <Text style={styles.contentsText}>{item.qty}</Text>
-                </View>
-              ))}
-              {/* The GROSS weight of this one box: the packaging typed on it
-                  plus the bottles inside, at the weight the Products screen
-                  holds. It used to print the packaging alone, so a box of 42
-                  bottles said 1.00 kg. Her instruction of 2026-08-19. */}
-              {colliGrossWeight(page.colli, productWeights).kg > 0 ? (
-                <Text style={styles.contentsWeight}>
-                  {colliGrossWeight(page.colli, productWeights).kg.toFixed(2)} kg
+            {/* Contents on the left, handling icons on the right.
+                They used to be stacked, and the icon strip alone was 150pt tall
+                — with everything else that put the label at 550pt on an 842pt
+                page. Side by side they cost the height of the taller of the
+                two instead of the sum, which is what brings the whole label
+                inside the top half. No text changed size. */}
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 6 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.contentsLabel}>
+                  Contents · Order {page.order.order_number}
                 </Text>
-              ) : null}
-            </View>
+                {page.colli.items.length === 0 ? (
+                  <Text style={styles.contentsText}>Not packed out</Text>
+                ) : page.colli.items.map((item) => (
+                  <View key={item.sku} style={styles.contentsRow}>
+                    <Text style={styles.contentsText}>{item.name}</Text>
+                    <Text style={styles.contentsText}>{item.qty}</Text>
+                  </View>
+                ))}
+                {/* The GROSS weight of this one box: the packaging typed on it
+                    plus the bottles inside, at the weight the Products screen
+                    holds. It used to print the packaging alone, so a box of 42
+                    bottles said 1.00 kg. Her instruction of 2026-08-19. */}
+                {colliGrossWeight(page.colli, productWeights).kg > 0 ? (
+                  <Text style={styles.contentsWeight}>
+                    {colliGrossWeight(page.colli, productWeights).kg.toFixed(2)} kg
+                  </Text>
+                ) : null}
+              </View>
 
-            <Image src="/fragile-icons.jpg" style={{ width: '100%', height: 150, objectFit: 'contain' }} />
+              {/* 984x512 in the file, so 134pt wide draws 70pt tall. Sized to land the
+                  whole label inside the top half of the page — measured, see below. */}
+              <Image src="/fragile-icons.jpg" style={{ width: 134, height: 70, objectFit: 'contain' }} />
+            </View>
 
             {transport.carrier ? (
               <Text style={{ fontSize: 9, color: GRAY, marginTop: 6 }}>

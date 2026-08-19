@@ -18,6 +18,20 @@ const GRAY = '#666666'
 const LIGHT = '#f5f5f5'
 const BORDER = '#dddddd'
 
+/**
+ * What a field says when there is nothing to put in it: nothing.
+ *
+ * Her decision of 2026-08-19 — "als niet ingevuld laat leeg staan". The label
+ * stays on the document and the value is simply blank, because these fields do
+ * get filled in.
+ *
+ * It replaces an em dash, which never printed anyway: the standard Helvetica
+ * these documents use has no glyph for it, so react-pdf drew nothing at all and
+ * the field already read as blank — by accident rather than on purpose. A
+ * constant so this stays one decision in one place.
+ */
+const NONE = ''
+
 const B2C_TAX_RATE = 0.06
 
 interface QuotationPDFProps {
@@ -97,7 +111,7 @@ export function QuotationPDF({ quote }: QuotationPDFProps) {
   })
   const validUntilStr = quote.valid_until
     ? new Date(quote.valid_until).toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })
-    : '—'
+    : NONE
 
   const billingAddr = customer?.billing_address as any
 
@@ -132,7 +146,7 @@ export function QuotationPDF({ quote }: QuotationPDFProps) {
           </View>
           <View style={styles.addressBlock}>
             <Text style={styles.addressLabel}>Quotation For</Text>
-            <Text style={[styles.addressLine, { fontFamily: 'Helvetica-Bold' }]}>{customer?.company_name ?? '—'}</Text>
+            <Text style={[styles.addressLine, { fontFamily: 'Helvetica-Bold' }]}>{customer?.company_name ?? NONE}</Text>
             {/* No contact person on the quotation — company, address and e-mail only */}
             {addressLines(billingAddr, isEuropeanAddress(billingAddr)).map((line, i) => (
               <Text key={`q${i}`} style={styles.addressLine}>{line}</Text>
@@ -156,7 +170,7 @@ export function QuotationPDF({ quote }: QuotationPDFProps) {
         <View style={styles.metaRow}>
           <View style={styles.metaBlock}>
             <Text style={styles.metaLabel}>Quote #</Text>
-            <Text style={styles.metaValue}>{quote.quote_number || '—'}</Text>
+            <Text style={styles.metaValue}>{quote.quote_number || NONE}</Text>
           </View>
           <View style={styles.metaGap} />
           <View style={styles.metaBlock}>
@@ -203,7 +217,7 @@ export function QuotationPDF({ quote }: QuotationPDFProps) {
             <Text style={[styles.tdText, styles.colQty]}>{item.qty}</Text>
             <Text style={[styles.tdText, styles.colRate]}>{fmtCur(item.unit_price)}</Text>
             <Text style={[styles.tdText, styles.colDisc]}>
-              {item.discount > 0 ? fmtCur(item.discount) : '—'}
+              {item.discount > 0 ? fmtCur(item.discount) : NONE}
             </Text>
             <Text style={[styles.tdText, styles.colAmount]}>{fmtCur(item.line_total)}</Text>
           </View>

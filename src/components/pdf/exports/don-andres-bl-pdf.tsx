@@ -11,13 +11,26 @@ import {
 import { Transport, QuoteItem } from '@/types'
 import { transportCargo, transportPackedTotals, transportGrossWeight, type ProductWeights } from '@/lib/transport-cargo'
 import { CompanyInfo } from '../delivery-note-pdf'
-import { addressLines, isEuropeanAddress } from '@/lib/address'
 
 const RED = '#CC0000'
 const DARK = '#1a1a1a'
 const GRAY = '#666666'
 const LIGHT = '#f5f5f5'
 const BORDER = '#dddddd'
+
+/**
+ * What a field says when there is nothing to put in it: nothing.
+ *
+ * Her decision of 2026-08-19 — "als niet ingevuld laat leeg staan". The label
+ * stays on the document and the value is simply blank, because these fields do
+ * get filled in.
+ *
+ * It replaces an em dash, which never printed anyway: the standard Helvetica
+ * these documents use has no glyph for it, so react-pdf drew nothing at all and
+ * the field already read as blank — by accident rather than on purpose. A
+ * constant so this stays one decision in one place.
+ */
+const NONE = ''
 
 const styles = StyleSheet.create({
   page: {
@@ -79,10 +92,10 @@ interface Props {
 export function DonAndresBLPDF({
   transport, company = DEFAULT_COMPANY, productWeights = {},
 }: Props) {
-  // A transport goes to one address, so the consignee is taken from its first
-  // order; the cargo is every order on board, added up.
-  const order = (transport.orders ?? [])[0] as any
-  const customer = order?.customer as any
+  // The reference on this B/L, by the rule she gave for the commercial invoice:
+  // the FIRST order on board, so a load carrying several does not pick one at
+  // random. The consignee no longer comes from here at all — see below.
+  const firstOrder = (transport.orders ?? [])[0]
   // What is in the boxes, not what was ordered. A transport carries part of an
   // order as often as all of it, and a carrier is told what it is actually
   // carrying — see transportPackedTotals.
@@ -107,8 +120,40 @@ export function DonAndresBLPDF({
   const gross = transportGrossWeight(transport, productWeights)
   const totalWeight = gross.kg > 0 ? gross.kg : null
 
+  /**
+   * Who receives the load. Identical to the packing list and the invoice,
+   * because all three describe one load arriving at one door: the delivery
+   * address when one is picked, otherwise the warehouse, otherwise the
+   * destination. `label` is our in-app display name and never appears (096).
+   */
+  const drop = transport.delivery_address
+  const attn = (transport.receiver_contact ?? '').trim()
+    || (drop?.receiver_contact ?? '').trim()
+  const consignee: string[] = (() => {
+    if (drop) {
+      return [
+        drop.name,
+        drop.street,
+        [drop.zip, drop.city].filter(Boolean).join(' '),
+        drop.country,
+        attn ? `Attn. ${attn}` : '',
+      ].filter(Boolean)
+    }
+    const loc = transport.location
+    if (transport.ship_to === 'warehouse' && loc) {
+      return [
+        loc.name,
+        loc.street,
+        [loc.zip, loc.city].filter(Boolean).join(' '),
+        loc.country,
+        attn ? `Attn. ${attn}` : '',
+      ].filter(Boolean)
+    }
+    return [transport.destination, attn ? `Attn. ${attn}` : ''].filter(Boolean)
+  })()
+
   const isDonAndres = transport.carrier?.bl_template === 'don_andres'
-  const portOfDischarge = transport.destination || (isDonAndres ? 'Bonaire' : '—')
+  const portOfDischarge = transport.destination || (isDonAndres ? 'Bonaire' : NONE)
 
   return (
     <Document>
@@ -142,18 +187,24 @@ export function DonAndresBLPDF({
               <Text style={styles.boxLine}>CRIB# {company.crib_number}</Text>
             </View>
           </View>
+          {/* The address the load is DELIVERED to, not the reseller who bought
+              it — the same block the packing list and the commercial invoice
+              print. Her rule: "de order is niet leidend in een transport."
+              This one was missed when the other two were changed on
+              2026-08-19 and still named La Bandera while the packing list
+              beside it named the warehouse. Three papers, one load, one
+              consignee. */}
           <View style={styles.col}>
             <Text style={styles.sectionLabel}>Consignee</Text>
             <View style={styles.box}>
-              <Text style={[styles.boxLine, { fontFamily: 'Helvetica-Bold' }]}>
-                {customer?.company_name ?? '—'}
-              </Text>
-              <Text style={styles.boxLine}>{customer?.contact_person ?? ''}</Text>
-              {/* Shared layout — see lib/address.ts */}
-              {addressLines(customer?.billing_address as any, isEuropeanAddress(customer?.billing_address as any)).map((line, i) => (
-                <Text key={`b${i}`} style={styles.boxLine}>{line}</Text>
+              {consignee.map((line, i) => (
+                <Text
+                  key={`c${i}`}
+                  style={i === 0 ? [styles.boxLine, { fontFamily: 'Helvetica-Bold' }] : styles.boxLine}
+                >
+                  {line}
+                </Text>
               ))}
-              {customer?.phone && <Text style={styles.boxLine}>{customer.phone}</Text>}
             </View>
           </View>
         </View>
@@ -171,10 +222,10 @@ export function DonAndresBLPDF({
           {[
             { label: 'B/L Number',        value: transport.transport_number },
             { label: 'Export Date',        value: exportDate },
-            { label: 'Order Reference',    value: order?.order_number ?? '—' },
+            { label: 'Order Reference',    value: firstOrder?.order_number ?? NONE },
             { label: 'Port of Loading',    value: 'Willemstad, Curaçao' },
             { label: 'Port of Discharge',  value: portOfDischarge },
-            { label: 'Carrier',            value: transport.carrier?.name ?? '—' },
+            { label: 'Carrier',            value: transport.carrier?.name ?? NONE },
           ].map(({ label, value }) => (
             <View key={label} style={styles.metaBlock}>
               <Text style={styles.metaLabel}>{label}</Text>
@@ -197,8 +248,8 @@ export function DonAndresBLPDF({
             <Text style={[styles.tdText, styles.colDesc]}>
               {item.name} ({item.qty} bottles)
             </Text>
-            <Text style={[styles.tdText, styles.colPkgs]}>—</Text>
-            <Text style={[styles.tdText, styles.colWeight]}>—</Text>
+            <Text style={[styles.tdText, styles.colPkgs]}>{NONE}</Text>
+            <Text style={[styles.tdText, styles.colWeight]}>{NONE}</Text>
           </View>
         ))}
 
@@ -211,7 +262,7 @@ export function DonAndresBLPDF({
             {totalColli} colli
           </Text>
           <Text style={[styles.tdText, styles.colWeight, { fontFamily: 'Helvetica-Bold' }]}>
-            {totalWeight === null ? '—' : `${totalWeight.toFixed(2)} kg`}
+            {totalWeight === null ? NONE : `${totalWeight.toFixed(2)} kg`}
           </Text>
         </View>
 
@@ -229,7 +280,7 @@ export function DonAndresBLPDF({
           <View style={styles.signBlock}>
             <Text style={styles.sectionLabel}>Signed for the Carrier</Text>
             <View style={[styles.box, { minHeight: 60 }]}>
-              <Text style={styles.boxLine}>{transport.carrier?.name ??'—'}</Text>
+              <Text style={styles.boxLine}>{transport.carrier?.name ?? NONE}</Text>
               <View style={{ marginTop: 24 }}>
                 <Svg height={1}><Line x1={0} y1={0} x2={160} y2={0} strokeWidth={0.5} stroke={BORDER} /></Svg>
                 <Text style={styles.signLabel}>Authorised Signature</Text>

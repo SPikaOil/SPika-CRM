@@ -20,6 +20,20 @@ const GRAY = '#666666'
 const LIGHT = '#f5f5f5'
 const BORDER = '#dddddd'
 
+/**
+ * What a field says when there is nothing to put in it: nothing.
+ *
+ * Her decision of 2026-08-19 — "als niet ingevuld laat leeg staan". The label
+ * stays on the document and the value is simply blank, because these fields do
+ * get filled in.
+ *
+ * It replaces an em dash, which never printed anyway: the standard Helvetica
+ * these documents use has no glyph for it, so react-pdf drew nothing at all and
+ * the field already read as blank — by accident rather than on purpose. A
+ * constant so this stays one decision in one place.
+ */
+const NONE = ''
+
 const styles = StyleSheet.create({
   page: {
     fontFamily: 'Helvetica',
@@ -319,7 +333,7 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
             // corrects. A consignment invoice has no due date either — nothing
             // is claimable until the goods are sold and settled.
             ...(isCreditNote
-              ? [{ label: 'Credit of invoice', value: creditOfNumber || '—' }]
+              ? [{ label: 'Credit of invoice', value: creditOfNumber || NONE }]
               : isConsignment
               ? [{ label: 'Payment', value: 'On settlement' }]
               : [
@@ -375,7 +389,7 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
                   {isFree ? 'Free of Charge' : fmtCur(item.unit_price)}
                 </Text>
               )}
-              {showPrices && <Text style={[styles.tdText, styles.colDisc]}>{isFree ? '—' : ((item.discount ?? 0) > 0 ? fmtCur(item.discount ?? 0) : '—')}</Text>}
+              {showPrices && <Text style={[styles.tdText, styles.colDisc]}>{isFree ? NONE : ((item.discount ?? 0) > 0 ? fmtCur(item.discount ?? 0) : NONE)}</Text>}
               {showPrices && <Text style={[styles.tdText, styles.colAmount, isFree ? { color: '#16a34a' } : {}]}>{isFree ? fmtCur(0) : fmtCur(item.line_total)}</Text>}
             </View>
           )
@@ -389,7 +403,7 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
             </Text>
             <Text style={[styles.tdText, styles.colQty]}>-{effectiveBottlesReturned}</Text>
             {showPrices && <Text style={[styles.tdText, styles.colRate]}>{fmtCur(returnPrice)}</Text>}
-            {showPrices && <Text style={[styles.tdText, styles.colDisc]}>—</Text>}
+            {showPrices && <Text style={[styles.tdText, styles.colDisc]}>{NONE}</Text>}
             {showPrices && <Text style={[styles.tdText, styles.colAmount]}>{fmtCur(bottleCredit)}</Text>}
           </View>
         )}

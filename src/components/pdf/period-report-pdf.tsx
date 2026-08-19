@@ -15,6 +15,20 @@ const DARK = '#1a1a1a'
 const GRAY = '#666666'
 const LIGHT = '#f5f5f5'
 const BORDER = '#dddddd'
+
+/**
+ * What a field says when there is nothing to put in it: nothing.
+ *
+ * Her decision of 2026-08-19 — "als niet ingevuld laat leeg staan". The label
+ * stays on the document and the value is simply blank, because these fields do
+ * get filled in.
+ *
+ * It replaces an em dash, which never printed anyway: the standard Helvetica
+ * these documents use has no glyph for it, so react-pdf drew nothing at all and
+ * the field already read as blank — by accident rather than on purpose. A
+ * constant so this stays one decision in one place.
+ */
+const NONE = ''
 const GREEN = '#0a7d3f'
 
 const s = StyleSheet.create({
@@ -133,7 +147,7 @@ const invoiced = (o: { total: number; currency: string }) =>
   o.currency && o.currency !== 'XCG' ? `${o.currency} ${money(o.total)}` : money(o.total)
 
 const shortDate = (d: string | null) =>
-  d ? new Date(d.length > 10 ? d : d + 'T12:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short' }) : '—'
+  d ? new Date(d.length > 10 ? d : d + 'T12:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short' }) : NONE
 
 const longDate = (d: string) =>
   new Date(d).toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -347,7 +361,7 @@ export function PeriodReportPDF({ snapshot, bannerSrc }: PeriodReportProps) {
           rows={byProduct.map(p => [
             p.name,
             p.qty,
-            p.volumeMl != null ? `${(p.volumeMl / 1000).toFixed(2)} L` : '—',
+            p.volumeMl != null ? `${(p.volumeMl / 1000).toFixed(2)} L` : NONE,
             money(p.revenue),
           ])}
         />
@@ -408,7 +422,7 @@ export function PeriodReportPDF({ snapshot, bannerSrc }: PeriodReportProps) {
           rows={snapshot.leads.map(l => [
             l.company_name,
             l.customer_category,
-            l.contact_person || l.email || '—',
+            l.contact_person || l.email || NONE,
             l.contactMoments.length,
           ])}
           emptyText="No open leads"
@@ -447,19 +461,19 @@ export function PeriodReportPDF({ snapshot, bannerSrc }: PeriodReportProps) {
               </View>
               <View style={s.custMetaCell}>
                 <Text style={s.custMetaLabel}>Contact</Text>
-                <Text style={s.custMetaValue}>{c.contact_person || '—'}</Text>
+                <Text style={s.custMetaValue}>{c.contact_person || NONE}</Text>
               </View>
               <View style={s.custMetaCell}>
                 <Text style={s.custMetaLabel}>Phone</Text>
-                <Text style={s.custMetaValue}>{c.phone || c.whatsapp || '—'}</Text>
+                <Text style={s.custMetaValue}>{c.phone || c.whatsapp || NONE}</Text>
               </View>
               <View style={s.custMetaCell}>
                 <Text style={s.custMetaLabel}>E-mail</Text>
-                <Text style={s.custMetaValue}>{c.email || '—'}</Text>
+                <Text style={s.custMetaValue}>{c.email || NONE}</Text>
               </View>
               <View style={s.custMetaCell}>
                 <Text style={s.custMetaLabel}>City</Text>
-                <Text style={s.custMetaValue}>{c.delivery_city || c.billing_city || '—'}</Text>
+                <Text style={s.custMetaValue}>{c.delivery_city || c.billing_city || NONE}</Text>
               </View>
               <View style={s.custMetaCell}>
                 <Text style={s.custMetaLabel}>Payment term</Text>
@@ -479,7 +493,7 @@ export function PeriodReportPDF({ snapshot, bannerSrc }: PeriodReportProps) {
                 (o.items ?? [])
                   .filter(i => Number(i.qty) > 0)
                   .map(i => `${i.qty}× ${i.name || i.sku}`)
-                  .join(', ') || '—',
+                  .join(', ') || NONE,
                 invoiced(o),
               ])}
               emptyText="No orders in this period"

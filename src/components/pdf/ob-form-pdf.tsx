@@ -12,6 +12,15 @@ import {
 const BLACK = '#1a1a1a'
 const RED = '#CC0000'
 
+/**
+ * What a field says when there is nothing to put in it: nothing.
+ *
+ * Her decision of 2026-08-19. It replaces an em dash, which never printed on
+ * this form anyway: the standard Helvetica has no glyph for it, so the field
+ * already read as blank — by accident rather than on purpose.
+ */
+const NONE = ''
+
 const styles = StyleSheet.create({
   page: {
     fontFamily: 'Helvetica',
@@ -176,7 +185,7 @@ export function OBFormPDF({ company, address, coc, crib, signerName, signerTitle
               <Line x1={0} y1={0} x2={200} y2={0} strokeWidth={1} stroke={BLACK} />
             </Svg>
             <Text style={styles.nameLabel}>Name : {signerName}</Text>
-            <Text style={styles.titleLabel}>Title :  {signerTitle || '—'}</Text>
+            <Text style={styles.titleLabel}>Title :  {signerTitle || NONE}</Text>
           </View>
         </View>
 
