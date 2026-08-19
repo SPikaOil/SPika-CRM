@@ -3,7 +3,7 @@
 import { use, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Trash2, Plus, X as XIcon, Ship } from 'lucide-react'
+import { ArrowLeft, Trash2, X as XIcon, Ship } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -16,7 +16,7 @@ import {
 import { useAuth } from '@/contexts/auth-context'
 import {
   useTransport, useUpdateTransport, useDeleteTransport, useCarriers,
-  useTransportLocations, useCreateTransportLocation, useWarehouseMembers, useExportOrders, useSetOrderTransport,
+  useTransportLocations, useExportOrders, useSetOrderTransport,
   useWarehouseDeliveryAddresses,
 } from '@/hooks/use-transports'
 import { ColliEditor } from '../_components/colli-editor'
@@ -43,16 +43,6 @@ const statusLabels: Record<TransportStatus, string> = {
   cleared: 'Cleared', delivered: 'Delivered',
 }
 
-const EMPTY_LOCATION = {
-  name: '', street: '', zip: '', city: '', country: '',
-  // Who is responsible for the goods here. Only a warehouse member may be put
-  // in charge; the database refuses anyone else (migration 066).
-  user_id: null as string | null,
-}
-
-// A Select item cannot carry an empty value, so an unmanned address gets one.
-const NOBODY = '__nobody__'
-
 // Same trick for "no drop-off picked" — the load goes to the warehouse itself.
 const WAREHOUSE_ITSELF = '__warehouse__'
 
@@ -68,18 +58,14 @@ export default function TransportDetailPage({
   const { data: transport, isLoading } = useTransport(id)
   const { data: carriers } = useCarriers()
   const { data: locations } = useTransportLocations()
-  const { data: warehouseMembers } = useWarehouseMembers()
   const { data: dropOffs } = useWarehouseDeliveryAddresses()
   const { data: exportOrders } = useExportOrders()
   // Bottle weights, for the gross weight of the load.
   const { data: products } = useProducts()
   const update = useUpdateTransport()
   const remove = useDeleteTransport()
-  const createLocation = useCreateTransportLocation()
   const setOrderTransport = useSetOrderTransport()
 
-  const [addingLocation, setAddingLocation] = useState(false)
-  const [locationDraft, setLocationDraft] = useState(EMPTY_LOCATION)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   if (!isAdmin) {
@@ -136,16 +122,6 @@ export default function TransportDetailPage({
 
   function save(values: Parameters<typeof update.mutate>[0]['values']) {
     update.mutate({ id, values })
-  }
-
-  async function addLocation() {
-    if (!locationDraft.name.trim()) return
-    const loc = await createLocation.mutateAsync(locationDraft)
-    // Switching to warehouse and naming it in one write — the database check
-    // rejects a warehouse transport that names no location.
-    save({ ship_to: 'warehouse', location_id: loc.id })
-    setLocationDraft(EMPTY_LOCATION)
-    setAddingLocation(false)
   }
 
   return (
@@ -247,7 +223,6 @@ export default function TransportDetailPage({
               value={t.ship_to === 'warehouse' ? (t.location_id ?? '') : 'customer'}
               onValueChange={(v) => {
                 if (!v) return
-                if (v === '__new') { setAddingLocation(true); return }
                 if (v === 'customer') {
                   save({ ship_to: 'customer', location_id: null, delivery_address_id: null })
                   return
@@ -278,7 +253,6 @@ export default function TransportDetailPage({
                 {(locations ?? []).map(l => (
                   <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
                 ))}
-                <SelectItem value="__new">+ New warehouse location</SelectItem>
               </SelectContent>
             </Select>
             {t.ship_to === 'warehouse' && t.location && (
@@ -287,6 +261,17 @@ export default function TransportDetailPage({
                   .filter(Boolean).join(', ')}
               </p>
             )}
+            {/* A warehouse is made in Settings and nowhere else — her rule of
+                2026-08-19, "settings is leading". This screen used to offer
+                "+ New warehouse location", which meant a place could come into
+                existence halfway through a shipment with no delivery addresses
+                and nobody in charge of it, and the stock booked in on arrival
+                would land against a warehouse nobody had set up. Picking one
+                here is all this screen does now. */}
+            <p className="text-[11px] text-muted-foreground">
+              Warehouses and their delivery addresses are set up under{' '}
+              <Link href="/settings" className="text-red-600 underline">Settings</Link>.
+            </p>
           </div>
 
           {/* Which door of that warehouse. DPD and the others drop part of a
@@ -341,76 +326,6 @@ export default function TransportDetailPage({
                   <Link href="/settings" className="text-red-600 underline">Settings</Link>.
                 </p>
               )}
-            </div>
-          )}
-
-          {addingLocation && (
-            <div className="sm:col-span-2 rounded-lg border p-3 space-y-2">
-              <p className="text-sm font-medium">New warehouse location</p>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <Input autoFocus placeholder="Name *" className="h-8"
-                  value={locationDraft.name}
-                  onChange={e => setLocationDraft(d => ({ ...d, name: e.target.value }))} />
-                <Input placeholder="Street" className="h-8"
-                  value={locationDraft.street}
-                  onChange={e => setLocationDraft(d => ({ ...d, street: e.target.value }))} />
-                <Input placeholder="Postcode" className="h-8"
-                  value={locationDraft.zip}
-                  onChange={e => setLocationDraft(d => ({ ...d, zip: e.target.value }))} />
-                <Input placeholder="City" className="h-8"
-                  value={locationDraft.city}
-                  onChange={e => setLocationDraft(d => ({ ...d, city: e.target.value }))} />
-                <Input placeholder="Country" className="h-8"
-                  value={locationDraft.country}
-                  onChange={e => setLocationDraft(d => ({ ...d, country: e.target.value }))} />
-              </div>
-
-              {/* Who is in charge here. Only warehouse members are offered, and
-                  the database refuses anyone else as well (migration 066) —
-                  otherwise anybody could be made responsible for stock and the
-                  control this whole tab exists for would be gone. */}
-              <div className="space-y-1">
-                <Label className="text-xs">In charge here</Label>
-                <Select
-                  value={locationDraft.user_id ?? NOBODY}
-                  onValueChange={v => v && setLocationDraft(d => ({
-                    ...d, user_id: v === NOBODY ? null : v,
-                  }))}
-                >
-                  <SelectTrigger className="h-8 text-xs px-2">
-                    <SelectValue>
-                      {(v: string) => v === NOBODY
-                        ? 'Nobody — unmanned address'
-                        : (warehouseMembers ?? []).find(u => u.id === v)?.name ?? 'Nobody — unmanned address'}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NOBODY}>Nobody — unmanned address</SelectItem>
-                    {(warehouseMembers ?? []).map(u => (
-                      <SelectItem key={u.id} value={u.id}>
-                        {u.name}
-                        <span className="text-muted-foreground"> · {u.role}</span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {(warehouseMembers ?? []).length === 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    Nobody who can hold stock yet — create one under{' '}
-                    <Link href="/team" className="text-red-600 underline">Team</Link> with the role Warehouse or Sales.
-                  </p>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <Button size="sm" className="bg-red-600 hover:bg-red-700"
-                  onClick={addLocation} disabled={!locationDraft.name.trim()}>
-                  Add &amp; use
-                </Button>
-                <Button size="sm" variant="outline"
-                  onClick={() => { setAddingLocation(false); setLocationDraft(EMPTY_LOCATION) }}>
-                  Cancel
-                </Button>
-              </div>
             </div>
           )}
 

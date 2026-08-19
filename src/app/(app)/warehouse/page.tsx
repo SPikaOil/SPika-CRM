@@ -105,9 +105,12 @@ export default function WarehousePage() {
         <Card size="sm">
           <CardContent className="py-6 text-center space-y-2">
             <p className="text-sm text-muted-foreground">No warehouse locations yet.</p>
+            {/* Settings and nowhere else since 2026-08-19 — this line used to
+                send people to the transport screen, which is exactly the door
+                that was closed. */}
             <p className="text-xs text-muted-foreground">
-              Add one on a transport under <Link href="/exports" className="text-red-600 underline">Export</Link>,
-              at &ldquo;Delivery address → + New warehouse location&rdquo;.
+              Add one under <Link href="/settings" className="text-red-600 underline">Settings</Link> →
+              Warehouses, together with the delivery addresses it receives at.
             </p>
           </CardContent>
         </Card>
