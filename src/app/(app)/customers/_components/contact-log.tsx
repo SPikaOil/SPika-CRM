@@ -116,7 +116,7 @@ export function ContactLog({ customerId, log }: { customerId: string; log: Conta
                     type="button"
                     title="Remove entry"
                     onClick={() => del.mutate({ customerId, entryId: e.id })}
-                    className="shrink-0 h-6 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity"
+                    className="shrink-0 h-6 text-muted-foreground opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 hover:text-destructive transition-opacity"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>

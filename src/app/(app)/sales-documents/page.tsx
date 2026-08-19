@@ -507,10 +507,10 @@ function FolderRow({
           </>
         ) : isAdmin ? (
           <>
-            <button onClick={(e) => { e.stopPropagation(); onStartRename() }} className="opacity-0 group-hover:opacity-100 p-1.5 rounded text-muted-foreground hover:bg-accent transition-opacity">
+            <button onClick={(e) => { e.stopPropagation(); onStartRename() }} className="opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 p-1.5 rounded text-muted-foreground hover:bg-accent transition-opacity">
               <Pencil className="h-3.5 w-3.5" />
             </button>
-            <button onClick={(e) => { e.stopPropagation(); onDelete() }} className="opacity-0 group-hover:opacity-100 p-1.5 rounded text-red-500 hover:bg-red-50 transition-opacity">
+            <button onClick={(e) => { e.stopPropagation(); onDelete() }} className="opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 p-1.5 rounded text-red-500 hover:bg-red-50 transition-opacity">
               <Trash2 className="h-3.5 w-3.5" />
             </button>
           </>
@@ -548,7 +548,7 @@ function DocRow({ doc, isAdmin, hasFolders, onDelete, onMove }: {
         {isAdmin && hasFolders && (
           <button
             onClick={onMove}
-            className="opacity-0 group-hover:opacity-100 p-1.5 rounded text-muted-foreground hover:bg-accent transition-opacity"
+            className="opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 p-1.5 rounded text-muted-foreground hover:bg-accent transition-opacity"
             title="Move to folder"
           >
             <MoveRight className="h-3.5 w-3.5" />

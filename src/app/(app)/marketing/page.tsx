@@ -422,10 +422,6 @@ export default function MarketingPage() {
                     audienceCount={(audiences?.[asset.id] ?? []).length}
                     campaignName={(campaigns ?? []).find(c => c.id === asset.campaign_id)?.name}
                     onEdit={() => openEdit(asset)}
-                    onDelete={() => {
-                      if (isDemoAsset(asset)) { toast.error('Example data cannot be removed'); return }
-                      deleteAsset.mutate(asset.id)
-                    }}
                   />
                 ))}
               </div>
@@ -701,7 +697,22 @@ export default function MarketingPage() {
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="sm:justify-between">
+            {/* Only when editing, and only here. Reaching it takes opening the
+                card, scrolling down, tapping, and confirming. */}
+            {editing && !isDemoAsset(editing) ? (
+              <Button
+                variant="outline"
+                className="text-red-600 border-red-200 hover:bg-red-50 sm:mr-auto"
+                onClick={() => {
+                  if (!confirm(`Remove "${editing.title}"? Resellers stop seeing it immediately.`)) return
+                  deleteAsset.mutate(editing.id, { onSuccess: () => setDialogOpen(false) })
+                }}
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                Delete
+              </Button>
+            ) : <span />}
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
             <Button
               className="bg-red-600 hover:bg-red-700"
@@ -718,12 +729,11 @@ export default function MarketingPage() {
 }
 
 function AssetCard({
-  asset, canManage, onEdit, onDelete, linkState, audienceCount = 0, campaignName,
+  asset, canManage, onEdit, linkState, audienceCount = 0, campaignName,
 }: {
   asset: MarketingAsset
   canManage: boolean
   onEdit: () => void
-  onDelete: () => void
   /** Set by the "Check links" sweep: 'public' | 'private' | 'unknown'. */
   linkState?: string
   /** How many resellers this one is aimed at, for the badge. */
@@ -795,20 +805,19 @@ function AssetCard({
         )}
 
         {canManage && (
-          <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+          /* Visible by default; hidden until hover only where a mouse exists.
+             A phone has no hover state, so opacity-0 there meant the button
+             never appeared at all and the card could not be edited on a phone.
+             Delete is NOT here any more — it sits at the bottom of the edit
+             dialog, four deliberate taps away, because a thumb landing wrong on
+             a 167px card should never be able to remove an asset. */
+          <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
             <button
               onClick={onEdit}
-              className="h-6 w-6 rounded-md bg-background/90 border flex items-center justify-center hover:bg-accent"
+              className="h-7 w-7 rounded-md bg-background/90 border flex items-center justify-center hover:bg-accent"
               aria-label="Edit"
             >
-              <Pencil className="h-3 w-3" />
-            </button>
-            <button
-              onClick={onDelete}
-              className="h-6 w-6 rounded-md bg-background/90 border flex items-center justify-center hover:bg-red-50 text-red-600"
-              aria-label="Remove"
-            >
-              <Trash2 className="h-3 w-3" />
+              <Pencil className="h-3.5 w-3.5" />
             </button>
           </div>
         )}

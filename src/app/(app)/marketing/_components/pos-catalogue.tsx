@@ -181,23 +181,16 @@ export function PosCatalogue({ canManage }: { canManage: boolean }) {
                   )}
 
                   {canManage && (
-                    <div className="absolute bottom-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                    /* Same rule as the asset cards: visible by default, hidden
+                       until hover only where a mouse exists. Delete is not here
+                       — it lives at the bottom of the edit dialog. */
+                    <div className="absolute bottom-1.5 right-1.5 flex gap-1 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                       <button
                         onClick={() => openEdit(item)}
-                        className="h-6 w-6 rounded-md bg-background/90 border flex items-center justify-center hover:bg-accent"
+                        className="h-7 w-7 rounded-md bg-background/90 border flex items-center justify-center hover:bg-accent"
                         aria-label="Edit"
                       >
-                        <Pencil className="h-3 w-3" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (!confirm(`Remove "${item.name}" from the catalogue? It also disappears from every reseller's register.`)) return
-                          deleteItem.mutate(item.id)
-                        }}
-                        className="h-6 w-6 rounded-md bg-background/90 border flex items-center justify-center hover:bg-red-50 hover:text-red-600"
-                        aria-label="Delete"
-                      >
-                        <Trash2 className="h-3 w-3" />
+                        <Pencil className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   )}
@@ -351,7 +344,20 @@ export function PosCatalogue({ canManage }: { canManage: boolean }) {
             </label>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="sm:justify-between">
+            {editing ? (
+              <Button
+                variant="outline"
+                className="text-red-600 border-red-200 hover:bg-red-50 sm:mr-auto"
+                onClick={() => {
+                  if (!confirm(`Remove "${editing.name}" from the catalogue? It also disappears from every reseller's register.`)) return
+                  deleteItem.mutate(editing.id, { onSuccess: () => setDialogOpen(false) })
+                }}
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                Delete
+              </Button>
+            ) : <span />}
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleSave} disabled={saveItem.isPending}>
               {editing ? 'Save' : 'Add'}
