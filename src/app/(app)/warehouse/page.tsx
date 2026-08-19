@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useTransports, useTransportLocations } from '@/hooks/use-transports'
+import { useTransports, useTransportLocations, useWarehouseMemberships } from '@/hooks/use-transports'
 import { useBatchStock } from '@/hooks/use-batches'
 import { formatTht } from '@/lib/utils'
 import { SPIKA_PRODUCTS } from '@/lib/products'
@@ -28,10 +28,11 @@ import { PosStockPanel } from '@/components/pos-stock-panel'
  * places the goods went to.
  */
 export default function WarehousePage() {
-  const { isAdmin, can, isLoading } = useAuth()
+  const { isAdmin, can, isLoading, profile } = useAuth()
   const router = useRouter()
 
-  const { data: locations, isLoading: locLoading } = useTransportLocations()
+  const { data: allLocations, isLoading: locLoading } = useTransportLocations()
+  const { data: memberships } = useWarehouseMemberships()
   const { data: transports } = useTransports()
   const { data: stock } = useBatchStock()
 
@@ -43,6 +44,25 @@ export default function WarehousePage() {
     router.replace('/dashboard')
     return null
   }
+
+  /**
+   * Only your own warehouses.
+   *
+   * Her decision of 2026-08-16: a warehouse member is linked to a place in
+   * Settings, and when they open this tab they see that place and nothing else.
+   * Anyone who can see everything anyway — admin, or a manager holding
+   * warehouse.view without being tied to a shelf — keeps the whole list, since
+   * hiding it from them would only mean asking somebody else what is where.
+   *
+   * A member with no link yet sees nothing rather than everything. That is the
+   * safe direction: an empty page is a question, a full one is a leak.
+   */
+  const mine = (memberships ?? []).filter(m => m.user_id === profile?.id)
+  const scopedToMine = !isAdmin && mine.length > 0
+  const locations = scopedToMine
+    ? (allLocations ?? []).filter(l => mine.some(m => m.location_id === l.id))
+    : allLocations
+  const showsCuracao = isAdmin || mine.some(m => m.location_id === null)
 
   const productName = (sku: string) => SPIKA_PRODUCTS.find(p => p.sku === sku)?.name ?? sku
 
@@ -131,6 +151,11 @@ export default function WarehousePage() {
                   )}
                 </p>
 
+                {/* Receiving happens here, on the place it arrives at. The
+                    form is locked to this warehouse — asking again which one
+                    would only be a chance to pick the wrong one. */}
+                <PosStockPanel locationId={loc.id} embedded />
+
                 {/* On the shelves, per product and per batch — a recall has to be
                     answerable from here. */}
                 {rows.length === 0 ? (
@@ -207,10 +232,29 @@ export default function WarehousePage() {
           left Curaçao straight away. */}
       <ShopifyWeekCard />
 
-      {/* Displays and wobblers live on the same shelves as the bottles, so they
-          are counted on the same page. Their own table though — a rack has no
-          batch and no sku, which is why stock_movements could never hold it. */}
-      <PosStockPanel />
+      {/* Curaçao gets a card like the others now, her decision of 2026-08-16.
+          It is not a row in transport_locations — it is the absence of one —
+          but people work there and material sits there, so leaving it off the
+          page meant the one place we ship from most had nowhere to look. */}
+      {showsCuracao && (
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Warehouse className="h-4 w-4" />
+              Curaçao
+              <span className="ml-auto text-sm font-normal text-muted-foreground">home</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2.5">
+            <p className="text-xs text-muted-foreground">
+              Bottles here live under Stock, with the batches and the safety stock.
+              What is below is the POS material.
+            </p>
+            <PosStockPanel locationId={null} embedded />
+          </CardContent>
+        </Card>
+      )}
+
     </div>
   )
 }

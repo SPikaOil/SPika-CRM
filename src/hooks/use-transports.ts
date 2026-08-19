@@ -314,3 +314,113 @@ export function useDeleteCarrier() {
     onError: (err: Error) => toast.error(err.message),
   })
 }
+
+/**
+ * Edit a warehouse. Locations were create-only, and only from inside a
+ * transport — so a typo in a name lived forever and there was no way to fill in
+ * an address afterwards. Her note of 2026-08-16: this belongs on the Warehouse
+ * tab, which is where you are when you think about a warehouse.
+ */
+export function useUpdateTransportLocation() {
+  const supabase = createClient()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, values }: { id: string; values: Partial<TransportLocation> }) => {
+      const { error } = await supabase.from('transport_locations').update(values).eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transport_locations'] })
+      toast.success('Location updated')
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+}
+
+/**
+ * Remove a warehouse.
+ *
+ * Refused while anything still points at it. transports.location_id and
+ * stock_movements.location_id both reference this table, so deleting one that
+ * is in use would either fail on the constraint or orphan a stock figure —
+ * better to say which it is than to let Postgres phrase it.
+ */
+export function useDeleteTransportLocation() {
+  const supabase = createClient()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const [{ count: transports }, { count: movements }, { count: posMovements }] = await Promise.all([
+        supabase.from('transports').select('*', { count: 'exact', head: true }).eq('location_id', id),
+        supabase.from('stock_movements').select('*', { count: 'exact', head: true }).eq('location_id', id),
+        supabase.from('pos_movements').select('*', { count: 'exact', head: true }).eq('location_id', id),
+      ])
+      const used = (transports ?? 0) + (movements ?? 0) + (posMovements ?? 0)
+      if (used > 0) {
+        throw new Error(
+          `Still in use: ${transports ?? 0} transport(s), ${movements ?? 0} stock movement(s), ${posMovements ?? 0} POS movement(s).`,
+        )
+      }
+      const { error } = await supabase.from('transport_locations').delete().eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transport_locations'] })
+      toast.success('Location removed')
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+}
+
+/**
+ * Which team members work at which warehouse.
+ *
+ * location_id NULL means Curaçao, the same convention the stock uses. Separate
+ * from transport_locations.user_id, which is the one person in CHARGE — being
+ * in charge and working somewhere are different facts.
+ */
+export interface WarehouseMemberRow {
+  id: string
+  user_id: string
+  location_id: string | null
+}
+
+export function useWarehouseMemberships() {
+  const supabase = createClient()
+  return useQuery({
+    queryKey: ['warehouse_memberships'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('warehouse_members').select('id, user_id, location_id')
+      // Missing before migration 093. Nobody is a member of anything yet, which
+      // is what an empty list says.
+      if (error) return [] as WarehouseMemberRow[]
+      return (data ?? []) as WarehouseMemberRow[]
+    },
+  })
+}
+
+export function useSetWarehouseMember() {
+  const supabase = createClient()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ userId, locationId, member }: {
+      userId: string; locationId: string | null; member: boolean
+    }) => {
+      if (member) {
+        const { data: { user } } = await supabase.auth.getUser()
+        const { error } = await supabase.from('warehouse_members')
+          .insert({ user_id: userId, location_id: locationId, created_by: user?.id ?? null })
+        if (error) throw error
+      } else {
+        let q = supabase.from('warehouse_members').delete().eq('user_id', userId)
+        // .eq() never matches NULL — Curaçao needs .is(), and getting this wrong
+        // would silently remove nobody.
+        q = locationId === null ? q.is('location_id', null) : q.eq('location_id', locationId)
+        const { error } = await q
+        if (error) throw error
+      }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['warehouse_memberships'] }),
+    onError: (err: Error) => toast.error(err.message),
+  })
+}
