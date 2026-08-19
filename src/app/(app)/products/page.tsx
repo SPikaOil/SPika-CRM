@@ -97,15 +97,20 @@ function ProductsTab() {
     <>
       {/* Desktop table */}
       <div className="hidden md:block rounded-xl border overflow-x-auto">
-        <table className="w-full text-sm">
+        {/* table-fixed on purpose. With auto layout the columns are sized by
+            their CONTENT, so switching a row into edit mode swapped short text
+            for 96px inputs and the whole table grew wider than the screen —
+            Save ended up off to the right. Fixed columns are the same width in
+            both states, so nothing moves and nothing overflows. */}
+        <table className="w-full text-sm table-fixed">
           <thead className="bg-muted/50 border-b">
             <tr>
-              <th className="text-left px-4 py-3 font-semibold">Product</th>
-              <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-xs">SKU</th>
+              <th className="text-left px-3 py-3 font-semibold w-[16%]">Product</th>
+              <th className="text-left px-3 py-3 font-semibold text-muted-foreground text-xs w-[12%]">SKU</th>
               {fields.map(f => (
-                <th key={f.key} className="text-center px-3 py-3 font-semibold whitespace-nowrap">{f.label}</th>
+                <th key={f.key} className="text-center px-2 py-3 font-semibold text-xs leading-tight">{f.label}</th>
               ))}
-              <th className="px-3 py-3" />
+              <th className="px-2 py-3 w-[64px]" />
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -119,8 +124,8 @@ function ProductsTab() {
                   const isEditing = editing?.id === p.id
                   return (
                     <tr key={p.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-3 font-medium whitespace-nowrap">{p.name}</td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground font-mono whitespace-nowrap">{p.sku}</td>
+                      <td className="px-3 py-3 font-medium text-xs leading-tight">{p.name}</td>
+                      <td className="px-3 py-3 text-xs text-muted-foreground font-mono break-all">{p.sku}</td>
                       {isEditing ? (
                         <>
                           {fields.map(f => (
