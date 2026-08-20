@@ -3,7 +3,7 @@
 import { BrandLockup } from '@/components/brand-mark'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ShoppingBag, ClipboardList, LogOut, Loader2, Mail, KeyRound, LayoutDashboard, FileText, BookOpen, HeadphonesIcon, UserCircle, Megaphone } from 'lucide-react'
+import { ShoppingBag, ClipboardList, LogOut, Loader2, Mail, KeyRound, LayoutDashboard, FileText, BookOpen, HeadphonesIcon, UserCircle, Megaphone, FileSignature } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
@@ -94,6 +94,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     { href: '/portal/catalogue', label: 'Products', icon: BookOpen },
     { href: '/portal/marketing', label: 'Marketing', icon: Megaphone },
     { href: '/portal/invoices', label: 'Invoices', icon: FileText },
+    // Contracts and agreements we share with this reseller (migration 104).
+    // Its own item, not a corner of Account — a contract is not a setting.
+    { href: '/portal/documents', label: 'Documents', icon: FileSignature },
     { href: '/portal/support', label: 'Support', icon: HeadphonesIcon },
     { href: '/portal/account', label: 'Account', icon: UserCircle },
   ]

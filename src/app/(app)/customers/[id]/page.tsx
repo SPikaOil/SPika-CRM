@@ -31,6 +31,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CustomerForm } from '../_components/customer-form'
 import { ContactLog } from '../_components/contact-log'
+import { DocumentsCard } from '../_components/documents-card'
 import { Customer, posRequestSubject } from '@/types'
 import { computeOrderRhythm, type OrderRhythm } from '@/lib/order-rhythm'
 
@@ -433,6 +434,11 @@ export default function CustomerDetailPage({
 
           {/* Also render when the only entries left are removed ones, so an
               admin can always get back to the restore list */}
+          {/* Papers that belong to this account — the consignment contract, a
+              price agreement. Each one says for itself whether the reseller
+              sees it in the portal. Her instruction of 2026-08-20. */}
+          <DocumentsCard customerId={id} />
+
           {((signers && signers.length > 0) || (isAdmin && hiddenSigners && hiddenSigners.length > 0)) && (
             <Card size="sm" className="py-0">
               <CardHeader className="pt-3 pb-2"><CardTitle className="text-sm">Contact people who sign</CardTitle></CardHeader>
