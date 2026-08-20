@@ -5,11 +5,12 @@ import { checkPassword, MIN_PASSWORD_LENGTH, PASSWORD_RULE_TEXT } from '@/lib/pa
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Users, Plus, KeyRound, Send, Edit2, UserX, Check, X, Loader2, ShieldCheck, ShieldAlert, ShieldOff, Truck, Megaphone, UserCircle2, Lock, Clock, FileSpreadsheet
+  Users, Plus, KeyRound, Send, Edit2, UserX, Check, X, Loader2, ShieldCheck, ShieldAlert, ShieldOff, Truck, Megaphone, UserCircle2, Lock, Clock, FileSpreadsheet, Warehouse as WarehouseIcon
 } from 'lucide-react'
 import { downloadCsv, csvDate } from '@/lib/csv-export'
 import { useAuth } from '@/contexts/auth-context'
 import { createClient } from '@/lib/supabase/client'
+import { useWarehouseMemberships, useTransportLocations } from '@/hooks/use-transports'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -37,6 +38,15 @@ const roleConfig: Record<string, { label: string; color: string; icon: React.Ele
 }
 
 export default function TeamPage() {
+  // Which warehouses each person works at. Read-only here — Settings owns it.
+  const { data: warehouseLinks } = useWarehouseMemberships()
+  const { data: warehouseLocations } = useTransportLocations()
+  const warehousesOf = (userId: string) =>
+    (warehouseLinks ?? [])
+      .filter(m => m.user_id === userId)
+      .map(m => m.location_id === null
+        ? 'Curaçao'
+        : (warehouseLocations ?? []).find(l => l.id === m.location_id)?.name ?? 'Warehouse')
   const { isAdmin, isLoading: authLoading, profile } = useAuth()
   const router = useRouter()
   const supabase = createClient()
@@ -394,6 +404,22 @@ export default function TeamPage() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-semibold text-sm">{user.name}</p>
                     <Badge className={`text-xs ${rc.color}`}>{rc.label}</Badge>
+
+                    {/* Which warehouses this person works at. Shown here because
+                        this is where you look when you ask "what does he do" —
+                        her instinct on 2026-08-20. CHANGED under Settings →
+                        Warehouses and nowhere else: two places to edit one fact
+                        is how the two start disagreeing. */}
+                    {warehousesOf(user.id).map(name => (
+                      <Badge key={name} className="text-xs bg-slate-100 text-slate-700 gap-1">
+                        <WarehouseIcon className="h-3 w-3" /> {name}
+                      </Badge>
+                    ))}
+                    {user.role === 'warehouse' && warehousesOf(user.id).length === 0 && (
+                      <Badge className="text-xs bg-amber-100 text-amber-800 gap-1">
+                        <WarehouseIcon className="h-3 w-3" /> No warehouse yet
+                      </Badge>
+                    )}
 
                     {/* Two-step status at a glance. "Required" without "on" is
                         the one that matters: that person is being asked and has

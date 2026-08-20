@@ -33,6 +33,25 @@ interface Line {
 }
 
 /**
+ * What actually went wrong, in words.
+ *
+ * A Supabase error is a plain object with a `message`, NOT an Error — so
+ * `err instanceof Error` is false for every failure this screen can have, and
+ * the catch fell through to a fixed sentence that told Danique nothing on
+ * 2026-08-20. That is the silent-failure trap this codebase has been bitten by
+ * before; the rule is that every failure says what it was.
+ *
+ * The step is named too. Three different things can fail here — the signature
+ * upload, the stock booking and the transport itself — and "which one" is half
+ * the answer.
+ */
+function why(step: string, err: unknown): string {
+  const e = err as { message?: string; code?: string; details?: string } | null
+  const msg = e?.message || e?.details || String(err)
+  return `${step}: ${msg}${e?.code ? ` (${e.code})` : ''}`
+}
+
+/**
  * Goods receipt at the warehouse — one COLLI at a time.
  *
  * Danique, 2026-08-19: "zo hebben we 3 colli verscheept 3 weken geleden en 1
@@ -153,7 +172,7 @@ export function ArrivalCard({ transport }: { transport: Transport }) {
       const { error: upErr } = await supabase.storage
         .from('pod-files')
         .upload(path, blob, { contentType: 'image/png' })
-      if (upErr) throw upErr
+      if (upErr) throw new Error(why('Signature', upErr))
 
       if (stores) {
         // Book in what was COUNTED in THIS box, out of the batch it left Curaçao
@@ -164,7 +183,7 @@ export function ArrivalCard({ transport }: { transport: Transport }) {
           .select('sku, batch_id')
           .eq('transport_id', t.id)
           .eq('reason', 'transport_out')
-        if (loadErr) throw loadErr
+        if (loadErr) throw new Error(why('Reading the load', loadErr))
 
         const orderIds = (t.orders ?? []).map(o => o.id)
         const { data: picks, error: pickErr } = orderIds.length > 0
@@ -174,7 +193,7 @@ export function ArrivalCard({ transport }: { transport: Transport }) {
               .in('order_id', orderIds)
               .eq('reason', 'order')
           : { data: [], error: null }
-        if (pickErr) throw pickErr
+        if (pickErr) throw new Error(why('Reading the picks', pickErr))
 
         const rows = lines
           .filter(l => l.received > 0)
@@ -206,7 +225,7 @@ export function ArrivalCard({ transport }: { transport: Transport }) {
           toast.warning('Nothing booked into stock — no batch was chosen for these products')
         } else if (rows.length > 0) {
           const { error } = await supabase.from('stock_movements').insert(rows)
-          if (error) throw error
+          if (error) throw new Error(why('Booking stock in', error))
         }
       }
 
@@ -263,7 +282,7 @@ export function ArrivalCard({ transport }: { transport: Transport }) {
           : `Colli ${index + 1} received`
       )
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not book this box in')
+      toast.error(err instanceof Error ? err.message : why('Goods receipt', err), { duration: 12000 })
     } finally {
       setBusy(false)
     }

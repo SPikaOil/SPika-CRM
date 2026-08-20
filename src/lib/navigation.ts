@@ -57,7 +57,10 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/tasks',           label: 'Tasks',                                     icon: ClipboardList,   permission: 'tasks.create'        },
   { href: '/reports',         label: 'Reports',                                   icon: BarChart2,       permission: 'reports.view'        },
   { href: '/stock',           label: 'Stock & Production', shortLabel: 'Stock',   icon: Droplets,        permission: 'stock.view'          },
-  { href: '/warehouse',       label: 'Warehouse',                                 icon: Warehouse,       permission: 'warehouse.view'      },
+  // In the bottom bar on a phone, not buried under More. A warehouse member
+  // works on a phone — it says so at the top of this file — and the one tab
+  // they open all day was two taps away. Her instruction, 2026-08-20.
+  { href: '/warehouse',       label: 'Warehouse',                                 icon: Warehouse,       permission: 'warehouse.view',     mainOnMobile: 'both'  },
   { href: '/store-locator',   label: 'Store Locator',    shortLabel: 'Locator',   icon: MapPin,          permission: 'storelocator.view'   },
 
   { href: '/exports',           label: 'Export',                                  icon: Ship,            permission: null, adminOnly: true },

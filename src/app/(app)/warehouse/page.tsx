@@ -14,6 +14,7 @@ import { formatTht } from '@/lib/utils'
 import { SPIKA_PRODUCTS } from '@/lib/products'
 import { ShopifyWeekCard } from '../stock/_components/shopify-week-card'
 import { PosStockPanel } from '@/components/pos-stock-panel'
+import { ArrivalCard } from '../exports/_components/arrival-card'
 
 /**
  * What is actually sitting in the warehouses, and what is on its way there.
@@ -50,19 +51,25 @@ export default function WarehousePage() {
    *
    * Her decision of 2026-08-16: a warehouse member is linked to a place in
    * Settings, and when they open this tab they see that place and nothing else.
-   * Anyone who can see everything anyway — admin, or a manager holding
-   * warehouse.view without being tied to a shelf — keeps the whole list, since
-   * hiding it from them would only mean asking somebody else what is where.
+   * Admin keeps the whole list — hiding it from the owner would only mean
+   * asking somebody else what is where.
    *
-   * A member with no link yet sees nothing rather than everything. That is the
+   * A member with no link yet sees NOTHING rather than everything. That is the
    * safe direction: an empty page is a question, a full one is a leak.
+   *
+   * That last sentence has been standing here since 2026-08-16 while the code
+   * underneath did the opposite: no membership fell through to "show them all
+   * the warehouses". Nobody noticed because there is one warehouse. Corrected
+   * 2026-08-20 to do what it says.
    */
   const mine = (memberships ?? []).filter(m => m.user_id === profile?.id)
-  const scopedToMine = !isAdmin && mine.length > 0
-  const locations = scopedToMine
-    ? (allLocations ?? []).filter(l => mine.some(m => m.location_id === l.id))
-    : allLocations
+  const locations = isAdmin
+    ? allLocations
+    : (allLocations ?? []).filter(l => mine.some(m => m.location_id === l.id))
   const showsCuracao = isAdmin || mine.some(m => m.location_id === null)
+  // Somebody with the permission but no place yet. The line above already
+  // gives them nothing; this is so the page says why instead of looking empty.
+  const unlinked = !isAdmin && mine.length === 0
 
   const productName = (sku: string) => SPIKA_PRODUCTS.find(p => p.sku === sku)?.name ?? sku
 
@@ -104,14 +111,30 @@ export default function WarehousePage() {
       ) : (locations ?? []).length === 0 ? (
         <Card size="sm">
           <CardContent className="py-6 text-center space-y-2">
-            <p className="text-sm text-muted-foreground">No warehouse locations yet.</p>
-            {/* Settings and nowhere else since 2026-08-19 — this line used to
-                send people to the transport screen, which is exactly the door
-                that was closed. */}
-            <p className="text-xs text-muted-foreground">
-              Add one under <Link href="/settings" className="text-red-600 underline">Settings</Link> →
-              Warehouses, together with the delivery addresses it receives at.
-            </p>
+            {unlinked ? (
+              <>
+                {/* Not the same as "there are none". Saying so out loud saves a
+                    phone call about a page that looks broken. */}
+                <p className="text-sm text-muted-foreground">
+                  You are not linked to a warehouse yet.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  An admin adds you under Settings → Warehouses. Until then there is
+                  nothing here for you to receive or hand out.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">No warehouse locations yet.</p>
+                {/* Settings and nowhere else since 2026-08-19 — this line used to
+                    send people to the transport screen, which is exactly the door
+                    that was closed. */}
+                <p className="text-xs text-muted-foreground">
+                  Add one under <Link href="/settings" className="text-red-600 underline">Settings</Link> →
+                  Warehouses, together with the delivery addresses it receives at.
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -185,24 +208,36 @@ export default function WarehousePage() {
                   </div>
                 ))}
 
-                {/* On its way. Nothing of this counts as stock yet — it counts
-                    when somebody over there signs it in. */}
+                {/* On its way, and the goods receipt itself.
+                    Her instruction of 2026-08-20: a warehouse member has the
+                    right to book a load in but could not reach the screen — it
+                    lived under Export, which is admin only. That link went to a
+                    page that threw them straight back out.
+                    So the receipt happens HERE, where they already work, per
+                    box, on their own location. Export keeps the freight costs,
+                    the prices and the customs papers, and they never see it. */}
                 {inbound.length > 0 && (
-                  <div className="space-y-1 border-t pt-2">
+                  <div className="space-y-2 border-t pt-2">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                       On its way
                     </p>
                     {inbound.map(t => (
-                      <Link key={t.id} href={`/exports/${t.id}`}
-                        className="flex items-center gap-2 text-sm hover:underline">
-                        <Ship className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        <span className="font-mono">{t.transport_number}</span>
-                        <Badge className="bg-orange-100 text-orange-700 text-xs">
-                          <Clock className="h-3 w-3 mr-1" />
-                          {t.eta ? `ETA ${new Date(t.eta + 'T12:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short' })}` : 'no ETA'}
-                        </Badge>
-                        <span className="ml-auto text-xs text-muted-foreground">Goods receipt →</span>
-                      </Link>
+                      <div key={t.id} className="space-y-1.5">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Ship className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                          <span className="font-mono">{t.transport_number}</span>
+                          <Badge className="bg-orange-100 text-orange-700 text-xs">
+                            <Clock className="h-3 w-3 mr-1" />
+                            {t.eta ? `ETA ${new Date(t.eta + 'T12:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short' })}` : 'no ETA'}
+                          </Badge>
+                          {isAdmin && (
+                            <Link href={`/exports/${t.id}`} className="ml-auto text-xs text-muted-foreground hover:underline">
+                              Open transport →
+                            </Link>
+                          )}
+                        </div>
+                        <ArrivalCard transport={t} />
+                      </div>
                     ))}
                   </div>
                 )}
