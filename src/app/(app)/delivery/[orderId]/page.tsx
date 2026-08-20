@@ -14,6 +14,7 @@ import {
   Info,
   PenLine,
   Trash2,
+  Printer,
   Upload,
   Wifi,
   WifiOff,
@@ -38,6 +39,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { PosPicker } from '@/components/pos-register'
 import { useCustomerPosItems } from '@/hooks/use-pos-items'
 import { posOrderLineFor } from '@/lib/pos'
+import { openPackingSlip } from '@/lib/packing-slip'
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
 
@@ -104,6 +106,8 @@ export default function DeliveryPage({
   const [deliveryId, setDeliveryId] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [signerName, setSignerName] = useState('')
+  /** Building the packing slip for this run. */
+  const [slipBusy, setSlipBusy] = useState(false)
 
   // Signature pad
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -158,6 +162,22 @@ export default function DeliveryPage({
     canvas.height = canvas.offsetHeight * ratio
     canvas.getContext('2d')?.scale(ratio, ratio)
     sigPadRef.current?.clear()
+  }
+
+  /**
+   * The packing slip of this run, before anything is signed.
+   *
+   * Whoever is standing here is the one putting the box together, so this is
+   * where the paper has to come from — her point of 2026-08-20 after a warehouse
+   * member found no way to print one at all. It follows the numbers on screen,
+   * so cutting a line down to 12 gives a slip that says 12.
+   */
+  async function printSlip() {
+    if (!order) return
+    setSlipBusy(true)
+    const result = await openPackingSlip(order, runItems as never)
+    if (!result.ok) toast.error(result.error)
+    setSlipBusy(false)
   }
 
   async function captureGps(): Promise<GeolocationCoordinates> {
@@ -879,6 +899,24 @@ export default function DeliveryPage({
                     {!runCompletesOrder && <span className="text-amber-600"> · partial</span>}
                   </span>
                 </div>
+
+                {/* The paper that goes IN the box, printable before anything is
+                    signed. Danique, 2026-08-20: a warehouse member gets sent
+                    here straight off their dashboard and had no way to print
+                    one at all — the button lived on the order page only. It
+                    prints THIS run, so the slip agrees with what is in the box. */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-2"
+                  disabled={slipBusy || runItems.length === 0}
+                  onClick={printSlip}
+                >
+                  {slipBusy
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <Printer className="h-4 w-4" />}
+                  Packing slip for this run
+                </Button>
               </div>
 
               {/* Picked per RUN, not per order: the display may travel
@@ -1062,6 +1100,24 @@ export default function DeliveryPage({
                     {!runCompletesOrder && <span className="text-amber-600"> · partial</span>}
                   </span>
                 </div>
+
+                {/* The paper that goes IN the box, printable before anything is
+                    signed. Danique, 2026-08-20: a warehouse member gets sent
+                    here straight off their dashboard and had no way to print
+                    one at all — the button lived on the order page only. It
+                    prints THIS run, so the slip agrees with what is in the box. */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-2"
+                  disabled={slipBusy || runItems.length === 0}
+                  onClick={printSlip}
+                >
+                  {slipBusy
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <Printer className="h-4 w-4" />}
+                  Packing slip for this run
+                </Button>
                 {/* Where this run goes. Defaults to the customer's own address;
                     a single run can go elsewhere without changing the customer. */}
                 <div className="space-y-1.5 pt-1 border-t">

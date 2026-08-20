@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Truck, Plus, Printer, Trash2, CheckCircle2, Clock, Loader2 } from 'lucide-react'
+import { Truck, Plus, Printer, Trash2, CheckCircle2, Clock, Loader2, UserCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,10 +14,11 @@ import {
 } from '@/components/ui/select'
 import { useAuth } from '@/contexts/auth-context'
 import { useUsers } from '@/hooks/use-users'
-import { createClient } from '@/lib/supabase/client'
+import { openPackingSlip } from '@/lib/packing-slip'
 import { isPosLine } from '@/lib/pos'
 import {
-  useDeliveryRuns, usePrepareDeliveryRun, useCancelDeliveryRun, openPerSkuFor,
+  useDeliveryRuns, usePrepareDeliveryRun, useCancelDeliveryRun, useUpdateDeliveryRun,
+  openPerSkuFor,
   type DeliveryRun,
 } from '@/hooks/use-delivery-runs'
 import type { Order, QuoteItem } from '@/types'
@@ -55,6 +56,7 @@ export function DeliveryRunsCard({ order }: { order: Order }) {
   const { data: users } = useUsers()
   const prepare = usePrepareDeliveryRun()
   const cancel = useCancelDeliveryRun()
+  const updateRun = useUpdateDeliveryRun()
 
   const [adding, setAdding] = useState(false)
   const [qty, setQty] = useState<Record<string, string>>({})
@@ -96,43 +98,12 @@ export function DeliveryRunsCard({ order }: { order: Order }) {
     )
   }
 
-  /**
-   * The packing slip of ONE run.
-   *
-   * Built from the run's own lines, which is the whole point: the order says
-   * 130 and this box holds 43. Opened after the blob is ready, never into a tab
-   * opened first — that freezes iOS Safari, and a phone is where this is used.
-   */
+  /** The packing slip of ONE run — see lib/packing-slip.ts. */
   async function printRun(run: DeliveryRun) {
     setPrinting(run.id)
-    try {
-      const supabase = createClient()
-      const React = await import('react')
-      const { pdf } = await import('@react-pdf/renderer')
-      const { DeliveryNotePDF } = await import('@/components/pdf/delivery-note-pdf')
-      const { fetchOrderBatches } = await import('@/lib/order-batches')
-      const { data: company } = await supabase
-        .from('company_settings').select('*')
-        .eq('id', '00000000-0000-0000-0000-000000000001').single()
-
-      const blob = await (pdf as never as (el: unknown) => { toBlob: () => Promise<Blob> })(
-        React.createElement(DeliveryNotePDF as never, {
-          order: { ...order, items: run.items },
-          batches: await fetchOrderBatches(order.id),
-          showPrices: false,
-          company: company ?? undefined,
-          documentType: 'PACKING SLIP',
-        } as never),
-      ).toBlob()
-
-      const url = URL.createObjectURL(blob)
-      window.open(url, '_blank')
-      setTimeout(() => URL.revokeObjectURL(url), 60_000)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not build the packing slip')
-    } finally {
-      setPrinting(null)
-    }
+    const result = await openPackingSlip(order, run.items ?? [])
+    if (!result.ok) toast.error(result.error)
+    setPrinting(null)
   }
 
   const nameOf = (id: string | null) =>
@@ -172,12 +143,77 @@ export function DeliveryRunsCard({ order }: { order: Order }) {
                 ) : (
                   <Badge className="bg-amber-100 text-amber-800 text-xs gap-1">
                     <Clock className="h-3 w-3" />
-                    Prepared{run.planned_date ? ` · ${fmtDay(run.planned_date)}` : ''}
+                    Prepared
                   </Badge>
                 )}
+
+                {/* The day, changeable on the spot. Same reason as the name
+                    beside it: a run that moves to Thursday should not need you
+                    to open a second screen to say so. */}
+                {!done && canPrepare ? (
+                  <Input
+                    type="date"
+                    className={`h-6 w-36 text-xs px-2 ${run.planned_date ? '' : 'border-amber-400'}`}
+                    defaultValue={run.planned_date ?? ''}
+                    onBlur={e => {
+                      const next = e.target.value || null
+                      if (next === (run.planned_date ?? null)) return
+                      updateRun.mutate({
+                        id: run.id, orderId: order.id, values: { planned_date: next },
+                      })
+                    }}
+                  />
+                ) : run.planned_date && !done ? (
+                  <span className="text-xs text-muted-foreground">{fmtDay(run.planned_date)}</span>
+                ) : null}
                 <span className="text-sm font-medium">{count} bottles</span>
-                {run.assigned_to && (
-                  <span className="text-xs text-muted-foreground">{nameOf(run.assigned_to)}</span>
+
+                {/* WHO has it — and while the run is still prepared, who has it
+                    is CHANGEABLE right here.
+                    Her point of 2026-08-20: it was a grey word beside the count
+                    you had to know to look for, and picking somebody else on
+                    the delivery screen did not stick, because that field is only
+                    written when the run is signed off. Somebody calls in sick
+                    hours before the run — that is the moment you need this, and
+                    it saves the instant you pick.
+                    A delivered run keeps a plain badge: what happened, happened. */}
+                {done ? (
+                  run.assigned_to && (
+                    <Badge className="bg-blue-100 text-blue-700 text-xs gap-1">
+                      <UserCircle2 className="h-3 w-3" />
+                      {nameOf(run.assigned_to)}
+                    </Badge>
+                  )
+                ) : canPrepare ? (
+                  <Select
+                    value={run.assigned_to ?? NOBODY}
+                    onValueChange={v => v && updateRun.mutate({
+                      id: run.id,
+                      orderId: order.id,
+                      values: { assigned_to: v === NOBODY ? null : v },
+                    })}
+                  >
+                    <SelectTrigger
+                      className={`h-6 text-xs px-2 w-auto min-w-[130px] ${
+                        run.assigned_to ? '' : 'border-amber-400 text-amber-700'
+                      }`}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NOBODY}>Nobody assigned</SelectItem>
+                      {(users ?? []).map(u => (
+                        <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Badge className={`text-xs gap-1 ${
+                    run.assigned_to ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-800'
+                  }`}>
+                    <UserCircle2 className="h-3 w-3" />
+                    {nameOf(run.assigned_to) ?? 'Nobody assigned'}
+                  </Badge>
                 )}
               </div>
 
