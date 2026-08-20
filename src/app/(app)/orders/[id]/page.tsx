@@ -9,6 +9,7 @@ import { useTransportsForOrder } from '@/hooks/use-transports'
 import { useUsers } from '@/hooks/use-users'
 import { useAuth } from '@/contexts/auth-context'
 import { OrderPosLine } from '@/components/order-pos-line'
+import { DeliveryRunsCard } from '../_components/delivery-runs-card'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -1194,6 +1195,10 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
           </div>
         </div>
       )}
+
+      {/* The runs this order goes out on — prepared first, signed later.
+          Her instruction of 2026-08-20. */}
+      <DeliveryRunsCard order={order} />
 
       {/* PDF Actions */}
       <Card size="sm">

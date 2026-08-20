@@ -355,55 +355,89 @@ export default function DeliveryPage({
     }
   }
 
+  /**
+   * Take this run off the warehouse shelf, oldest batch first.
+   *
+   * FIFO, her instruction of 2026-08-19 — and because a batch holds ONE
+   * best-before, oldest batch and shortest THT are the same batch. A run of 50
+   * off a shelf holding 30 of one and 40 of the next is two movements, both
+   * traceable.
+   *
+   * WHICH shelf comes from the transports this order is named on (migration
+   * 100), not from `orders.transport_id`: an order that had to be sent twice
+   * has no single one. Any of them that arrived at a warehouse and stayed there
+   * as stock is a shelf this order can be given out from.
+   *
+   * What is TAKEN is what is standing there, not what a pick once said. That is
+   * the difference FIFO makes: the goods on the shelf are the goods, whoever
+   * booked them in and on whichever run.
+   */
   async function bookOffWarehouse() {
-    const transportId = (order as any)?.transport_id
-    if (!transportId) return
     try {
-      const { data: t } = await supabase
+      const { data: links } = await supabase
+        .from('transport_orders')
+        .select('transport_id')
+        .eq('order_id', orderId)
+      const ids = (links ?? []).map(l => l.transport_id as string)
+      // The single column stays behind it so a delivery prepared before
+      // migration 100 still finds its warehouse.
+      const legacy = (order as any)?.transport_id
+      if (legacy && !ids.includes(legacy)) ids.push(legacy)
+      if (ids.length === 0) return
+
+      const { data: transports } = await supabase
         .from('transports')
         .select('id, location_id, stores_at_warehouse, arrived_at')
-        .eq('id', transportId)
-        .single()
-      if (!t?.stores_at_warehouse || !t.arrived_at || !t.location_id) return
+        .in('id', ids)
+      const shelf = (transports ?? []).find(
+        t => t.stores_at_warehouse && t.arrived_at && t.location_id,
+      )
+      if (!shelf?.location_id) return
 
-      // Which batch comes off the shelf — read back, never guessed.
-      //
-      // From what was RECEIVED at that warehouse since 2026-08-19: an export
-      // order no longer takes bottles off Curaçao itself, so it has no pick of
-      // its own to read. What is standing there is what was signed in, and that
-      // is what can be given out. Order picks stay behind it for a delivery that
-      // still ran under the old rule.
-      const { data: received } = await supabase
-        .from('stock_movements')
-        .select('sku, batch_id')
-        .eq('transport_id', t.id)
-        .eq('reason', 'received')
-      const { data: picks } = await supabase
-        .from('stock_movements')
-        .select('sku, batch_id')
-        .eq('order_id', orderId)
-        .eq('reason', 'order')
-      const batchOf = new Map([
-        ...(picks ?? []).map(p => [p.sku, p.batch_id] as const),
-        ...(received ?? []).map(p => [p.sku, p.batch_id] as const),
-      ])
+      // What is really standing at that place, per batch. batch_stock is the sum
+      // of the movements, so this is the shelf as it is right now.
+      const { data: stock } = await supabase
+        .from('batch_stock')
+        .select('batch_id, batch_number, tht_date, sku, location_id, qty')
+        .eq('location_id', shelf.location_id)
 
-      const rows = runItems
-        .filter(i => batchOf.has(i.sku))
-        .map(i => ({
-          batch_id: batchOf.get(i.sku),
-          sku: i.sku,
-          qty: -i.qty,
-          location_id: t.location_id,
-          reason: 'warehouse_out',
-          order_id: orderId,
-          transport_id: t.id,
-          note: 'Delivered to the customer from the warehouse',
-        }))
-      if (rows.length === 0) return
+      const { allocateFifo, lotsFor } = await import('@/lib/fifo')
 
-      const { error } = await supabase.from('stock_movements').insert(rows)
-      if (error) throw error
+      const rows: Record<string, unknown>[] = []
+      const shortages: string[] = []
+      for (const item of runItems) {
+        const { take, short } = allocateFifo(
+          lotsFor(stock ?? [], item.sku, shelf.location_id),
+          item.qty,
+        )
+        for (const t of take) {
+          rows.push({
+            batch_id: t.batch_id,
+            sku: item.sku,
+            qty: -t.qty,
+            location_id: shelf.location_id,
+            reason: 'warehouse_out',
+            order_id: orderId,
+            transport_id: shelf.id,
+            note: `Delivered to the customer from the warehouse — ${t.batch_number}`,
+          })
+        }
+        // Never booked below zero. A location that quietly goes negative makes
+        // every later count meaningless, so the gap is reported instead.
+        if (short > 0) shortages.push(`${short}× ${item.name}`)
+      }
+
+      if (rows.length > 0) {
+        const { error } = await supabase.from('stock_movements').insert(rows)
+        if (error) throw error
+      }
+
+      if (shortages.length > 0) {
+        toast.warning(
+          `Delivered, but the shelf did not cover it: ${shortages.join(', ')}. Nothing was booked below zero.`,
+          { duration: 12000 },
+        )
+      }
     } catch (err) {
       // The delivery itself is already signed and saved — that must stand. But
       // a stock booking that silently failed is how a warehouse count starts

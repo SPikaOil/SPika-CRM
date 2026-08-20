@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/auth-context'
 import { useUsers } from '@/hooks/use-users'
+import { useMyOpenRuns } from '@/hooks/use-delivery-runs'
 import { Order, Task, OrderCurrency } from '@/types'
 import { DEFAULT_TEMPLATES, TEMPLATE_LABELS, fillTemplate, type ReminderTemplate, type TemplateKey } from '@/lib/reminder-templates'
 import { computeOrderRhythm, assessQuiet } from '@/lib/order-rhythm'
@@ -778,6 +779,9 @@ export default function DashboardPage() {
   const { isAdmin, profile } = useAuth()
   const { data: users } = useUsers()
   const [myDeliveries, setMyDeliveries] = useState<any[]>([])
+  // Runs prepared for this person, from the deliveries themselves (105).
+  const { data: myRunsData } = useMyOpenRuns(profile?.id)
+  const myRuns = myRunsData ?? []
   const [myHandover, setMyHandover] = useState<{ sku: string; name: string; qty: number }[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -1424,6 +1428,51 @@ export default function DashboardPage() {
       {/* ── Sales view: my deliveries this week + bottles I picked up ── */}
       {!isAdmin && (
         <>
+          {/* Runs prepared for this person (migration 105).
+              Before this the assignee of a delivery saw nothing: the agenda
+              below reads ORDERS assigned to you, and a run is assigned on the
+              delivery. So somebody could be given three runs and open a dashboard
+              that said nothing was waiting. */}
+          {myRuns.length > 0 && (
+            <section>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <Truck className="h-3.5 w-3.5" /> Runs waiting for you
+              </p>
+              <Card size="sm" className="py-0">
+                <CardContent className="p-0 divide-y">
+                  {myRuns.map(run => {
+                    const r = run as never as {
+                      id: string; order_id: string; planned_date: string | null
+                      items: { qty: number }[]
+                      order: { order_number: string; customer: { company_name: string } | null } | null
+                    }
+                    const bottles = (r.items ?? []).reduce((s, i) => s + i.qty, 0)
+                    return (
+                      <Link
+                        key={r.id}
+                        href={`/delivery/${r.order_id}`}
+                        className="flex items-center gap-3 px-3 py-2 hover:bg-accent transition-colors"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">
+                            {r.order?.customer?.company_name ?? r.order?.order_number ?? 'Order'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {bottles} bottles
+                            {r.planned_date
+                              ? ` · ${new Date(`${r.planned_date}T12:00:00`).toLocaleDateString('en', { weekday: 'short', day: 'numeric', month: 'short' })}`
+                              : ' · no date yet'}
+                          </p>
+                        </div>
+                        <span className="text-xs text-red-600 shrink-0">Hand it over →</span>
+                      </Link>
+                    )
+                  })}
+                </CardContent>
+              </Card>
+            </section>
+          )}
+
           {/* Bottles I've picked up (handover) */}
           <section>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
