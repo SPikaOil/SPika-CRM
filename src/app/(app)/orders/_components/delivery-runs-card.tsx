@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/select'
 import { useAuth } from '@/contexts/auth-context'
 import { useUsers } from '@/hooks/use-users'
+import { useAssignableUsers } from '@/hooks/use-assignable-users'
 import { openPackingSlip } from '@/lib/packing-slip'
 import { isPosLine } from '@/lib/pos'
 import {
@@ -53,7 +54,10 @@ export function DeliveryRunsCard({ order }: { order: Order }) {
   const canPrepare = isAdmin || can('orders.view')
 
   const { data: runs } = useDeliveryRuns(order.id)
+  // The full team is for READING a name back. The choices below follow the
+  // rule: active, and ticked at this order's place.
   const { data: users } = useUsers()
+  const { data: assignable } = useAssignableUsers(order.id)
   const prepare = usePrepareDeliveryRun()
   const cancel = useCancelDeliveryRun()
   const updateRun = useUpdateDeliveryRun()
@@ -202,7 +206,7 @@ export function DeliveryRunsCard({ order }: { order: Order }) {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value={NOBODY}>Nobody assigned</SelectItem>
-                      {(users ?? []).map(u => (
+                      {assignable.map(u => (
                         <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
                       ))}
                     </SelectContent>
@@ -299,7 +303,7 @@ export function DeliveryRunsCard({ order }: { order: Order }) {
                   <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value={NOBODY}>Nobody yet</SelectItem>
-                    {(users ?? []).map(u => (
+                    {assignable.map(u => (
                       <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
                     ))}
                   </SelectContent>

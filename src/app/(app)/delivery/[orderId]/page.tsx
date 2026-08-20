@@ -25,6 +25,7 @@ import { toast } from 'sonner'
 import { useOrder } from '@/hooks/use-orders'
 import { useCustomerSigners, useHideCustomerSigner } from '@/hooks/use-customer-signers'
 import { useUsers } from '@/hooks/use-users'
+import { useAssignableUsers } from '@/hooks/use-assignable-users'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { createClient } from '@/lib/supabase/client'
 import { thtToMonthInput, monthInputToTht, currentMonthInput } from '@/lib/utils'
@@ -55,7 +56,9 @@ export default function DeliveryPage({
   const { data: order, isLoading, refetch } = useOrder(orderId)
   const { data: knownSigners } = useCustomerSigners((order as any)?.customer_id)
   const { isAdmin, profile, can } = useAuth()
+  // The full team is for READING a name back; the choices follow the place rule.
   const { data: users } = useUsers()
+  const { data: assignableHere } = useAssignableUsers(orderId)
 
   /**
    * Who may be named as having run this delivery.
@@ -67,9 +70,14 @@ export default function DeliveryPage({
    *
    * guard_delivery_assignment() in migration 081 enforces exactly this list, so
    * a name outside it is refused by the database as well.
+   *
+   * On top of that sits the place rule (2026-08-20): nobody from another island
+   * can be named here, not even by an admin. That is what went wrong on 729148.
+   * useAssignableUsers has already dropped the inactive ones and everybody who
+   * is not ticked at this order's place, so what is left to decide here is only
+   * the work.assign half.
    */
-  const assignableRunners = (users ?? []).filter(u => {
-    if (u.is_active === false) return false
+  const assignableRunners = assignableHere.filter(u => {
     if (can('work.assign')) return true
     return u.id === profile?.id || u.id === order?.assigned_to
   })

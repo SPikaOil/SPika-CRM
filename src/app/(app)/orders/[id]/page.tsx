@@ -7,6 +7,7 @@ import { ArrowLeft, Truck, CheckCircle, Clock, AlertCircle, Calendar, Download, 
 import { useOrder, useUpdateOrder } from '@/hooks/use-orders'
 import { useTransportsForOrder } from '@/hooks/use-transports'
 import { useUsers } from '@/hooks/use-users'
+import { useAssignableUsers } from '@/hooks/use-assignable-users'
 import { useAuth } from '@/contexts/auth-context'
 import { OrderPosLine } from '@/components/order-pos-line'
 import { DeliveryRunsCard } from '../_components/delivery-runs-card'
@@ -97,7 +98,11 @@ export default function OrderDetailPage({
   const adjustedTotal = order ? Number(order.total) - bottleCredit : 0
   const cur: OrderCurrency = (order as any)?.currency ?? 'XCG'
   const fmt = (amount: number) => formatCurrency(amount, cur)
+  // The full team is for READING a name back — an old order must still show
+  // the name it was given. The choices follow the rule: active, and ticked at
+  // this order's place.
   const { data: users } = useUsers()
+  const { data: assignable } = useAssignableUsers(id)
   const router = useRouter()
   const supabase = createClient()
   const [plannedDate, setPlannedDate] = useState<string>('')
@@ -739,7 +744,7 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {(users ?? []).filter(u => u.role !== 'customer' && u.is_active !== false).map(u => (
+                  {assignable.map(u => (
                     <SelectItem key={u.id} value={u.id} label={u.name}>{u.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -1808,12 +1813,9 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {(users ?? [])
-                    .filter(u => ['admin', 'manager', 'sales', 'warehouse', 'staff'].includes(u.role)
-                      && (u as { is_active?: boolean }).is_active !== false)
-                    .map(u => (
-                      <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
-                    ))}
+                  {assignable.map(u => (
+                    <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

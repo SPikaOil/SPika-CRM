@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { useCreateOrder } from '@/hooks/use-orders'
 import { useCustomers } from '@/hooks/use-customers'
 import { useUsers } from '@/hooks/use-users'
+import { useAssignableForNewOrder } from '@/hooks/use-assignable-users'
 import { useAuth } from '@/contexts/auth-context'
 import { PosPicker } from '@/components/pos-register'
 import { usePosItems, useCustomerPosItems } from '@/hooks/use-pos-items'
@@ -58,7 +59,10 @@ function NewDeliveryNoteInner() {
   const searchParams = useSearchParams()
   const createOrder = useCreateOrder()
   const { data: customers } = useCustomers()
+  // The full team is for READING a name back; the choices follow the place
+  // rule. A new order is a Curaçao order until a transport says otherwise.
   const { data: users } = useUsers()
+  const { data: assignable } = useAssignableForNewOrder()
   const { profile, can } = useAuth()
   const isAdmin = can('prices.view')   // price fields follow the permission, not the role
 
@@ -324,7 +328,7 @@ function NewDeliveryNoteInner() {
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {users?.filter(u => u.is_active !== false).map((u) => (
+                    {assignable.map((u) => (
                       <SelectItem key={u.id} value={u.id}>
                         {u.name} {u.role === 'admin' ? '(Admin)' : ''}
                       </SelectItem>
