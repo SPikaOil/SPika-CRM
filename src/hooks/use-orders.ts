@@ -19,7 +19,21 @@ function withDeliveries<T extends Record<string, unknown>>(rows: T[] | null): Or
     const sorted = [...list].sort((a, b) =>
       String(a.delivered_at ?? a.created_at ?? '').localeCompare(String(b.delivered_at ?? b.created_at ?? ''))
     )
-    return { ...order, deliveries: sorted, delivery: sorted[sorted.length - 1] } as Order
+    /**
+     * `delivery` is the last one that actually HAPPENED.
+     *
+     * Every screen reading it wants proof: the signature, the photo, the table
+     * bottles that came back, the signed PDF. Since migration 105 a run can sit
+     * here PREPARED, with none of that — and being the newest row it would take
+     * this spot and blank out the proof of a delivery that really did occur.
+     * The full list stays in `deliveries` for anything that wants both.
+     */
+    const done = sorted.filter(d => d.delivered_at)
+    return {
+      ...order,
+      deliveries: sorted,
+      delivery: done[done.length - 1] ?? sorted[sorted.length - 1],
+    } as Order
   })
 }
 

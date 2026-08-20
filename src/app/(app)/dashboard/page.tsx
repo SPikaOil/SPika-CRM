@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/auth-context'
 import { useUsers } from '@/hooks/use-users'
 import { useMyOpenRuns } from '@/hooks/use-delivery-runs'
+import { isPosLine } from '@/lib/pos'
 import { Order, Task, OrderCurrency } from '@/types'
 import { DEFAULT_TEMPLATES, TEMPLATE_LABELS, fillTemplate, type ReminderTemplate, type TemplateKey } from '@/lib/reminder-templates'
 import { computeOrderRhythm, assessQuiet } from '@/lib/order-rhythm'
@@ -1443,10 +1444,12 @@ export default function DashboardPage() {
                   {myRuns.map(run => {
                     const r = run as never as {
                       id: string; order_id: string; planned_date: string | null
-                      items: { qty: number }[]
+                      items: { sku: string; qty: number }[]
                       order: { order_number: string; customer: { company_name: string } | null } | null
                     }
-                    const bottles = (r.items ?? []).reduce((s, i) => s + i.qty, 0)
+                    // Bottles, not POS. A stand riding along is not a bottle,
+                    // and the order card counts it the same way.
+                    const bottles = (r.items ?? []).filter(i => !isPosLine(i)).reduce((s, i) => s + i.qty, 0)
                     return (
                       <Link
                         key={r.id}

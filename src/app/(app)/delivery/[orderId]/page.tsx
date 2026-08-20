@@ -175,10 +175,36 @@ export default function DeliveryPage({
   const deliveryItems = ((order?.items as any[]) ?? []).filter(i => (i.qty ?? 0) > 0 && !String(i.sku).includes('return'))
   const missingTht = deliveryItems.some(i => !i.tht_date)
 
-  // Already handed over on earlier runs, so this run only offers what is left.
+  /**
+   * The run this screen is about.
+   *
+   * Since migration 105 a run can be PREPARED: a delivery row with items, an
+   * assignee and a day, and no `delivered_at`. Opening that run has to hand over
+   * what was prepared — 118 bottles — and not silently offer the 12 that are
+   * left over after it. Danique caught exactly that on 2026-08-20: she prepared
+   * a run, opened it, and was shown the backorder.
+   */
+  type RunRow = {
+    id: string
+    items: { sku: string; qty: number }[] | null
+    delivered_at: string | null
+    created_at: string | null
+  }
+  const runRows = ((order as unknown as { deliveries?: RunRow[] })?.deliveries ?? [])
+  const preparedRun = runRows
+    .filter(d => !d.delivered_at && (d.items ?? []).length > 0)
+    .sort((a, b) => String(a.created_at ?? '').localeCompare(String(b.created_at ?? '')))[0]
+
+  /**
+   * Already handed over on earlier runs, so this run only offers what is left.
+   *
+   * DELIVERED runs only. A prepared run has not gone anywhere yet, and counting
+   * it here is what turned a 118-bottle run into a 12-bottle backorder the
+   * moment the driver opened it.
+   */
   const alreadyOut = new Map<string, number>()
-  for (const d of (order as any)?.deliveries ?? []) {
-    const lines = (d.items ?? []) as { sku: string; qty: number }[]
+  for (const d of runRows.filter(d => d.delivered_at)) {
+    const lines = d.items ?? []
     const source = lines.length > 0 ? lines : deliveryItems
     for (const it of source) alreadyOut.set(it.sku, (alreadyOut.get(it.sku) ?? 0) + it.qty)
   }
@@ -186,6 +212,11 @@ export default function DeliveryPage({
     deliveryItems.map(i => [i.sku, Math.max(0, i.qty - (alreadyOut.get(i.sku) ?? 0))])
   )
   const totalOpen = Array.from(openPerSku.values()).reduce((s, n) => s + n, 0)
+
+  /** What this run carries: what was prepared, else everything still open. */
+  const preparedQty = new Map<string, number>(
+    (preparedRun?.items ?? []).map(i => [i.sku, i.qty]),
+  )
 
   /**
    * POS material handed over in THIS run.
@@ -203,7 +234,7 @@ export default function DeliveryPage({
 
   /** The lines going out in this run — what was typed, else everything still open. */
   const goodsItems = deliveryItems
-    .map(i => ({ ...i, qty: runQty[i.sku] ?? openPerSku.get(i.sku) ?? 0 }))
+    .map(i => ({ ...i, qty: runQty[i.sku] ?? preparedQty.get(i.sku) ?? openPerSku.get(i.sku) ?? 0 }))
     .filter(i => i.qty > 0)
   const runItems = [...goodsItems, ...posLines]
   // POS is not goods: it must never decide whether the ORDER is complete, or a
@@ -251,20 +282,35 @@ export default function DeliveryPage({
       // Update order status
       await supabase.from('orders').update({ status: 'out_for_delivery' }).eq('id', orderId)
 
-      // Create delivery record
-      // insert, not upsert: an order can be delivered in parts since migration
-      // 058, so a second run is a new delivery and must not overwrite the first.
-      // The id is kept: from here on this run is finished by ID, never by
-      // order_id — an order can have several runs and updating by order_id
-      // would overwrite every one of them.
-      const { data: created } = await supabase.from('deliveries').insert({
-        order_id: orderId,
-        delivery_started_at: new Date().toISOString(),
-        gps_location: coords
-          ? { lat: coords.latitude, lng: coords.longitude, accuracy: coords.accuracy }
-          : null,
-      }).select('id').single()
-      if (created?.id) setDeliveryId(created.id as string)
+      // The run this screen is about.
+      //
+      // A PREPARED run (migration 105) already has a row — with its lines, its
+      // assignee and its day — so starting the delivery picks that one up rather
+      // than making a second one beside it. Inserting here regardless is how one
+      // prepared run became two rows, one of them empty.
+      //
+      // Otherwise: insert, not upsert. An order can be delivered in parts since
+      // migration 058, so a second run is a new delivery and must not overwrite
+      // the first. Either way the id is kept, because from here on the run is
+      // finished BY ID — updating by order_id would finish every run at once.
+      if (preparedRun?.id) {
+        await supabase.from('deliveries').update({
+          delivery_started_at: new Date().toISOString(),
+          gps_location: coords
+            ? { lat: coords.latitude, lng: coords.longitude, accuracy: coords.accuracy }
+            : null,
+        }).eq('id', preparedRun.id)
+        setDeliveryId(preparedRun.id)
+      } else {
+        const { data: created } = await supabase.from('deliveries').insert({
+          order_id: orderId,
+          delivery_started_at: new Date().toISOString(),
+          gps_location: coords
+            ? { lat: coords.latitude, lng: coords.longitude, accuracy: coords.accuracy }
+            : null,
+        }).select('id').single()
+        if (created?.id) setDeliveryId(created.id as string)
+      }
 
       toast.success('Delivery started!')
       if (order?.customer?.track_table_bottles) {
@@ -817,7 +863,7 @@ export default function DeliveryPage({
                         min="0"
                         max={open}
                         className="h-8 w-24 text-sm text-right px-2 shrink-0"
-                        value={runQty[item.sku] ?? open}
+                        value={runQty[item.sku] ?? preparedQty.get(item.sku) ?? open}
                         onChange={e => {
                           const v = Math.min(Math.max(Number(e.target.value) || 0, 0), open)
                           setRunQty(q => ({ ...q, [item.sku]: v }))
@@ -1000,7 +1046,7 @@ export default function DeliveryPage({
                         min="0"
                         max={open}
                         className="h-8 w-24 text-sm text-right px-2 shrink-0"
-                        value={runQty[item.sku] ?? open}
+                        value={runQty[item.sku] ?? preparedQty.get(item.sku) ?? open}
                         onChange={e => {
                           const v = Math.min(Math.max(Number(e.target.value) || 0, 0), open)
                           setRunQty(q => ({ ...q, [item.sku]: v }))
