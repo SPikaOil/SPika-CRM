@@ -17,7 +17,7 @@ import { useUsers } from '@/hooks/use-users'
 import { useMyOpenRuns } from '@/hooks/use-delivery-runs'
 import { isPosLine } from '@/lib/pos'
 import { WarehouseDashboardCard } from './_components/warehouse-card'
-import { ShortageBanner } from './_components/shortage-banner'
+import { ShortageBanner, CoverageBanner } from './_components/shortage-banner'
 import { Order, Task, OrderCurrency } from '@/types'
 import { DEFAULT_TEMPLATES, TEMPLATE_LABELS, fillTemplate, type ReminderTemplate, type TemplateKey } from '@/lib/reminder-templates'
 import { computeOrderRhythm, assessQuiet } from '@/lib/order-rhythm'
@@ -1398,6 +1398,10 @@ export default function DashboardPage() {
       {/* Bottles that never arrived, waiting for a decision. Her instruction of
           2026-08-20: Curaçao has to see it to act on it. */}
       {isAdmin && <ShortageBanner />}
+
+      {/* A warehouse that cannot cover the runs standing ready. A rule, not a
+          threshold — her point of 2026-08-20. */}
+      {isAdmin && <CoverageBanner />}
 
       {/* Export orders with no transport behind them */}
       {isAdmin && <ExportBanner rows={exportGaps} />}

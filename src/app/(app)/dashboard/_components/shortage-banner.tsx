@@ -2,9 +2,99 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react'
+import { AlertTriangle, ChevronDown, ChevronUp, PackageX } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { useTransports } from '@/hooks/use-transports'
+import { useBatchStock } from '@/hooks/use-batches'
+import { useOpenRunsForOrders } from '@/hooks/use-warehouse-work'
+import { coverageGaps } from '@/lib/coverage'
+
+/**
+ * A warehouse that cannot cover the runs already standing ready.
+ *
+ * A rule, not a threshold — Danique, 2026-08-20: "kunnen we toch een regel van
+ * maken?" Whether forty bottles is "low" depends on things the app does not
+ * know. Whether forty bottles covers the sixty already promised does not.
+ *
+ * On this dashboard because the answer lives here: send more, or move stock
+ * from a warehouse that has it. The people at the shelf see the same thing;
+ * they cannot do anything about it.
+ */
+export function CoverageBanner() {
+  const { data: transports } = useTransports()
+  const { data: stock } = useBatchStock()
+  const [expanded, setExpanded] = useState(false)
+
+  // Every warehouse that has stock or a transport, and the orders it holds.
+  const places = new Map<string, { name: string; orderIds: string[] }>()
+  for (const t of transports ?? []) {
+    if (t.ship_to !== 'warehouse' || !t.location_id) continue
+    const at = places.get(t.location_id) ?? { name: t.location?.name ?? 'Warehouse', orderIds: [] }
+    for (const o of t.orders ?? []) if (!at.orderIds.includes(o.id)) at.orderIds.push(o.id)
+    places.set(t.location_id, at)
+  }
+
+  const allOrderIds = Array.from(new Set(
+    Array.from(places.values()).flatMap(p => p.orderIds),
+  ))
+  const { data: runs } = useOpenRunsForOrders(allOrderIds)
+
+  const perPlace = Array.from(places.entries())
+    .map(([locationId, place]) => ({
+      locationId,
+      name: place.name,
+      gaps: coverageGaps(
+        stock ?? [],
+        (runs ?? []).filter(r => place.orderIds.includes(r.order_id)),
+        [locationId],
+      ),
+    }))
+    .filter(p => p.gaps.length > 0)
+
+  if (perPlace.length === 0) return null
+
+  const total = perPlace.reduce((s, p) => s + p.gaps.reduce((n, g) => n + g.short, 0), 0)
+
+  return (
+    <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/20 overflow-hidden">
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="w-full flex items-center gap-3 px-3 py-0.5 leading-tight hover:bg-red-100/40 dark:hover:bg-red-900/20 transition-colors"
+      >
+        <PackageX className="h-4 w-4 text-red-600 shrink-0" />
+        <div className="flex-1 text-left">
+          <p className="font-semibold text-red-700 dark:text-red-400">
+            {total} {total === 1 ? 'bottle' : 'bottles'} promised that are not on the shelf
+          </p>
+          <p className="text-xs text-red-600/80 dark:text-red-500">
+            {perPlace.map(p => p.name).join(', ')}
+            <span className="hidden sm:inline"> · send more, or hand over from another warehouse</span>
+          </p>
+        </div>
+        <Badge className="bg-red-600 text-white text-sm px-2 shrink-0">{perPlace.length}</Badge>
+        {expanded
+          ? <ChevronUp className="h-4 w-4 text-red-500 shrink-0" />
+          : <ChevronDown className="h-4 w-4 text-red-500 shrink-0" />}
+      </button>
+
+      {expanded && (
+        <div className="divide-y divide-red-100 dark:divide-red-900 border-t border-red-200 dark:border-red-800">
+          {perPlace.map(p => (
+            <div key={p.locationId} className="px-3 py-1.5">
+              <p className="text-sm font-medium">{p.name}</p>
+              {p.gaps.map(g => (
+                <p key={g.sku} className="text-xs text-muted-foreground">
+                  {g.name} — {g.have} standing, {g.promised} promised ·{' '}
+                  <span className="text-red-600 font-medium">{g.short} short</span>
+                </p>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 /**
  * Bottles that never arrived, waiting for somebody to decide what happens next.

@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/select'
 import type { TransportLocation, WarehouseDeliveryAddress } from '@/types'
 
-const EMPTY = { name: '', street: '', zip: '', city: '', country: '', user_id: '' }
+const EMPTY = { name: '', street: '', zip: '', city: '', country: '', user_id: '', min_bottles: '' }
 
 const EMPTY_DROP = {
   // Two names on purpose, and only `name` is ever printed — see migration 096.
@@ -105,6 +105,7 @@ export function WarehousesCard() {
     setForm({
       name: l.name ?? '', street: l.street ?? '', zip: l.zip ?? '',
       city: l.city ?? '', country: l.country ?? '',
+      min_bottles: l.min_bottles === null || l.min_bottles === undefined ? '' : String(l.min_bottles),
       user_id: (l as { user_id?: string | null }).user_id ?? '',
     })
   }
@@ -115,6 +116,8 @@ export function WarehousesCard() {
       name: form.name.trim(), street: form.street.trim(), zip: form.zip.trim(),
       city: form.city.trim(), country: form.country.trim(),
       user_id: form.user_id || null,
+      // Empty means no floor at all, which is not the same as a floor of nought.
+      min_bottles: form.min_bottles.trim() === '' ? null : Number(form.min_bottles),
     }
     if (editingId) {
       updateLocation.mutate({ id: editingId, values }, { onSuccess: () => setEditingId(null) })
@@ -151,6 +154,16 @@ export function WarehousesCard() {
           <Label className="text-xs">Country</Label>
           <Input className="h-8 text-sm" value={form.country}
             onChange={e => setForm(f => ({ ...f, country: e.target.value }))} />
+        </div>
+        {/* The floor for this place (106). Below it, whoever works here is told
+            on their dashboard that Curacao has to send something. Left empty
+            there is no warning at all — a threshold the app guessed would be a
+            threshold nobody acts on. */}
+        <div className="space-y-1 sm:col-span-2">
+          <Label className="text-xs">Warn below … bottles</Label>
+          <Input type="number" min="0" className="h-8 text-sm" placeholder="leave empty for no warning"
+            value={form.min_bottles}
+            onChange={e => setForm(f => ({ ...f, min_bottles: e.target.value }))} />
         </div>
       </div>
 

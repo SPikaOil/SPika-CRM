@@ -580,6 +580,15 @@ export interface TransportLocation {
   zip: string
   city: string
   country: string
+  /**
+   * Tell us when this place drops below this many bottles (migration 106).
+   *
+   * Null = nobody has said, and nothing is reported. Per place on purpose: a
+   * warehouse three weeks from Curaçao needs a different floor than one two
+   * days away, and the company-wide `safety_stock_months` is about Curaçao's
+   * own months of cover, which a warehouse abroad has no history to derive.
+   */
+  min_bottles?: number | null
   created_at: string
 }
 
