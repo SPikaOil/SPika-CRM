@@ -215,7 +215,7 @@ export function PosCatalogue({ canManage }: { canManage: boolean }) {
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? 'Edit POS item' : 'New POS item'}</DialogTitle>
           </DialogHeader>

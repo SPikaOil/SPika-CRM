@@ -417,7 +417,7 @@ export default function MarketingPage() {
 
       {/* Add / edit */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editing ? 'Edit asset' : 'Add asset'}</DialogTitle>
           </DialogHeader>

@@ -265,7 +265,7 @@ export default function CampaignsPage() {
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? 'Edit campaign' : 'New campaign'}</DialogTitle>
           </DialogHeader>
@@ -348,8 +348,12 @@ export default function CampaignsPage() {
                             : f.customerIds.filter(id => id !== r.id),
                         }))}
                       />
-                      <span className="text-sm truncate">{r.company_name}</span>
-                      {r.city && <span className="text-xs text-muted-foreground ml-auto shrink-0">{r.city}</span>}
+                      {/* min-w-0 or `truncate` does nothing: a flex item will
+                          not shrink below its content without it, and a long
+                          reseller name then pushes the city off the edge and
+                          the dialog sideways. */}
+                      <span className="text-sm truncate min-w-0 flex-1">{r.company_name}</span>
+                      {r.city && <span className="text-xs text-muted-foreground shrink-0">{r.city}</span>}
                     </label>
                   ))}
                 </div>
@@ -401,14 +405,17 @@ export default function CampaignsPage() {
               )}
             </div>
 
-            <label className="flex items-center gap-2 cursor-pointer">
+            {/* items-start, not items-center: the sentence wraps to two lines
+                in a narrow dialog and a centred checkbox then floats halfway
+                down it. */}
+            <label className="flex items-start gap-2 cursor-pointer">
               <input
                 type="checkbox"
-                className="h-4 w-4 accent-red-600"
+                className="h-4 w-4 mt-0.5 shrink-0 accent-red-600"
                 checked={form.is_active}
                 onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))}
               />
-              <span className="text-sm">
+              <span className="text-sm min-w-0">
                 Active
                 <span className="text-muted-foreground"> — switch off to archive it and pull its material from the portal</span>
               </span>
