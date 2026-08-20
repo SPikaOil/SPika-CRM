@@ -23,7 +23,6 @@ import { ColliEditor } from '../_components/colli-editor'
 import { OrderShare } from '../_components/order-share'
 import { LoadBatches } from '../_components/load-batches'
 import { TransportPosLine } from '../_components/transport-pos-line'
-import { OrderPosLine } from '@/components/order-pos-line'
 import { TransportDocuments } from '../_components/transport-documents'
 import { ReceivedDocuments } from '../_components/received-documents'
 import { ArrivalCard } from '../_components/arrival-card'
@@ -549,7 +548,7 @@ export default function TransportDetailPage({
           a transport is a stock transfer, packed per product, and the warehouse
           repacks it over there into what each order needs. */}
       <Card size="sm">
-        <CardHeader><CardTitle className="text-base">Packing</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">In the boxes</CardTitle></CardHeader>
         <CardContent className="space-y-2">
           <ColliEditor transport={t} />
           {/* A stand or a sheet of labels riding along, with no order behind it.
@@ -601,7 +600,9 @@ export default function TransportDetailPage({
               <OrderShare order={o} transportId={id} />
               {/* A stand or a sheet of labels riding along. Lands as a €0 line
                   on the order, which is what the packing list prints. */}
-              <OrderPosLine order={o} />
+              {/* POS moved to the one overview under the packing (2026-08-20):
+                  showing it per order here as well meant the same stand was
+                  listed twice on one screen. */}
             </div>
           ))}
 

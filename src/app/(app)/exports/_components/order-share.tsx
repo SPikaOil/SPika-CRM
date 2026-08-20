@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Order, QuoteItem } from '@/types'
 import { useSetTransportOrderItems } from '@/hooks/use-transports'
+import { isPosLine } from '@/lib/pos'
 
 /**
  * How much of one order travels on this transport.
@@ -29,7 +30,20 @@ import { useSetTransportOrderItems } from '@/hooks/use-transports'
 export function OrderShare({ order, transportId }: { order: Order; transportId: string }) {
   const save = useSetTransportOrderItems()
 
-  const ordered = ((order.items ?? []) as QuoteItem[]).filter(i => i.qty > 0)
+  /**
+   * The PRODUCTS of this order, without the POS material.
+   *
+   * Danique, 2026-08-20: POS was showing up twice inside one card — once as a
+   * quantity here and once in the POS box right underneath, both read off the
+   * same order lines. And a quantity is the wrong question for a stand: you do
+   * not send four fifths of a display, it goes along or it does not. So POS has
+   * one place, and this is not it.
+   *
+   * It is still STORED in the allocation below, untouched, because the packing
+   * check compares the boxes against what this run is meant to carry — and a
+   * stand in a box has to count as expected rather than as a surprise.
+   */
+  const ordered = ((order.items ?? []) as QuoteItem[]).filter(i => i.qty > 0 && !isPosLine(i))
   const onBoard = (order.on_transport ?? []) as QuoteItem[]
   const qtyOf = (sku: string) => onBoard.find(i => i.sku === sku)?.qty ?? 0
 
@@ -37,13 +51,16 @@ export function OrderShare({ order, transportId }: { order: Order; transportId: 
 
   /** Write the whole allocation at once — one row, one truth. */
   function write(next: QuoteItem[]) {
+    // POS lines are not editable here, so they are carried over as they were
+    // rather than quietly dropped by a screen that never showed them.
+    const pos = onBoard.filter(isPosLine)
     save.mutate({
       orderId: order.id,
       transportId,
       // Lines set to zero are dropped rather than stored as zeroes: "not on this
       // transport" and "nought of it on this transport" are the same thing, and
       // one of the two spellings is enough.
-      items: next.filter(i => i.qty > 0),
+      items: [...next.filter(i => !isPosLine(i) && i.qty > 0), ...pos],
     })
   }
 
@@ -66,7 +83,7 @@ export function OrderShare({ order, transportId }: { order: Order; transportId: 
     <div className="space-y-1 border-t pt-1.5">
       <div className="flex items-center gap-2">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          On this transport
+          Agreed to send
         </p>
         <span className={`text-xs ${isWhole ? 'text-muted-foreground' : 'text-amber-600'}`}>
           {isWhole ? 'the whole order' : `part shipment · ${total} of ${full}`}

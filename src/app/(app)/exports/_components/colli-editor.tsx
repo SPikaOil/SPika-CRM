@@ -57,19 +57,6 @@ const SIZE_FIELDS = [
 /** The value the "meant for" dropdown uses for a box of loose stock. */
 const LOOSE = '__loose__'
 
-const DAY = 24 * 60 * 60 * 1000
-
-/** Whole days between departure and arrival. Empty when we never left. */
-function daysOut(etd: string | null | undefined, ata: string): string {
-  if (!etd) return 'transit'
-  const days = Math.round((Date.parse(`${ata}T12:00:00`) - Date.parse(`${etd}T12:00:00`)) / DAY)
-  return days >= 0 ? `${days} days` : 'transit'
-}
-
-/** How long a box has been out. What you want to know while it is missing. */
-function daysSince(etd: string): number {
-  return Math.max(0, Math.round((Date.now() - Date.parse(`${etd}T12:00:00`)) / DAY))
-}
 
 export function ColliEditor({ transport }: { transport: Transport }) {
   const setColli = useSetTransportColli()
@@ -209,26 +196,6 @@ export function ColliEditor({ transport }: { transport: Transport }) {
     ))
   }
 
-  /**
-   * ATA — the day THIS box actually landed.
-   *
-   * Her case of 2026-08-19: three colli left together, one arrived after 20
-   * days, one after 23, one is still missing. ETD and ETA sit on the transport
-   * because the load left as one thing; arriving is not something a load does
-   * together, so it is asked per box. Empty means still out there, which is a
-   * real answer and not a blank to be filled in later.
-   */
-  function setAta(index: number, value: string) {
-    write(colli.map((c, i) =>
-      i === index ? { ...c, ata: value === '' ? null : value } : c
-    ))
-  }
-
-  function setAtaNote(index: number, value: string) {
-    write(colli.map((c, i) =>
-      i === index ? { ...c, ata_note: value === '' ? null : value } : c
-    ))
-  }
 
   function addItem(index: number, sku: string) {
     const source = catalogue.find(i => i.sku === sku)
@@ -318,18 +285,22 @@ export function ColliEditor({ transport }: { transport: Transport }) {
             {loose} loose
           </span>
         )}
-        {/* Arrival is per box, so the load has no single answer. This is the
-            one line that says how far along it is. */}
-        {colli.length > 0 && (
-          <span className={`text-xs ${stillOut > 0 ? 'text-amber-600' : 'text-green-700'}`}>
-            {stillOut === 0
-              ? 'all arrived'
-              : `${colli.length - stillOut} of ${colli.length} arrived`}
+        {/* How far along the arrival is. The dates themselves live in Goods
+            receipt below — this is only a pointer so you can see from the
+            packing whether anything is still out. */}
+        {colli.length > 0 && stillOut > 0 && (
+          <span className="text-xs text-amber-600">
+            {stillOut} still out
           </span>
         )}
+        {/* Name the product. "Carries more than is outstanding" made you open
+            the panel to find out what it meant — her point of 2026-08-20 — and
+            a warning you have to go looking into is a warning nobody reads. */}
         {over.length > 0 && (
           <span className="text-xs text-amber-600">
-            carries more than is outstanding
+            {over.length === 1
+              ? `${over[0].inColli - over[0].ordered}× ${over[0].name} more than needed`
+              : `${over.length} products more than needed`}
           </span>
         )}
         <Button size="sm" variant="outline" className="h-6 gap-1 text-xs px-2" onClick={addColli}>
@@ -394,33 +365,10 @@ export function ColliEditor({ transport }: { transport: Transport }) {
                   <span className="text-[11px] text-muted-foreground">never printed</span>
                 </div>
 
-                {/* ATA — when THIS box landed. A load does not arrive as one
-                    thing: her three colli came in after 20 days, 23 days, and
-                    never. Empty means still out there, and that is an answer. */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <Label className="text-xs text-muted-foreground shrink-0">ATA</Label>
-                  <Input
-                    type="date"
-                    className="h-6 w-36 text-xs px-2"
-                    defaultValue={c.ata ?? ''}
-                    onBlur={e => setAta(index, e.target.value)}
-                  />
-                  {c.ata ? (
-                    <span className="text-[11px] text-green-700">
-                      in {daysOut(transport.etd, c.ata)}
-                    </span>
-                  ) : (
-                    <span className="text-[11px] text-amber-600">
-                      still out{transport.etd ? ` · ${daysSince(transport.etd)} days` : ''}
-                    </span>
-                  )}
-                  <Input
-                    className="h-6 flex-1 min-w-[120px] text-xs px-2"
-                    placeholder="note — late, lost, damaged…"
-                    defaultValue={c.ata_note ?? ''}
-                    onBlur={e => setAtaNote(index, e.target.value)}
-                  />
-                </div>
+                {/* The ATA used to be typed here. It moved to Goods receipt on
+                    2026-08-20 — her call: the day a box landed is something you
+                    know while you are standing in front of it counting, not
+                    while you are packing it weeks earlier. */}
 
                 {/* The size of THIS box. It goes on the packing list next to
                     the weight, because a carrier prices a pallet by both (098).

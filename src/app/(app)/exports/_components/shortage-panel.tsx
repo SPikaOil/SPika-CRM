@@ -22,12 +22,23 @@ const OUTCOMES: { value: Outcome; label: string; hint: string }[] = [
 interface Line {
   order_id: string
   order_number: string
+  /**
+   * Which box this count came from (2026-08-19). Intake is per colli, so the
+   * same product can come up short in two boxes on one transport and each is
+   * its own decision — one may be credited and the other sent again.
+   */
+  colli?: number
   sku: string
   name: string
   expected: number
   received: number
   reason: string
   outcome?: Outcome
+}
+
+/** What identifies one shortage: a product, in a box, on an order. */
+function keyOf(l: Line) {
+  return `${l.order_id}-${l.colli ?? 0}-${l.sku}`
 }
 
 /**
@@ -61,13 +72,19 @@ export function ShortagePanel({ transport }: { transport: Transport }) {
   const open = short.filter(l => !l.outcome)
 
   async function settle(line: Line, outcome: Outcome) {
-    const key = `${line.order_id}-${line.sku}`
+    const key = keyOf(line)
     setBusy(key)
     try {
       const supabase = createClient()
       const missing = line.expected - line.received
 
       if (outcome === 'credit') {
+        // A box of loose stock belongs to no order, so there is nobody to
+        // credit. It is our own stock that went missing, which is what "our
+        // loss" is for.
+        if (!line.order_id) {
+          throw new Error('This box was not packed for an order — there is nobody to credit')
+        }
         // The same shape migration 052 uses: negative quantities and a negative
         // total, so every sum that already exists corrects itself untouched.
         const { data: order } = await supabase
@@ -111,7 +128,7 @@ export function ShortagePanel({ transport }: { transport: Transport }) {
       // arrived, so they were never booked in. What they change is the record of
       // what we decided, and that is the point of writing it down.
       const next = lines.map(l =>
-        l.order_id === line.order_id && l.sku === line.sku ? { ...l, outcome } : l
+        keyOf(l) === keyOf(line) ? { ...l, outcome } : l
       )
       await update.mutateAsync({ id: transport.id, values: { receipt_lines: next } as never })
       queryClient.invalidateQueries({ queryKey: ['orders'] })
@@ -148,7 +165,7 @@ export function ShortagePanel({ transport }: { transport: Transport }) {
         </p>
 
         {short.map(l => {
-          const key = `${l.order_id}-${l.sku}`
+          const key = keyOf(l)
           const missing = l.expected - l.received
           const settled = OUTCOMES.find(o => o.value === l.outcome)
           return (
@@ -156,6 +173,9 @@ export function ShortagePanel({ transport }: { transport: Transport }) {
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-medium flex-1 min-w-0 truncate">{l.name}</span>
                 <span className="text-xs text-red-600 shrink-0">{missing} short</span>
+                {l.colli ? (
+                  <span className="text-xs text-muted-foreground shrink-0">Colli {l.colli}</span>
+                ) : null}
                 <span className="text-xs text-muted-foreground shrink-0">{l.order_number}</span>
               </div>
 

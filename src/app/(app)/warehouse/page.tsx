@@ -73,14 +73,14 @@ export default function WarehousePage() {
       .sort((a, b) => a.sku.localeCompare(b.sku) || (a.tht_date ?? '').localeCompare(b.tht_date ?? ''))
   }
 
-  /** On its way: sent to this warehouse, not signed in yet. */
+  /** On its way: sent to this warehouse, no goods receipt yet. */
   function inboundTo(locationId: string) {
     return (transports ?? []).filter(
       t => t.ship_to === 'warehouse' && t.location_id === locationId && !t.arrived_at
     )
   }
 
-  /** Signed in here, so its bottles are on the shelves above. */
+  /** Received here, so its bottles are on the shelves above. */
   function arrivedAt(locationId: string) {
     return (transports ?? []).filter(
       t => t.location_id === locationId && t.arrived_at && t.stores_at_warehouse
@@ -201,7 +201,7 @@ export default function WarehousePage() {
                           <Clock className="h-3 w-3 mr-1" />
                           {t.eta ? `ETA ${new Date(t.eta + 'T12:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short' })}` : 'no ETA'}
                         </Badge>
-                        <span className="ml-auto text-xs text-muted-foreground">Sign in →</span>
+                        <span className="ml-auto text-xs text-muted-foreground">Goods receipt →</span>
                       </Link>
                     ))}
                   </div>

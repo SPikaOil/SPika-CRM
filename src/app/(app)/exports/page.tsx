@@ -18,6 +18,7 @@ import {
 import { TransportStatus, Order } from '@/types'
 import { fmtOwnCurrency } from '@/lib/utils'
 import { Suspense } from 'react'
+import { TransitOverview } from './_components/transit-overview'
 
 const statusColors: Record<TransportStatus, string> = {
   draft:     'bg-gray-100 text-gray-700',
@@ -132,6 +133,10 @@ function ExportsInner() {
           className="pl-9"
         />
       </div>
+
+      {/* How the transports have actually done — promised against real, per
+          box. Her instruction of 2026-08-20: in one glance. */}
+      <TransitOverview transports={filtered} />
 
       {/* Every export order, on a transport or not. The ETA lives on the
           transport, so a row only shows a date once the order has been put on

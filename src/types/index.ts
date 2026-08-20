@@ -521,6 +521,19 @@ export interface Colli {
   ata?: string | null
   /** Why a box is late or gone, in whatever words fit. Free text. */
   ata_note?: string | null
+  /**
+   * What was counted when THIS box was signed in at the warehouse.
+   *
+   * Intake is per colli because arrival is (her point of 2026-08-19): one box
+   * lands after 20 days and another after 23, so they cannot share one count or
+   * one signature. Expected is what the packing says is inside; received is what
+   * the warehouse actually found, and that is what goes into stock.
+   */
+  received_items?: { sku: string; name: string; expected: number; received: number; reason: string }[]
+  /** Who signed this box in. */
+  received_by?: string | null
+  /** PATH inside the private pod-files bucket — never a public URL. */
+  receipt_signature_url?: string | null
 }
 
 export type TransportStatus = 'draft' | 'ready' | 'submitted' | 'cleared' | 'delivered'
