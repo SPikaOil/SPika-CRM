@@ -90,10 +90,16 @@ interface Props {
  * without opening the box.
  */
 export function ShippingLabelPDF({ transport, pages, company = DEFAULT_COMPANY }: Props) {
+  // Whose address a customer-routed transport goes to. Read off the TRANSPORT,
+  // not off the box: a transport goes to one address, so every label on it
+  // carries the same one. Since migration 100 a box need not belong to an order
+  // at all — it can be loose stock — and taking the address from the box would
+  // have printed nothing at all for those.
+  const customer = (transport.orders ?? [])[0]?.customer as any
+
   return (
     <Document>
       {pages.map((page) => {
-        const customer = page.order.customer as any
         const location = transport.location
         // The door this load is actually delivered to, when one is picked (095).
         // It wins over the warehouse's own address: the box has to arrive where

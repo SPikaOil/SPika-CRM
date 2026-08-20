@@ -1,11 +1,40 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
-import { Transport, TransportLocation, WarehouseDeliveryAddress, Carrier, Order, Colli } from '@/types'
+import { Transport, TransportLocation, WarehouseDeliveryAddress, Carrier, Order, Colli, QuoteItem } from '@/types'
 import { isExportCustomer } from '@/lib/country'
 import { toast } from 'sonner'
 
+/**
+ * Which orders a transport is meant for comes through `transport_orders` since
+ * migration 100 — a reference list, so the SAME order can be on two transports.
+ * That is what a re-send after a lost load is, and `orders.transport_id` (one
+ * column) could never express it.
+ */
 const TRANSPORT_SELECT =
-  '*, carrier:carriers(*), location:transport_locations(*), delivery_address:warehouse_delivery_addresses(*), orders:orders(*, customer:customers(*))'
+  '*, carrier:carriers(*), location:transport_locations(*), delivery_address:warehouse_delivery_addresses(*), order_links:transport_orders(items, order:orders(*, customer:customers(*)))'
+
+/** Flatten the join rows back into the plain `orders` every screen already reads. */
+type TransportRow = Omit<Transport, 'orders'> & {
+  order_links?: { items: QuoteItem[] | null; order: Order | null }[] | null
+}
+
+function withOrders(row: TransportRow): Transport {
+  const orders = (row.order_links ?? [])
+    .filter(l => !!l.order && !l.order.deleted_at)
+    // `on_transport` is how much of that order travels on THIS transport — her
+    // instruction of 2026-08-19, because it is not always the whole order. It
+    // falls back to the order itself so a link written before the column
+    // existed still reads as "all of it", which is what it meant.
+    .map(l => ({
+      ...(l.order as Order),
+      on_transport: (l.items ?? []).length > 0
+        ? (l.items as QuoteItem[])
+        : ((l.order as Order).items ?? []) as QuoteItem[],
+    }))
+  const { order_links: _drop, ...rest } = row
+  void _drop
+  return { ...rest, orders } as Transport
+}
 
 export function useTransports() {
   const supabase = createClient()
@@ -17,7 +46,7 @@ export function useTransports() {
         .select(TRANSPORT_SELECT)
         .order('transport_number', { ascending: false })
       if (error) throw error
-      return data as Transport[]
+      return ((data ?? []) as unknown as TransportRow[]).map(withOrders)
     },
   })
 }
@@ -33,7 +62,7 @@ export function useTransport(id: string) {
         .eq('id', id)
         .single()
       if (error) throw error
-      return data as Transport
+      return withOrders(data as unknown as TransportRow)
     },
     enabled: !!id,
   })
@@ -53,7 +82,11 @@ export function useExportOrders() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('orders')
-        .select('*, customer:customers!inner(*), transport:transports(*)')
+        .select(
+          '*, customer:customers!inner(*), transport:transports(*), ' +
+          // Every transport this order is named on, not just the last one (100).
+          'transport_links:transport_orders(transport:transports(*))',
+        )
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
       if (error) throw error
@@ -61,7 +94,16 @@ export function useExportOrders() {
       // field inside the address, and isExportCustomer already knows how to
       // read "Curacao", "CURAÇAO " and "cw" as the same place. One rule, one
       // function, used by every screen — see lib/country.ts.
-      return ((data ?? []) as Order[]).filter(o => isExportCustomer(o.customer))
+      type Row = Order & { transport_links?: { transport: Transport | null }[] | null }
+      return ((data ?? []) as unknown as Row[])
+        .filter(o => isExportCustomer(o.customer))
+        .map(({ transport_links, ...o }) => ({
+          ...o,
+          transports: (transport_links ?? [])
+            .map(l => l.transport)
+            .filter((t): t is Transport => !!t)
+            .sort((a, b) => b.transport_number.localeCompare(a.transport_number)),
+        })) as Order[]
     },
   })
 }
@@ -209,19 +251,22 @@ export function useDeleteTransport() {
 }
 
 /**
- * The packages of an order and what is in each of them. The whole array is
- * written at once: the number of colli is its length, so adding a package and
- * filling one are the same operation and cannot fall out of step.
+ * The packages of a TRANSPORT and what is in each of them (migration 100).
+ *
+ * The whole array is written at once: the number of colli is its length, so
+ * adding a package and filling one are the same operation and cannot fall out
+ * of step. It used to be written on the order, which printed the same boxes on
+ * both transports the moment an order travelled twice.
  */
-export function useSetOrderColli() {
+export function useSetTransportColli() {
   const supabase = createClient()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ orderId, colli }: { orderId: string; colli: Colli[] }) => {
+    mutationFn: async ({ transportId, colli }: { transportId: string; colli: Colli[] }) => {
       const { error } = await supabase
-        .from('orders')
+        .from('transports')
         .update({ colli_contents: colli })
-        .eq('id', orderId)
+        .eq('id', transportId)
       if (error) throw error
     },
     onSuccess: () => {
@@ -229,6 +274,32 @@ export function useSetOrderColli() {
       queryClient.invalidateQueries({ queryKey: ['export-orders'] })
     },
     onError: (err: Error) => toast.error(err.message),
+  })
+}
+
+/**
+ * Every transport an order is named on, newest first (migration 100).
+ *
+ * Two of them is not a mistake — it is a load that went missing and was sent
+ * again. The single-transport hook below cannot say that, which is why the
+ * order page reads this one.
+ */
+export function useTransportsForOrder(orderId: string | null | undefined) {
+  const supabase = createClient()
+  return useQuery({
+    queryKey: ['transports', 'for-order-all', orderId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('transport_orders')
+        .select('transport:transports(*, carrier:carriers(*))')
+        .eq('order_id', orderId!)
+      if (error) throw error
+      return ((data ?? []) as unknown as { transport: Transport | null }[])
+        .map(r => r.transport)
+        .filter((t): t is Transport => !!t)
+        .sort((a, b) => b.transport_number.localeCompare(a.transport_number))
+    },
+    enabled: !!orderId,
   })
 }
 
@@ -250,17 +321,120 @@ export function useTransportForOrder(transportId: string | null) {
   })
 }
 
-/** Put an order on a transport, or take it off again by passing null. */
-export function useSetOrderTransport() {
+/**
+ * Say that a transport is (also) meant for this order.
+ *
+ * A reference, not an allocation — no quantities change hands, and the same
+ * order may be named by several transports. That is the whole point since
+ * migration 100: send a load, lose it, send again, and both movements point at
+ * the same order without either of them lying about the other.
+ *
+ * `orders.transport_id` is kept in step as the MOST RECENT transport, because
+ * uitslag (bookOffWarehouse) still reads it. That dependency is untangled in
+ * its own step; until then, dropping the column here would leave the warehouse
+ * unable to book anything off at all.
+ */
+export function useAddOrderToTransport() {
   const supabase = createClient()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ orderId, transportId }: { orderId: string; transportId: string | null }) => {
+    mutationFn: async ({ orderId, transportId }: { orderId: string; transportId: string }) => {
+      // The whole order to begin with, because that is the ordinary case and
+      // nobody should have to retype it. Cut down by hand for a part shipment.
+      const { data: order, error: orderErr } = await supabase
+        .from('orders')
+        .select('items')
+        .eq('id', orderId)
+        .single()
+      if (orderErr) throw orderErr
+
       const { error } = await supabase
+        .from('transport_orders')
+        .upsert({
+          order_id: orderId,
+          transport_id: transportId,
+          items: (order?.items ?? []) as QuoteItem[],
+        }, {
+          onConflict: 'transport_id,order_id',
+          ignoreDuplicates: true,
+        })
+      if (error) throw error
+      const { error: syncErr } = await supabase
         .from('orders')
         .update({ transport_id: transportId })
         .eq('id', orderId)
+      if (syncErr) throw syncErr
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transports'] })
+      queryClient.invalidateQueries({ queryKey: ['export-orders'] })
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+}
+
+/**
+ * How much of an order travels on this transport.
+ *
+ * Her instruction of 2026-08-19: "per order die we in het transport selecteren,
+ * dienen we zelf aan te geven hoeveel items mee zijn. Is niet altijd de hele
+ * order." Said out loud, not worked out from the boxes — the quantity is agreed
+ * before anything is packed, and the packing is checked against it afterwards.
+ */
+export function useSetTransportOrderItems() {
+  const supabase = createClient()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ orderId, transportId, items }: {
+      orderId: string; transportId: string; items: QuoteItem[]
+    }) => {
+      const { error } = await supabase
+        .from('transport_orders')
+        .update({ items })
+        .eq('order_id', orderId)
+        .eq('transport_id', transportId)
       if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transports'] })
+      queryClient.invalidateQueries({ queryKey: ['export-orders'] })
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+}
+
+/**
+ * Take an order off one transport. Its other transports are untouched — that is
+ * the difference from the old single column, which could only ever forget all
+ * of them at once.
+ */
+export function useRemoveOrderFromTransport() {
+  const supabase = createClient()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ orderId, transportId }: { orderId: string; transportId: string }) => {
+      const { error } = await supabase
+        .from('transport_orders')
+        .delete()
+        .eq('order_id', orderId)
+        .eq('transport_id', transportId)
+      if (error) throw error
+
+      // Point the legacy column at whatever transport the order is still on —
+      // the most recent one — or clear it when it is on none.
+      const { data: left, error: leftErr } = await supabase
+        .from('transport_orders')
+        .select('transport_id, created_at')
+        .eq('order_id', orderId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+      if (leftErr) throw leftErr
+      const { error: syncErr } = await supabase
+        .from('orders')
+        .update({ transport_id: left?.[0]?.transport_id ?? null })
+        .eq('id', orderId)
+      if (syncErr) throw syncErr
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transports'] })

@@ -16,10 +16,11 @@ import {
 import { useAuth } from '@/contexts/auth-context'
 import {
   useTransport, useUpdateTransport, useDeleteTransport, useCarriers,
-  useTransportLocations, useExportOrders, useSetOrderTransport,
-  useWarehouseDeliveryAddresses,
+  useTransportLocations, useExportOrders, useAddOrderToTransport,
+  useRemoveOrderFromTransport, useWarehouseDeliveryAddresses,
 } from '@/hooks/use-transports'
 import { ColliEditor } from '../_components/colli-editor'
+import { OrderShare } from '../_components/order-share'
 import { OrderPosLine } from '@/components/order-pos-line'
 import { TransportDocuments } from '../_components/transport-documents'
 import { ReceivedDocuments } from '../_components/received-documents'
@@ -64,7 +65,8 @@ export default function TransportDetailPage({
   const { data: products } = useProducts()
   const update = useUpdateTransport()
   const remove = useDeleteTransport()
-  const setOrderTransport = useSetOrderTransport()
+  const addOrder = useAddOrderToTransport()
+  const removeOrder = useRemoveOrderFromTransport()
 
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -88,7 +90,17 @@ export default function TransportDetailPage({
 
   const t = transport
   const orders = t.orders ?? []
-  const waiting = (exportOrders ?? []).filter(o => !o.transport_id)
+  /**
+   * Everything this transport is not already named on.
+   *
+   * It used to be `!o.transport_id` — only orders on no transport at all — so
+   * an order that had been sent once could never be put on a second transport.
+   * That is exactly the case Danique named on 2026-08-19: a load goes missing
+   * and has to be sent again. A transport is a stock transfer, so nothing stops
+   * two of them being meant for the same order.
+   */
+  const onThis = new Set(orders.map(o => o.id))
+  const waiting = (exportOrders ?? []).filter(o => !onThis.has(o.id))
 
   // Null and zero are different: a transport whose freight genuinely cost
   // nothing must still be able to read 0.00 instead of "not filled in".
@@ -524,9 +536,20 @@ export default function TransportDetailPage({
         </CardContent>
       </Card>
 
-      {/* Orders on this transport */}
+      {/* What is in the boxes. One card for the whole load since migration 100:
+          a transport is a stock transfer, packed per product, and the warehouse
+          repacks it over there into what each order needs. */}
       <Card size="sm">
-        <CardHeader><CardTitle className="text-base">Orders on this transport</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">Packing</CardTitle></CardHeader>
+        <CardContent>
+          <ColliEditor transport={t} />
+        </CardContent>
+      </Card>
+
+      {/* Which orders this transport is MEANT for. A reference list, with no
+          quantities on it — the load above is what actually travels. */}
+      <Card size="sm">
+        <CardHeader><CardTitle className="text-base">Orders this transport is for</CardTitle></CardHeader>
         <CardContent className="space-y-2">
           {orders.length === 0 ? (
             <p className="text-sm text-muted-foreground">No orders yet</p>
@@ -541,14 +564,28 @@ export default function TransportDetailPage({
                   <p className="text-xs text-muted-foreground mt-0.5">{fmtOwnCurrency(o)}</p>
                 </Link>
                 <button
-                  onClick={() => setOrderTransport.mutate({ orderId: o.id, transportId: null })}
+                  onClick={() => removeOrder.mutate({ orderId: o.id, transportId: id })}
                   className="text-muted-foreground hover:text-red-600 p-1 shrink-0"
                   title="Take off this transport"
                 >
                   <XIcon className="h-4 w-4" />
                 </button>
               </div>
-              <ColliEditor order={o} />
+              {/* Also travelling on another transport — a re-send after a load
+                  went missing, or a delivery split over two runs. Named here so
+                  nobody has to work it out from two screens. */}
+              {(o.transports ?? []).filter(x => x.id !== id).length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Also on{' '}
+                  {(o.transports ?? [])
+                    .filter(x => x.id !== id)
+                    .map(x => x.transport_number)
+                    .join(', ')}
+                </p>
+              )}
+              {/* How much of this order goes along. Not always the whole one —
+                  her instruction of 2026-08-19. */}
+              <OrderShare order={o} transportId={id} />
               {/* A stand or a sheet of labels riding along. Lands as a €0 line
                   on the order, which is what the packing list prints. */}
               <OrderPosLine order={o} />
@@ -556,7 +593,7 @@ export default function TransportDetailPage({
           ))}
 
           {waiting.length > 0 && (
-            <Select value="" onValueChange={(v) => v && setOrderTransport.mutate({ orderId: v, transportId: id })}>
+            <Select value="" onValueChange={(v) => v && addOrder.mutate({ orderId: v, transportId: id })}>
               <SelectTrigger className="h-8 w-full sm:w-72">
                 <SelectValue placeholder="+ Add an order to this transport" />
               </SelectTrigger>
@@ -564,6 +601,9 @@ export default function TransportDetailPage({
                 {waiting.map(o => (
                   <SelectItem key={o.id} value={o.id}>
                     {o.order_number} — {o.customer?.company_name}
+                    {(o.transports ?? []).length > 0
+                      ? ` (on ${(o.transports ?? []).map(x => x.transport_number).join(', ')})`
+                      : ''}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -571,7 +611,7 @@ export default function TransportDetailPage({
           )}
           {waiting.length === 0 && orders.length > 0 && (
             <p className="text-xs text-muted-foreground">
-              Every export order is on a transport. New orders appear here automatically.
+              Every export order is already on this transport.
             </p>
           )}
         </CardContent>

@@ -237,7 +237,25 @@ export interface Order {
    * across a transport for the shipping label QR.
    */
   colli_contents?: Colli[]
+  /**
+   * The most recent transport this order was put on. Kept in step with
+   * `transports` below because uitslag still reads it; it cannot answer "which
+   * transports is this order on" and must not be used for that.
+   */
   transport?: Transport
+  /**
+   * Every transport this order is named on (100). A re-send after a lost load
+   * puts a second one here, and neither of them is wrong.
+   */
+  transports?: Transport[]
+  /**
+   * How much of this order travels on the transport it was read through (100).
+   *
+   * Her instruction of 2026-08-19: "is niet altijd de hele order". Only set when
+   * the order comes off a transport; it is the join row's quantities, not the
+   * order's own. Falls back to the whole order when nobody cut it down.
+   */
+  on_transport?: QuoteItem[]
   payment_type: PaymentType
   order_type: OrderType
   // Stamped from the customer at creation (DB trigger). Consignment orders are
@@ -452,7 +470,7 @@ export interface ColliItem {
   qty: number
 }
 
-/** One package of an order. An order's colli count is how many of these it has. */
+/** One package on a TRANSPORT. Its colli count is how many of these it has (100). */
 export interface Colli {
   items: ColliItem[]
   /**
@@ -479,6 +497,19 @@ export interface Colli {
   length_cm?: number | null
   width_cm?: number | null
   height_cm?: number | null
+  /**
+   * Which order this box was packed for, when it was packed for one (100).
+   *
+   * For OUR screens only. It is NEVER printed on a document and never encoded
+   * in a QR — the same rule of 2026-08-19 that took the reseller name off the
+   * shipping label. A carrier and a customs officer have no business with who
+   * bought the goods; the warehouse does, so it can hand over the right boxes
+   * without opening them.
+   *
+   * Null is a normal state, not a gap: a transport is a stock transfer, and a
+   * box of loose stock belongs to no order until the warehouse gives it out.
+   */
+  for_order_id?: string | null
 }
 
 export type TransportStatus = 'draft' | 'ready' | 'submitted' | 'cleared' | 'delivered'
@@ -581,11 +612,25 @@ export interface Transport {
     outcome?: 'credit' | 'later' | 'our_loss'
   }[]
   receipt_notes?: string
+  /**
+   * The packing of this load: one entry per package (100).
+   *
+   * It used to hang on the ORDER, which stopped working the day an order could
+   * travel on two transports — both then printed the same boxes. The boxes are
+   * the load, so they belong to the movement that carries them.
+   */
+  colli_contents?: Colli[]
   created_by: string | null
   created_at: string
   updated_at: string
   carrier?: Carrier
   location?: TransportLocation
+  /**
+   * The orders this transport is MEANT for (100). A reference list with no
+   * quantities on it: a transport carries stock, not orders. The same order can
+   * appear on two transports, which is exactly what a re-send after a lost load
+   * is.
+   */
   orders?: Order[]
 }
 

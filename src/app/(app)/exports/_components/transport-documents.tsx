@@ -90,7 +90,9 @@ export function TransportDocuments({ transport }: { transport: Transport }) {
       buildLabelPages(transport).map(async (p) => ({
         ...p,
         qrCodeDataUrl: await QRCode.toDataURL(
-          colliQrText(transport, p, perOrder.get(p.order.id), productWeights),
+          // A loose box belongs to no order, so there is no order to read its
+          // batches from. It gets no batch line rather than a guessed one.
+          colliQrText(transport, p, p.order ? perOrder.get(p.order.id) : undefined, productWeights),
           { margin: 1, width: 240 },
         ),
       }))

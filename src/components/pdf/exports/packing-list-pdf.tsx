@@ -11,7 +11,7 @@ import {
 import { Transport, QuoteItem } from '@/types'
 import { CompanyInfo } from '../delivery-note-pdf'
 import { formatTht } from '@/lib/utils'
-import { orderColli, transportGrossWeight, colliGrossWeight, type ProductWeights } from '@/lib/transport-cargo'
+import { transportColli, transportGrossWeight, colliGrossWeight, type ProductWeights } from '@/lib/transport-cargo'
 import { isPosLine } from '@/lib/pos'
 import { type OrderBatches } from '@/lib/order-batches'
 
@@ -140,32 +140,35 @@ export function PackingListPDF({
    */
   const boxes: { number: number; size: string; kg: number }[] = []
 
+  // Straight off the TRANSPORT since migration 100: the boxes are the load, and
+  // the load is packed per product. Which order a box was packed for is not
+  // read here and never printed — a carrier and a customs officer have no
+  // business with who bought the goods, the same rule that took the reseller
+  // name off the shipping label.
   let boxNumber = 0
-  for (const order of orders) {
-    for (const colli of orderColli(order)) {
-      boxNumber += 1
-      const dims = [colli.length_cm, colli.width_cm, colli.height_cm]
-      boxes.push({
-        number: boxNumber,
-        // Blank when nobody measured it, and a "?" for the one side that is
-        // missing when the other two are filled in — an incomplete measurement
-        // must not read as a complete one.
-        size: dims.every(d => d === null || d === undefined)
-          ? NONE
-          : dims.map(d => (d === null || d === undefined ? '?' : String(d))).join(' x '),
-        kg: colliGrossWeight(colli, productWeights).kg,
-      })
-      for (const item of colli.items) {
-        if (item.qty <= 0) continue
-        const row = packedBySku.get(item.sku)
-        if (row) {
-          row.qty += item.qty
-          if (!row.boxes.includes(boxNumber)) row.boxes.push(boxNumber)
-        } else {
-          packedBySku.set(item.sku, {
-            sku: item.sku, name: item.name, qty: item.qty, boxes: [boxNumber],
-          })
-        }
+  for (const colli of transportColli(transport)) {
+    boxNumber += 1
+    const dims = [colli.length_cm, colli.width_cm, colli.height_cm]
+    boxes.push({
+      number: boxNumber,
+      // Blank when nobody measured it, and a "?" for the one side that is
+      // missing when the other two are filled in — an incomplete measurement
+      // must not read as a complete one.
+      size: dims.every(d => d === null || d === undefined)
+        ? NONE
+        : dims.map(d => (d === null || d === undefined ? '?' : String(d))).join(' x '),
+      kg: colliGrossWeight(colli, productWeights).kg,
+    })
+    for (const item of colli.items) {
+      if (item.qty <= 0) continue
+      const row = packedBySku.get(item.sku)
+      if (row) {
+        row.qty += item.qty
+        if (!row.boxes.includes(boxNumber)) row.boxes.push(boxNumber)
+      } else {
+        packedBySku.set(item.sku, {
+          sku: item.sku, name: item.name, qty: item.qty, boxes: [boxNumber],
+        })
       }
     }
   }

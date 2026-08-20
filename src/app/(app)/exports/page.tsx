@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/select'
 import { useAuth } from '@/contexts/auth-context'
 import {
-  useTransports, useExportOrders, useCreateTransport, useSetOrderTransport,
+  useTransports, useExportOrders, useCreateTransport, useAddOrderToTransport,
 } from '@/hooks/use-transports'
 import { TransportStatus, Order } from '@/types'
 import { fmtOwnCurrency } from '@/lib/utils'
@@ -50,26 +50,27 @@ function ExportsInner() {
   const { data: transports, isLoading } = useTransports()
   const { data: exportOrders } = useExportOrders()
   const createTransport = useCreateTransport()
-  const setOrderTransport = useSetOrderTransport()
+  const addOrderToTransport = useAddOrderToTransport()
 
   const [search, setSearch] = useState('')
   const q = search.toLowerCase().trim()
 
-  // An order is "waiting" when it belongs to an international customer but is
-  // not on a transport number yet. That is the whole rule — there is no export
-  // record to be in step with.
+  // An order is "waiting" when it belongs to an international customer and no
+  // transport is named for it yet. Counted over ALL its transports since
+  // migration 100, not over the single `transport_id` column, because an order
+  // that was sent once and had to be sent again is on two of them.
   const waiting = useMemo(
-    () => (exportOrders ?? []).filter(o => !o.transport_id),
+    () => (exportOrders ?? []).filter(o => (o.transports ?? []).length === 0),
     [exportOrders]
   )
 
-  // The overview is a list of ORDERS — orders are leading. Searching narrows it
-  // on the order, the customer or the transport number it travels under.
+  // The overview is a list of ORDERS. Searching narrows it on the order, the
+  // customer, or any of the transport numbers it travels under.
   const ordersShown = useMemo(() => (exportOrders ?? []).filter(o => {
     if (!q) return true
     return (o.order_number ?? '').toLowerCase().includes(q)
       || (o.customer?.company_name ?? '').toLowerCase().includes(q)
-      || (o.transport?.transport_number ?? '').toLowerCase().includes(q)
+      || (o.transports ?? []).some(t => t.transport_number.toLowerCase().includes(q))
   }), [exportOrders, q])
 
   const filtered = useMemo(() => (transports ?? []).filter(t => {
@@ -85,7 +86,7 @@ function ExportsInner() {
 
   async function addToNewTransport(order: Order) {
     const t = await createTransport.mutateAsync({})
-    await setOrderTransport.mutateAsync({ orderId: order.id, transportId: t.id })
+    await addOrderToTransport.mutateAsync({ orderId: order.id, transportId: t.id })
     router.push(`/exports/${t.id}`)
   }
 
@@ -142,7 +143,11 @@ function ExportsInner() {
             {waiting.length > 0 && ` · ${waiting.length} not on a transport`})
           </h2>
           {ordersShown.map(order => {
-            const t = order.transport
+            // Every transport this order is named on, newest first. Two of them
+            // is not a mistake: it is a load that went missing and was sent
+            // again, and both movements are real.
+            const all = order.transports ?? []
+            const t = all[0]
             const eta = fmtDay(t?.eta)
             return (
               // On a phone the customer name was squeezed to "La B…" by the
@@ -160,7 +165,7 @@ function ExportsInner() {
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5 truncate">
                     {order.customer?.billing_address?.country ?? '—'} · {fmtOwnCurrency(order)}
-                    {t && ` · ${t.transport_number}`}
+                    {all.length > 0 && ` · ${all.map(x => x.transport_number).join(', ')}`}
                     {t && ` · ${eta ? `ETA ${eta}` : 'no ETA yet'}`}
                   </p>
                 </Link>
@@ -180,34 +185,41 @@ function ExportsInner() {
                   )}
                 </div>
 
-                {t ? (
-                  <Link href={`/exports/${t.id}`} className="shrink-0">
-                    <Button variant="outline" size="sm" className="h-7 text-xs w-full sm:w-auto">Open</Button>
-                  </Link>
-                ) : (
+                {/* Both, always. The dropdown used to disappear the moment an
+                    order was on a transport, which is why an order that had
+                    already been sent could not be put on a second one — the
+                    case Danique named on 2026-08-19. Transports it is already
+                    on are left out of the list rather than hidden behind it. */}
+                <div className="flex items-center gap-2 shrink-0">
+                  {t && (
+                    <Link href={`/exports/${t.id}`} className="shrink-0">
+                      <Button variant="outline" size="sm" className="h-7 text-xs w-full sm:w-auto">Open</Button>
+                    </Link>
+                  )}
                   <Select
                     value=""
                     onValueChange={(v) => {
                       if (!v) return
                       if (v === '__new') { addToNewTransport(order); return }
-                      setOrderTransport.mutate({ orderId: order.id, transportId: v })
+                      addOrderToTransport.mutate({ orderId: order.id, transportId: v })
                     }}
                   >
                     <SelectTrigger className="h-7 w-full sm:w-40 text-xs shrink-0">
-                      <SelectValue placeholder="Put on transport…" />
+                      <SelectValue placeholder={t ? 'Also on transport…' : 'Put on transport…'} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__new">+ New transport</SelectItem>
                       {(transports ?? [])
-                        .filter(t => t.status === 'draft' || t.status === 'ready')
-                        .map(t => (
-                          <SelectItem key={t.id} value={t.id}>
-                            {t.transport_number}{t.destination ? ` — ${t.destination}` : ''}
+                        .filter(x => x.status === 'draft' || x.status === 'ready')
+                        .filter(x => !all.some(a => a.id === x.id))
+                        .map(x => (
+                          <SelectItem key={x.id} value={x.id}>
+                            {x.transport_number}{x.destination ? ` — ${x.destination}` : ''}
                           </SelectItem>
                         ))}
                     </SelectContent>
                   </Select>
-                )}
+                </div>
               </div>
             )
           })}

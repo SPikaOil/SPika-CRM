@@ -12,7 +12,7 @@ import { Transport, QuoteItem } from '@/types'
 import { CompanyInfo } from '../delivery-note-pdf'
 import { formatTht } from '@/lib/utils'
 import { batchLabel, type OrderBatches } from '@/lib/order-batches'
-import { orderColli, type ProductHsCodes } from '@/lib/transport-cargo'
+import { transportColli, type ProductHsCodes } from '@/lib/transport-cargo'
 import { customsRegion } from '@/lib/country'
 
 const RED = '#CC0000'
@@ -124,35 +124,47 @@ export function CommercialInvoicePDF({
    * packing list saying 42 bottles and an invoice saying 130 — a declared value
    * for goods that were not in the container.
    *
-   * An order nobody has packed out contributes nothing, exactly as it
-   * contributes nothing to the packing list. Both documents are then empty,
-   * which is the truth.
+   * A load nobody has packed out contributes nothing, exactly as it contributes
+   * nothing to the packing list. Both documents are then empty, which is the
+   * truth.
+   *
+   * Since migration 100 the boxes belong to the TRANSPORT and are packed per
+   * product, so a box need not name an order at all. `for_order_id` exists for
+   * the warehouse — which boxes to hand to whom — and deliberately plays no
+   * part here: a customs value follows the goods, not the box they sit in. It
+   * also means a box of loose stock is still declared at the agreed price
+   * instead of silently landing on the paper at zero.
    */
+  const priceOf = (sku: string) => {
+    for (const order of orders) {
+      const line = ((order.items ?? []) as QuoteItem[]).find(l => l.sku === sku)
+      if (line) return line
+    }
+    return undefined
+  }
+
   const billed = new Map<string, QuoteItem>()
-  for (const order of orders) {
-    const lines = (order.items ?? []) as QuoteItem[]
-    for (const colli of orderColli(order)) {
-      for (const packed of colli.items) {
-        if (packed.qty <= 0) continue
-        const line = lines.find(l => l.sku === packed.sku)
-        const unit = line?.unit_price ?? 0
-        const discount = line?.discount ?? 0
-        const value = packed.qty * (unit - discount)
-        const existing = billed.get(packed.sku)
-        if (existing) {
-          existing.qty += packed.qty
-          existing.line_total = parseFloat((existing.line_total + value).toFixed(2))
-        } else {
-          billed.set(packed.sku, {
-            sku: packed.sku,
-            name: packed.name,
-            qty: packed.qty,
-            unit_price: unit,
-            discount,
-            line_total: parseFloat(value.toFixed(2)),
-            tht_date: line?.tht_date,
-          })
-        }
+  for (const colli of transportColli(transport)) {
+    for (const packed of colli.items) {
+      if (packed.qty <= 0) continue
+      const line = priceOf(packed.sku)
+      const unit = line?.unit_price ?? 0
+      const discount = line?.discount ?? 0
+      const value = packed.qty * (unit - discount)
+      const existing = billed.get(packed.sku)
+      if (existing) {
+        existing.qty += packed.qty
+        existing.line_total = parseFloat((existing.line_total + value).toFixed(2))
+      } else {
+        billed.set(packed.sku, {
+          sku: packed.sku,
+          name: packed.name,
+          qty: packed.qty,
+          unit_price: unit,
+          discount,
+          line_total: parseFloat(value.toFixed(2)),
+          tht_date: line?.tht_date,
+        })
       }
     }
   }

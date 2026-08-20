@@ -17,6 +17,46 @@ import { Colli, Order, Transport } from '@/types'
 const BOTTLES_PER_CARTON = 12
 const KG_PER_CARTON = 5
 
+/**
+ * The packing of a whole transport, in packing order.
+ *
+ * Since migration 100 the boxes belong to the TRANSPORT, not to the orders on
+ * it: a transport is a stock transfer, packed per product, and the warehouse
+ * repacks it over there into whatever each order needs. A box may still name
+ * the order it was packed for (`for_order_id`) — for our screens only.
+ *
+ * The fallback matters. Before the migration has run, the boxes are still on
+ * the orders, and every screen and document here would otherwise report an
+ * empty load. So an empty transport packing falls back to the orders' own,
+ * stamped with the order it came from, which is exactly what the migration
+ * writes. Once the transport carries its own packing the fallback is dead
+ * weight and can go.
+ */
+export function transportColli(transport: Transport): Colli[] {
+  const own = transport.colli_contents ?? []
+  if (own.length > 0) return own
+  return (transport.orders ?? []).flatMap(o =>
+    (o.colli_contents ?? []).map(c => ({ ...c, for_order_id: c.for_order_id ?? o.id })),
+  )
+}
+
+/** The boxes on this transport that were packed for one particular order. */
+export function transportColliForOrder(transport: Transport, orderId: string): Colli[] {
+  return transportColli(transport).filter(c => c.for_order_id === orderId)
+}
+
+/**
+ * Boxes nobody assigned to an order.
+ *
+ * Not an error — loose stock is the normal case for a warehouse run. It is
+ * reported because the commercial invoice prices a box against its order, so an
+ * unassigned box has no value to declare and the screen has to say so before a
+ * customs paper does.
+ */
+export function transportLooseColli(transport: Transport): Colli[] {
+  return transportColli(transport).filter(c => !c.for_order_id)
+}
+
 export function orderColli(order: Order): Colli[] {
   return order.colli_contents ?? []
 }
@@ -72,12 +112,10 @@ export function colliGrossWeight(colli: Colli, weights: ProductWeights) {
 export function transportGrossWeight(transport: Transport, weights: ProductWeights) {
   let kg = 0
   const missing: string[] = []
-  for (const order of transport.orders ?? []) {
-    for (const colli of orderColli(order)) {
-      const one = colliGrossWeight(colli, weights)
-      kg += one.kg
-      for (const sku of one.missing) if (!missing.includes(sku)) missing.push(sku)
-    }
+  for (const colli of transportColli(transport)) {
+    const one = colliGrossWeight(colli, weights)
+    kg += one.kg
+    for (const sku of one.missing) if (!missing.includes(sku)) missing.push(sku)
   }
   return { kg, missing }
 }
@@ -129,8 +167,8 @@ export interface TransportCargo {
   orders: Order[]
   /** Packages across the whole transport — this is the number in the label QR. */
   colli: number
-  /** Orders that have no packing yet. */
-  unpacked: number
+  /** Boxes nobody assigned to an order. Loose stock, which is a normal load. */
+  loose: number
   /** Weight added up from the individual packages. 0 when nothing is weighed. */
   weightFromColli: number
   /** The weight typed on the transport itself, if any. */
@@ -141,9 +179,12 @@ export interface TransportCargo {
 
 export function transportCargo(transport: Transport): TransportCargo {
   const orders = transport.orders ?? []
-  const colli = orders.reduce((sum, o) => sum + orderColliCount(o), 0)
-  const unpacked = orders.filter(o => orderColliCount(o) === 0).length
-  const weightFromColli = orders.reduce((sum, o) => sum + orderColliWeight(o), 0)
+  const boxes = transportColli(transport)
+  const colli = boxes.length
+  // Since 100 the load is packed per product, so "an order with no packing" is
+  // no longer a meaningful count — a box either names an order or it is loose.
+  const loose = boxes.filter(c => !c.for_order_id).length
+  const weightFromColli = boxes.reduce((sum, c) => sum + Number(c.weight_kg ?? 0), 0)
   const declaredWeight =
     transport.total_weight_kg === null || transport.total_weight_kg === undefined
       ? null
@@ -152,7 +193,7 @@ export function transportCargo(transport: Transport): TransportCargo {
   return {
     orders,
     colli,
-    unpacked,
+    loose,
     weightFromColli,
     declaredWeight,
     // The declared total is what the carrier was told, so it is what the
@@ -167,7 +208,13 @@ export interface LabelPage {
   /** 1-based, counted over the whole transport — a transport goes to one address. */
   colliNumber: number
   totalColli: number
-  order: Order
+  /**
+   * The order this box was packed for, when it was packed for one. Undefined is
+   * normal since 100: a transport is a stock transfer and a box of loose stock
+   * belongs to no order. Nothing about the order reaches the printed label — it
+   * is here so a screen can group by it.
+   */
+  order?: Order
   colli: Colli
   qrCodeDataUrl?: string
 }
@@ -178,13 +225,14 @@ export interface LabelPage {
  * is worse than no label.
  */
 export function buildLabelPages(transport: Transport): LabelPage[] {
-  const pages: LabelPage[] = []
-  for (const order of transport.orders ?? []) {
-    for (const colli of orderColli(order)) {
-      pages.push({ colliNumber: 0, totalColli: 0, order, colli })
-    }
-  }
-  return pages.map((p, i) => ({ ...p, colliNumber: i + 1, totalColli: pages.length }))
+  const byId = new Map((transport.orders ?? []).map(o => [o.id, o]))
+  const boxes = transportColli(transport)
+  return boxes.map((colli, i) => ({
+    colliNumber: i + 1,
+    totalColli: boxes.length,
+    order: colli.for_order_id ? byId.get(colli.for_order_id) : undefined,
+    colli,
+  }))
 }
 
 /**
@@ -265,14 +313,12 @@ export function transportItemTotals(transport: Transport) {
  */
 export function transportPackedTotals(transport: Transport) {
   const totals = new Map<string, { sku: string; name: string; qty: number }>()
-  for (const order of transport.orders ?? []) {
-    for (const colli of orderColli(order)) {
-      for (const item of colli.items) {
-        if (item.qty <= 0) continue
-        const existing = totals.get(item.sku)
-        if (existing) existing.qty += item.qty
-        else totals.set(item.sku, { sku: item.sku, name: item.name, qty: item.qty })
-      }
+  for (const colli of transportColli(transport)) {
+    for (const item of colli.items) {
+      if (item.qty <= 0) continue
+      const existing = totals.get(item.sku)
+      if (existing) existing.qty += item.qty
+      else totals.set(item.sku, { sku: item.sku, name: item.name, qty: item.qty })
     }
   }
   return Array.from(totals.values())

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Truck, CheckCircle, Clock, AlertCircle, Calendar, Download, Upload, FileCheck, X, UserCheck, XCircle, Pencil, Check, Plus, Trash2, PackageCheck, MapPin, RotateCcw, Ship } from 'lucide-react'
 import { useOrder, useUpdateOrder } from '@/hooks/use-orders'
-import { useTransportForOrder } from '@/hooks/use-transports'
+import { useTransportsForOrder } from '@/hooks/use-transports'
 import { useUsers } from '@/hooks/use-users'
 import { useAuth } from '@/contexts/auth-context'
 import { OrderPosLine } from '@/components/order-pos-line'
@@ -2013,8 +2013,11 @@ const KG_PER_CTN = 5
  * shipment.
  */
 function ExportOrderSection({ order }: { order: Order & { customer?: any } }) {
-  const { data: transport } = useTransportForOrder(order.transport_id ?? null)
-  const colli = (order.colli_contents ?? []).length
+  // ALL of them since migration 100. An order that was sent, lost and sent
+  // again is on two transports, and a card that shows one of them is a card
+  // that hides the other.
+  const { data: transports } = useTransportsForOrder(order.id)
+  const list = transports ?? []
 
   return (
     <Card size="sm">
@@ -2025,22 +2028,33 @@ function ExportOrderSection({ order }: { order: Order & { customer?: any } }) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2 text-sm">
-        {transport ? (
+        {list.length > 0 ? (
           <>
-            <div className="flex justify-between gap-4">
-              <span className="text-muted-foreground">Transport</span>
-              <Link href={`/exports/${transport.id}`} className="font-mono font-medium text-red-600 hover:underline">
-                {transport.transport_number}
-              </Link>
-            </div>
-            <div className="flex justify-between gap-4">
-              <span className="text-muted-foreground">Destination</span>
-              <span className="font-medium">{transport.destination || '—'}</span>
-            </div>
-            <div className="flex justify-between gap-4">
-              <span className="text-muted-foreground">Colli</span>
-              <span className="font-medium">{colli === 0 ? 'Not packed yet' : colli}</span>
-            </div>
+            {list.map(t => {
+              // The boxes on THAT transport that were packed for this order.
+              // Loose boxes on it belong to no order and are not counted here.
+              const colli = (t.colli_contents ?? []).filter(c => c.for_order_id === order.id).length
+              return (
+                <div key={t.id} className="flex items-baseline justify-between gap-4">
+                  <Link
+                    href={`/exports/${t.id}`}
+                    className="font-mono font-medium text-red-600 hover:underline shrink-0"
+                  >
+                    {t.transport_number}
+                  </Link>
+                  <span className="text-muted-foreground text-xs truncate">
+                    {t.destination || '—'}
+                    {colli > 0 && ` · ${colli} colli`}
+                  </span>
+                </div>
+              )
+            })}
+            {list.length > 1 && (
+              <p className="text-xs text-muted-foreground">
+                On more than one transport — a load that had to be sent again, or a
+                delivery split over two runs.
+              </p>
+            )}
           </>
         ) : (
           <div className="flex items-center justify-between gap-3">
