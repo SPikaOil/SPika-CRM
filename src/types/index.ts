@@ -510,6 +510,17 @@ export interface Colli {
    * box of loose stock belongs to no order until the warehouse gives it out.
    */
   for_order_id?: string | null
+  /**
+   * ATA — the day THIS box actually arrived (101). Null = still out there.
+   *
+   * Her case of 2026-08-19: three colli shipped together, one arrived after 20
+   * days, one after 23, one is still missing. ETD and ETA belong to the whole
+   * transport because it left as one load; arriving is not something a load
+   * does together, so it is asked per box.
+   */
+  ata?: string | null
+  /** Why a box is late or gone, in whatever words fit. Free text. */
+  ata_note?: string | null
 }
 
 export type TransportStatus = 'draft' | 'ready' | 'submitted' | 'cleared' | 'delivered'
@@ -620,6 +631,15 @@ export interface Transport {
    * the load, so they belong to the movement that carries them.
    */
   colli_contents?: Colli[]
+  /**
+   * POS material riding on this transport, independent of any order (101).
+   *
+   * A stand or a box of wobblers used to be a €0 line on an order, so a
+   * transport carrying no order at all had nowhere to put one — and a stock
+   * transfer to our own warehouse is exactly the load that carries display
+   * material.
+   */
+  pos_items?: { sku: string; name: string; qty: number }[]
   created_by: string | null
   created_at: string
   updated_at: string

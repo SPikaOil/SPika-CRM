@@ -22,6 +22,7 @@ import {
 import { ColliEditor } from '../_components/colli-editor'
 import { OrderShare } from '../_components/order-share'
 import { LoadBatches } from '../_components/load-batches'
+import { TransportPosLine } from '../_components/transport-pos-line'
 import { OrderPosLine } from '@/components/order-pos-line'
 import { TransportDocuments } from '../_components/transport-documents'
 import { ReceivedDocuments } from '../_components/received-documents'
@@ -29,7 +30,7 @@ import { ArrivalCard } from '../_components/arrival-card'
 import { ShortagePanel } from '../_components/shortage-panel'
 import { TransportStatus } from '@/types'
 import { fmtOwnCurrency, formatCurrency, transportQrPayload } from '@/lib/utils'
-import { transportGrossWeight, weightsBySku } from '@/lib/transport-cargo'
+import { transportCargo, transportGrossWeight, weightsBySku } from '@/lib/transport-cargo'
 import { useProducts } from '@/hooks/use-products'
 
 const statusColors: Record<TransportStatus, string> = {
@@ -111,18 +112,21 @@ export default function TransportDetailPage({
   const other = num(t.other_costs)
   const totalCost = freight === null && other === null ? null : (freight ?? 0) + (other ?? 0)
 
-  // Colli drives the QR on the shipping label. The count is the number of
-  // packages actually packed out per order, so an order nobody has packed yet
-  // is called out rather than quietly counting as zero.
-  const totalColli = orders.reduce((sum, o) => sum + (o.colli_contents?.length ?? 0), 0)
-  const unpacked = orders.filter(o => (o.colli_contents?.length ?? 0) === 0).length
+  // Colli drives the QR on the shipping label.
+  //
+  // Counted off the TRANSPORT since migration 100 — these three lines still
+  // added up the ORDERS' boxes, so a load repacked into three cartons kept
+  // reporting the one box the order was packed in, and the label QR said
+  // "1colli" over a pallet of three.
+  const cargo = transportCargo(t)
+  const totalColli = cargo.colli
+  const loose = cargo.loose
 
   // Gross weight of the load, worked out rather than typed: the packaging of
   // every box plus the bottles in it, at the weight the Products screen holds.
   // Her instruction of 2026-08-19. `missing` names any product with no weight
   // set — those bottles are not counted, so the total is too low and says so.
-  const packagingWeight = orders.reduce((sum, o) =>
-    sum + (o.colli_contents ?? []).reduce((s, c) => s + Number(c.weight_kg ?? 0), 0), 0)
+  const packagingWeight = cargo.weightFromColli
   const gross = transportGrossWeight(t, weightsBySku(products))
 
   // The doors of THIS warehouse, and the one this load uses. Read from the list
@@ -470,9 +474,9 @@ export default function TransportDetailPage({
               <Label className="text-xs">Total colli</Label>
               <p className="h-8 flex items-center font-semibold">
                 {totalColli}
-                {unpacked > 0 && (
-                  <span className="ml-2 text-xs font-normal text-red-600">
-                    {unpacked} {unpacked === 1 ? 'order' : 'orders'} not packed yet
+                {loose > 0 && (
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">
+                    {loose} loose
                   </span>
                 )}
               </p>
@@ -546,8 +550,12 @@ export default function TransportDetailPage({
           repacks it over there into what each order needs. */}
       <Card size="sm">
         <CardHeader><CardTitle className="text-base">Packing</CardTitle></CardHeader>
-        <CardContent>
+        <CardContent className="space-y-2">
           <ColliEditor transport={t} />
+          {/* A stand or a sheet of labels riding along, with no order behind it.
+              Her instruction of 2026-08-19: a transport that is not linked to an
+              order must still be able to carry POS material. */}
+          <TransportPosLine transport={t} />
         </CardContent>
       </Card>
 

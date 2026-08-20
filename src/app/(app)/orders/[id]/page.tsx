@@ -28,7 +28,7 @@ import { formatCurrency, formatTht, thtToMonthInput, monthInputToTht, currentMon
 import { isExportCustomer } from '@/lib/country'
 import { storagePath } from '@/lib/storage'
 import { BatchSelect } from '@/components/batch-select'
-import { useOrderPicks, useSetOrderPick } from '@/hooks/use-batches'
+import { useOrderPicks, useSetOrderPick, useOrderLoadPicks } from '@/hooks/use-batches'
 import { ConsignmentPanel } from '../_components/consignment-panel'
 import { DefectReportsPanel } from '../_components/defect-reports-panel'
 import { PosRequestsPanel } from '../_components/pos-requests-panel'
@@ -77,6 +77,12 @@ export default function OrderDetailPage({
   // order, so the choice and the stock can never drift apart.
   const { data: picks = {} } = useOrderPicks(id)
   const setOrderPick = useSetOrderPick()
+  // Products of this order already loaded onto a transport out of a batch. An
+  // export order has no pick of its own, so without this the screen cannot tell
+  // "no batch anywhere" from "the batch was chosen on the transport".
+  const { data: loadPicks } = useOrderLoadPicks(id)
+  /** Is there a batch behind this line — here or on the load it travels on? */
+  const hasBatch = (sku: string) => !!picks[sku] || !!loadPicks?.has(sku)
 
   // An export order leaves Curaçao on a transport, so its batch is chosen there
   // (2026-08-19). One rule, read from the delivery address, shared with the
@@ -1567,8 +1573,30 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                       {isAdmin && <p className="text-xs text-muted-foreground">{item.sku} · {fmt(item.unit_price)} × {item.qty}</p>}
                       {!isAdmin && <p className="text-xs text-muted-foreground">{item.sku} · qty: {item.qty}</p>}
                       {/* THT per item — printed on the invoice for traceability */}
-                      {isAdmin ? (
-                        item.qty > 0 && (
+                      {/* THT follows the BATCH, it is not typed.
+                          Danique, 2026-08-19: "1 partij kan maar 1 tht hebben,
+                          anders zijn de partijen niet traceerbaar." The batches
+                          table has held one date per batch since migration 055,
+                          so the rule was only ever broken here — a hand-typed
+                          month sitting next to a batch that says something else,
+                          and it was the typed one that reached the invoice, the
+                          packing list and the commercial invoice.
+                          Choosing the batch now stamps it. Nothing to type, and
+                          nothing to disagree with. */}
+                      {item.qty > 0 && (
+                        hasBatch(item.sku) ? (
+                          // A batch is chosen, so the batch has the last word and
+                          // there is nothing to type.
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            THT: {item.tht_date ? formatTht(item.tht_date) : '—'} · from the batch
+                          </p>
+                        ) : isAdmin ? (
+                          // No batch — and there may be none to choose: the
+                          // batches table can still be empty while orders have
+                          // carried a THT for months. Closing this field would
+                          // leave no way at all to say what the best-before is,
+                          // which is worse than a typed one. It is stamped over
+                          // the moment a batch is picked.
                           <div className="flex items-center gap-1.5 mt-1">
                             <span className={`text-xs ${item.tht_date ? 'text-muted-foreground' : 'text-red-600 font-medium'}`}>THT</span>
                             <Input
@@ -1586,14 +1614,15 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                                   return
                                 }
                                 const newItems = items.map((it, idx) => idx === i ? { ...it, tht_date: monthInputToTht(month) ?? undefined } : it)
-                                updateOrder.mutate({ id: order.id, values: { items: newItems } as any })
+                                updateOrder.mutate({ id: order.id, values: { items: newItems } as never })
                               }}
                               className={`h-7 w-36 text-xs px-2 ${!item.tht_date ? 'border-red-300' : ''}`}
                             />
+                            <span className="text-[11px] text-muted-foreground">until a batch is picked</span>
                           </div>
+                        ) : (
+                          item.tht_date && <p className="text-xs text-muted-foreground mt-0.5">THT: {formatTht(item.tht_date)}</p>
                         )
-                      ) : (
-                        item.tht_date && <p className="text-xs text-muted-foreground mt-0.5">THT: {formatTht(item.tht_date)}</p>
                       )}
                       {/* Which batch this product came off. Choosing one takes
                           the bottles off that batch straight away, so the stock

@@ -11,6 +11,10 @@ import {
 import { Colli, Order, QuoteItem, Transport } from '@/types'
 import { useSetTransportColli } from '@/hooks/use-transports'
 import { useProducts } from '@/hooks/use-products'
+import { usePosItems } from '@/hooks/use-pos-items'
+import { useTransportPicks, useOrderPicksFor, useBatches } from '@/hooks/use-batches'
+import { posOrderLineFor, isPosLine } from '@/lib/pos'
+import { formatTht } from '@/lib/utils'
 import { colliGrossWeight, transportColli, weightsBySku } from '@/lib/transport-cargo'
 
 /**
@@ -53,11 +57,73 @@ const SIZE_FIELDS = [
 /** The value the "meant for" dropdown uses for a box of loose stock. */
 const LOOSE = '__loose__'
 
+const DAY = 24 * 60 * 60 * 1000
+
+/** Whole days between departure and arrival. Empty when we never left. */
+function daysOut(etd: string | null | undefined, ata: string): string {
+  if (!etd) return 'transit'
+  const days = Math.round((Date.parse(`${ata}T12:00:00`) - Date.parse(`${etd}T12:00:00`)) / DAY)
+  return days >= 0 ? `${days} days` : 'transit'
+}
+
+/** How long a box has been out. What you want to know while it is missing. */
+function daysSince(etd: string): number {
+  return Math.max(0, Math.round((Date.now() - Date.parse(`${etd}T12:00:00`)) / DAY))
+}
+
 export function ColliEditor({ transport }: { transport: Transport }) {
   const setColli = useSetTransportColli()
   const [open, setOpen] = useState(false)
   const { data: products } = useProducts()
+  const { data: posItems } = usePosItems()
   const weights = weightsBySku(products)
+
+  /**
+   * The batch and its best-before, per product, for THIS load.
+   *
+   * Her point of 2026-08-19: if the colli is what everything hangs on, the THT
+   * belongs beside the box — then whoever signs that box in already has the
+   * right information in front of them instead of looking it up.
+   *
+   * Derived, never a second copy. A batch holds ONE date (her rule), the load
+   * says which batch each product left on, so the answer is already settled the
+   * moment the transport was picked. Storing it on the box again would be a
+   * number that can go stale against the batch it came from.
+   */
+  const { data: picks = {} } = useTransportPicks(transport.id)
+  // A transport loaded before 2026-08-19 took its bottles off Curaçao through
+  // the ORDER, so it has no pick of its own. Without this the box would say
+  // "no batch" for every product on every load that already existed.
+  const { data: oldPicks = [] } = useOrderPicksFor((transport.orders ?? []).map(o => o.id))
+  const { data: batches } = useBatches()
+  const batchFor = (sku: string) => {
+    const batchId = picks[sku]?.batch_id ?? oldPicks.find(p => p.sku === sku)?.batch_id
+    return batchId ? (batches ?? []).find(b => b.id === batchId) : undefined
+  }
+
+  /**
+   * The best-before of a product in this box.
+   *
+   * From the BATCH when there is one — one partij, one THT, her rule. But there
+   * are no batches in the database at all yet, while the orders have carried a
+   * THT on their lines for months. Showing "no batch" and nothing else would
+   * hide a date that is right there on the order and printed on its invoice.
+   *
+   * So the batch wins when it exists, and the order line answers when it does
+   * not. `fromBatch` says which of the two you are looking at, because "the
+   * batch says June 2027" and "somebody typed June 2027" are not the same claim.
+   */
+  const thtFor = (sku: string) => {
+    const batch = batchFor(sku)
+    if (batch) {
+      return { fromBatch: true, label: batch.batch_number, tht: batch.tht_date ?? null }
+    }
+    for (const o of transport.orders ?? []) {
+      const line = ((o.items ?? []) as QuoteItem[]).find(i => i.sku === sku)
+      if (line?.tht_date) return { fromBatch: false, label: null, tht: line.tht_date }
+    }
+    return null
+  }
 
   const colli: Colli[] = transportColli(transport)
   const orders: Order[] = transport.orders ?? []
@@ -83,15 +149,32 @@ export function ColliEditor({ transport }: { transport: Transport }) {
   }
 
   /**
-   * Everything that can go in a box: the whole catalogue, because a transport
-   * moves stock and may carry bottles no order has asked for yet. What the
-   * orders need is shown beside it so the common case stays one glance away.
+   * Everything that can go in a box: the whole product catalogue, because a
+   * transport moves stock and may carry bottles no order has asked for yet, and
+   * the POS material too — a stand goes IN a box, so it has to be pickable here
+   * (her point of 2026-08-19).
+   *
+   * POS keeps the same `pos-…` sku it has on an order, so a box holding a stand
+   * and a box holding the same stand out of an order count as one thing on
+   * every document.
    */
-  const catalogue = (products ?? []).map(p => ({
-    sku: p.sku,
-    name: p.name,
-    ordered: needed.get(p.sku)?.qty ?? 0,
-  }))
+  const catalogue = [
+    ...(products ?? []).map(p => ({
+      sku: p.sku,
+      name: p.name,
+      ordered: needed.get(p.sku)?.qty ?? 0,
+      isPos: false,
+    })),
+    ...(posItems ?? []).map(i => {
+      const line = posOrderLineFor(i, 1)
+      return {
+        sku: line.sku,
+        name: line.name.replace(' (POS material)', ' · POS'),
+        ordered: needed.get(line.sku)?.qty ?? 0,
+        isPos: true,
+      }
+    }),
+  ]
 
   function write(next: Colli[]) {
     setColli.mutate({ transportId: transport.id, colli: next })
@@ -123,6 +206,27 @@ export function ColliEditor({ transport }: { transport: Transport }) {
   function setForOrder(index: number, value: string) {
     write(colli.map((c, i) =>
       i === index ? { ...c, for_order_id: value === LOOSE ? null : value } : c
+    ))
+  }
+
+  /**
+   * ATA — the day THIS box actually landed.
+   *
+   * Her case of 2026-08-19: three colli left together, one arrived after 20
+   * days, one after 23, one is still missing. ETD and ETA sit on the transport
+   * because the load left as one thing; arriving is not something a load does
+   * together, so it is asked per box. Empty means still out there, which is a
+   * real answer and not a blank to be filled in later.
+   */
+  function setAta(index: number, value: string) {
+    write(colli.map((c, i) =>
+      i === index ? { ...c, ata: value === '' ? null : value } : c
+    ))
+  }
+
+  function setAtaNote(index: number, value: string) {
+    write(colli.map((c, i) =>
+      i === index ? { ...c, ata_note: value === '' ? null : value } : c
     ))
   }
 
@@ -169,6 +273,7 @@ export function ColliEditor({ transport }: { transport: Transport }) {
 
   const over = mismatches.filter(m => m.inColli > m.ordered)
   const loose = colli.filter(c => !c.for_order_id).length
+  const stillOut = colli.filter(c => !c.ata).length
 
   // Gross for the whole load: every box plus its contents. `missing` names the
   // products with no weight on the Products screen — their bottles are simply
@@ -177,9 +282,16 @@ export function ColliEditor({ transport }: { transport: Transport }) {
   const grossPerColli = colli.map(c => colliGrossWeight(c, weights))
   const grossTotal = grossPerColli.reduce((sum, g) => sum + g.kg, 0)
   const missingWeights = Array.from(new Set(grossPerColli.flatMap(g => g.missing)))
-  const missingNames = missingWeights.map(
-    sku => catalogue.find(i => i.sku === sku)?.name ?? sku,
-  )
+  // POS material carries no weight anywhere — a stand is not a product and the
+  // catalogue keeps no grams for it. Listing it beside the bottles as "no weight
+  // set" would send somebody to the Products screen to fix something that is not
+  // there. It gets its own line instead, with the fix that actually works.
+  const missingNames = missingWeights
+    .filter(sku => !isPosLine({ sku }))
+    .map(sku => catalogue.find(i => i.sku === sku)?.name ?? sku)
+  const posWithoutWeight = missingWeights
+    .filter(sku => isPosLine({ sku }))
+    .map(sku => catalogue.find(i => i.sku === sku)?.name ?? sku)
 
   const orderLabel = (id?: string | null) => {
     const o = orders.find(x => x.id === id)
@@ -204,6 +316,15 @@ export function ColliEditor({ transport }: { transport: Transport }) {
         {loose > 0 && (
           <span className="text-xs text-muted-foreground">
             {loose} loose
+          </span>
+        )}
+        {/* Arrival is per box, so the load has no single answer. This is the
+            one line that says how far along it is. */}
+        {colli.length > 0 && (
+          <span className={`text-xs ${stillOut > 0 ? 'text-amber-600' : 'text-green-700'}`}>
+            {stillOut === 0
+              ? 'all arrived'
+              : `${colli.length - stillOut} of ${colli.length} arrived`}
           </span>
         )}
         {over.length > 0 && (
@@ -273,6 +394,34 @@ export function ColliEditor({ transport }: { transport: Transport }) {
                   <span className="text-[11px] text-muted-foreground">never printed</span>
                 </div>
 
+                {/* ATA — when THIS box landed. A load does not arrive as one
+                    thing: her three colli came in after 20 days, 23 days, and
+                    never. Empty means still out there, and that is an answer. */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <Label className="text-xs text-muted-foreground shrink-0">ATA</Label>
+                  <Input
+                    type="date"
+                    className="h-6 w-36 text-xs px-2"
+                    defaultValue={c.ata ?? ''}
+                    onBlur={e => setAta(index, e.target.value)}
+                  />
+                  {c.ata ? (
+                    <span className="text-[11px] text-green-700">
+                      in {daysOut(transport.etd, c.ata)}
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-amber-600">
+                      still out{transport.etd ? ` · ${daysSince(transport.etd)} days` : ''}
+                    </span>
+                  )}
+                  <Input
+                    className="h-6 flex-1 min-w-[120px] text-xs px-2"
+                    placeholder="note — late, lost, damaged…"
+                    defaultValue={c.ata_note ?? ''}
+                    onBlur={e => setAtaNote(index, e.target.value)}
+                  />
+                </div>
+
                 {/* The size of THIS box. It goes on the packing list next to
                     the weight, because a carrier prices a pallet by both (098).
                     Not taken from the product: that is a full carton, and this
@@ -311,25 +460,39 @@ export function ColliEditor({ transport }: { transport: Transport }) {
                   <p className="text-xs text-muted-foreground">Empty</p>
                 ) : (
                   <div className="space-y-1">
-                    {c.items.map(it => (
-                      <div key={it.sku} className="flex items-center gap-2">
-                        <span className="flex-1 min-w-0 truncate text-xs">{it.name}</span>
-                        <Input
-                          type="number"
-                          min="1"
-                          className="h-6 w-16 text-xs text-right px-2"
-                          defaultValue={it.qty}
-                          onBlur={e => setItemQty(index, it.sku, Number(e.target.value) || 1)}
-                        />
-                        <button
-                          onClick={() => removeItem(index, it.sku)}
-                          className="text-muted-foreground hover:text-red-600"
-                          title="Remove"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ))}
+                    {c.items.map(it => {
+                      // The batch this product left Curaçao on, and with it the
+                      // one THT it can have. Beside the box, so signing it in
+                      // needs no second screen.
+                      const info = thtFor(it.sku)
+                      return (
+                        <div key={it.sku} className="flex items-center gap-2 flex-wrap">
+                          <span className="flex-1 min-w-0 truncate text-xs">{it.name}</span>
+                          {info ? (
+                            <span className="text-[11px] text-muted-foreground shrink-0">
+                              {info.label ? `${info.label} · ` : ''}
+                              {info.tht ? `THT ${formatTht(info.tht)}` : 'no THT'}
+                            </span>
+                          ) : !isPosLine(it) && (
+                            <span className="text-[11px] text-red-600 shrink-0">no THT</span>
+                          )}
+                          <Input
+                            type="number"
+                            min="1"
+                            className="h-6 w-16 text-xs text-right px-2"
+                            defaultValue={it.qty}
+                            onBlur={e => setItemQty(index, it.sku, Number(e.target.value) || 1)}
+                          />
+                          <button
+                            onClick={() => removeItem(index, it.sku)}
+                            className="text-muted-foreground hover:text-red-600"
+                            title="Remove"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
 
@@ -366,6 +529,13 @@ export function ColliEditor({ transport }: { transport: Transport }) {
                 Fill in Weight (g) on the Products screen and this corrects itself.
               </p>
             </div>
+          )}
+
+          {posWithoutWeight.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              POS material has no weight of its own: {posWithoutWeight.join(', ')}.
+              Put it in the packaging weight of the box it sits in.
+            </p>
           )}
 
           {mismatches.length > 0 && (

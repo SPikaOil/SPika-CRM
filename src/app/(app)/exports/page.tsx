@@ -258,7 +258,20 @@ function ExportsInner() {
         <div className="space-y-2">
           {filtered.map(t => {
             const orders = t.orders ?? []
-            const names = Array.from(new Set(orders.map(o => o.customer?.company_name).filter(Boolean)))
+            /**
+             * WHERE THE LOAD GOES, not who bought the goods.
+             *
+             * Danique, 2026-08-19: "het gaat toch naar NBC, niet naar La
+             * Bandera, transport info is leading hier." A transport is a stock
+             * transfer to a place, and this list is a list of transports — so
+             * the name beside the number is the warehouse it is heading for.
+             * The reseller only becomes the destination when the load goes
+             * straight to them, and then it is the same answer.
+             */
+            const goingTo = t.ship_to === 'warehouse'
+              ? (t.location?.name ?? 'Warehouse')
+              : (Array.from(new Set(orders.map(o => o.customer?.company_name).filter(Boolean)))
+                  .join(', ') || 'No orders yet')
             return (
               <Link
                 key={t.id}
@@ -269,9 +282,7 @@ function ExportsInner() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-mono text-sm font-medium">{t.transport_number}</p>
-                      <p className="font-medium text-sm truncate">
-                        {names.length ? names.join(', ') : 'No orders yet'}
-                      </p>
+                      <p className="font-medium text-sm truncate">{goingTo}</p>
                       <Badge className={`text-xs ${statusColors[t.status]}`}>
                         {statusLabels[t.status]}
                       </Badge>

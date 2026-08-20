@@ -6,7 +6,64 @@ import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { cn } from "@/lib/utils"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
-const Select = SelectPrimitive.Root
+/**
+ * Base UI renders the raw VALUE in the trigger unless it is told the labels.
+ *
+ * That is why a carrier read `106ba8b8-2aa6-41c8-…` after saving instead of its
+ * name, and a status read `draft` instead of `Draft` — Danique, 2026-08-19.
+ * `Select.Root` takes an `items` map for exactly this, and `<Select.Value>` then
+ * shows the label of whatever is selected.
+ *
+ * Filling that map by hand would mean writing the options out twice in 43
+ * places, and the second copy is the one that goes stale. So it is derived from
+ * the options themselves: the `<SelectItem>` elements are built when the parent
+ * renders, even though the popup only mounts when it opens, so their labels can
+ * be read straight off the element tree.
+ *
+ * An explicit `items` prop still wins, and so does a `<SelectValue>` with its
+ * own render function — the twelve places that already had one keep working
+ * exactly as they did.
+ */
+function textOf(node: React.ReactNode): string {
+  if (node === null || node === undefined || typeof node === "boolean") return ""
+  if (typeof node === "string" || typeof node === "number") return String(node)
+  if (Array.isArray(node)) return node.map(textOf).join("")
+  if (React.isValidElement(node)) {
+    return textOf((node.props as { children?: React.ReactNode }).children)
+  }
+  return ""
+}
+
+function collectItems(node: React.ReactNode, out: Record<string, string>) {
+  if (Array.isArray(node)) {
+    for (const child of node) collectItems(child, out)
+    return
+  }
+  if (!React.isValidElement(node)) return
+  const props = node.props as { value?: unknown; children?: React.ReactNode }
+  if (node.type === SelectItem && typeof props.value === "string") {
+    const label = textOf(props.children).trim()
+    // An option with no text of its own — an icon only — is left out rather
+    // than mapped to an empty string, which would blank the trigger.
+    if (label) out[props.value] = label
+  }
+  collectItems(props.children, out)
+}
+
+function Select({ items, children, ...props }: SelectPrimitive.Root.Props<string>) {
+  const derived = React.useMemo(() => {
+    if (items) return items
+    const map: Record<string, string> = {}
+    collectItems(children, map)
+    return Object.keys(map).length > 0 ? map : undefined
+  }, [items, children])
+
+  return (
+    <SelectPrimitive.Root items={derived} {...props}>
+      {children}
+    </SelectPrimitive.Root>
+  )
+}
 
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (

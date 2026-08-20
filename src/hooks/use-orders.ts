@@ -141,6 +141,13 @@ export function useUpdateOrder() {
     onSuccess: (_data, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['orders'] })
       queryClient.invalidateQueries({ queryKey: ['orders', id] })
+      // The Export screens hold their own copy of an order, read through the
+      // transport it hangs on. Without these two, adding POS material on a
+      // transport saved fine and then showed nothing at all until the page was
+      // reloaded — Danique, 2026-08-19. Anything that edits an order from an
+      // export screen lands here, so this is the one place it belongs.
+      queryClient.invalidateQueries({ queryKey: ['transports'] })
+      queryClient.invalidateQueries({ queryKey: ['export-orders'] })
       toast.success('Order updated')
     },
     onError: (err: Error) => toast.error(err.message),

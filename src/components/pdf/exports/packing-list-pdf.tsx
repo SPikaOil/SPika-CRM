@@ -186,14 +186,22 @@ export function PackingListPDF({
    * it is not a colli either.
    */
   const posBySku = new Map<string, { sku: string; name: string; qty: number }>()
+  function addPos(line: { sku: string; name: string; qty: number }) {
+    if (line.qty <= 0 || packedBySku.has(line.sku)) return
+    const row = posBySku.get(line.sku)
+    if (row) row.qty += line.qty
+    else posBySku.set(line.sku, { sku: line.sku, name: line.name, qty: line.qty })
+  }
   for (const order of orders) {
     for (const line of (order.items ?? []) as QuoteItem[]) {
-      if (!isPosLine(line) || line.qty <= 0 || packedBySku.has(line.sku)) continue
-      const row = posBySku.get(line.sku)
-      if (row) row.qty += line.qty
-      else posBySku.set(line.sku, { sku: line.sku, name: line.name, qty: line.qty })
+      if (!isPosLine(line)) continue
+      addPos(line)
     }
   }
+  // And the material riding on the TRANSPORT itself (migration 101). A load
+  // with no order on it carries display material just the same, and before this
+  // there was nowhere to say so — so it never reached the document either.
+  for (const line of transport.pos_items ?? []) addPos(line)
   const pos = Array.from(posBySku.values())
 
   /**

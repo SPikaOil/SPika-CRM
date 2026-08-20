@@ -188,6 +188,81 @@ export function useTransportPicks(transportId: string | null | undefined) {
 }
 
 /**
+ * The products of THIS order that have already been loaded onto a transport out
+ * of a batch — so the batch, not a typed month, has the last word on their THT.
+ *
+ * An export order has no pick of its own since 2026-08-19: its bottles leave
+ * Curaçao on the load. Without this the order screen could not tell "no batch
+ * anywhere" from "a batch was chosen on the transport", and would keep offering
+ * a field that quietly contradicts it.
+ */
+export function useOrderLoadPicks(orderId: string | null | undefined) {
+  const supabase = createClient()
+  return useQuery({
+    queryKey: ['order_load_picks', orderId],
+    queryFn: async () => {
+      const { data: links } = await supabase
+        .from('transport_orders')
+        .select('transport_id')
+        .eq('order_id', orderId!)
+      const ids = (links ?? []).map(l => l.transport_id as string)
+      if (ids.length === 0) return new Set<string>()
+      const { data, error } = await supabase
+        .from('stock_movements')
+        .select('sku')
+        .in('transport_id', ids)
+        .eq('reason', 'transport_out')
+      if (error) throw error
+      return new Set((data ?? []).map(r => r.sku as string))
+    },
+    enabled: !!orderId,
+  })
+}
+
+/**
+ * Put the batch's best-before onto the order lines for that product.
+ *
+ * Danique, 2026-08-19: "1 partij kan maar 1 tht hebben, anders zijn de partijen
+ * niet traceerbaar." The batches table has held one date per batch since
+ * migration 055 — the rule was only broken on the ORDER, where the THT was a
+ * hand-typed month sitting next to a batch that said something else. The typed
+ * one is what reached the invoice, the packing list and the commercial invoice.
+ *
+ * So it is stamped instead of typed, and stamped onto the stored line rather
+ * than worked out at print time: every document already reads `items[].tht_date`
+ * and none of them has to learn about batches.
+ *
+ * A batch with no date of its own clears the line rather than leaving a stale
+ * one behind — an empty THT is a question, an old one is a wrong answer.
+ */
+async function stampTht(
+  supabase: ReturnType<typeof createClient>,
+  batchId: string,
+  orderIds: string[],
+  sku: string,
+) {
+  if (orderIds.length === 0) return
+  const { data: batch } = await supabase
+    .from('batches')
+    .select('tht_date')
+    .eq('id', batchId)
+    .single()
+  const tht = (batch?.tht_date as string | null) ?? null
+
+  const { data: orders } = await supabase
+    .from('orders')
+    .select('id, items')
+    .in('id', orderIds)
+
+  for (const order of orders ?? []) {
+    const items = (order.items ?? []) as { sku: string; tht_date?: string | null }[]
+    if (!items.some(i => i.sku === sku)) continue
+    const next = items.map(i => (i.sku === sku ? { ...i, tht_date: tht ?? undefined } : i))
+    await supabase.from('orders').update({ items: next }).eq('id', order.id)
+  }
+}
+
+/**
  * Bottles already taken off Curaçao by the ORDERS on a transport.
  *
  * Every export order booked out this way until 2026-08-19, when that moved to
@@ -256,11 +331,24 @@ export function useSetTransportPick() {
         note: 'Loaded onto this transport',
       })
       if (error) throw error
+
+      // Every order this transport is meant for gets the batch's THT on that
+      // product — the papers of all of them describe the same bottles.
+      const { data: links } = await supabase
+        .from('transport_orders')
+        .select('order_id')
+        .eq('transport_id', transportId)
+      await stampTht(supabase, batchId, (links ?? []).map(l => l.order_id as string), sku)
     },
     onSuccess: (_d, v) => {
       queryClient.invalidateQueries({ queryKey: ['batch_stock'] })
       queryClient.invalidateQueries({ queryKey: ['stock_movements'] })
       queryClient.invalidateQueries({ queryKey: ['transport_picks', v.transportId] })
+      // The pick stamps the THT onto every order on this load, so the screens
+      // showing those orders have to be told.
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+      queryClient.invalidateQueries({ queryKey: ['transports'] })
+      queryClient.invalidateQueries({ queryKey: ['export-orders'] })
     },
     onError: (err: Error) => toast.error(err.message),
   })
@@ -329,11 +417,13 @@ export function useSetOrderPick() {
         note: 'Picked for this order',
       })
       if (error) throw error
+      await stampTht(supabase, batchId, [orderId], sku)
     },
     onSuccess: (_d, v) => {
       queryClient.invalidateQueries({ queryKey: ['batch_stock'] })
       queryClient.invalidateQueries({ queryKey: ['stock_movements'] })
-      queryClient.invalidateQueries({ queryKey: ['order_picks', v.orderId] })
+      queryClient.invalidateQueries({ queryKey: ["order_picks", v.orderId] })
+      queryClient.invalidateQueries({ queryKey: ["orders"] })
     },
     onError: (err: Error) => toast.error(err.message),
   })
