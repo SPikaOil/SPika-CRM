@@ -21,6 +21,7 @@ import {
 } from '@/hooks/use-transports'
 import { ColliEditor } from '../_components/colli-editor'
 import { OrderShare } from '../_components/order-share'
+import { LoadBatches } from '../_components/load-batches'
 import { OrderPosLine } from '@/components/order-pos-line'
 import { TransportDocuments } from '../_components/transport-documents'
 import { ReceivedDocuments } from '../_components/received-documents'
@@ -535,6 +536,10 @@ export default function TransportDetailPage({
           )}
         </CardContent>
       </Card>
+
+      {/* The bottles leaving Curaçao, out of which batch. Her rule of
+          2026-08-19: they go off the shelf when they go on the transport. */}
+      <LoadBatches transport={t} />
 
       {/* What is in the boxes. One card for the whole load since migration 100:
           a transport is a stock transfer, packed per product, and the warehouse

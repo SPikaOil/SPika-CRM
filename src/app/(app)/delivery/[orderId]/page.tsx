@@ -366,13 +366,27 @@ export default function DeliveryPage({
         .single()
       if (!t?.stores_at_warehouse || !t.arrived_at || !t.location_id) return
 
-      // The same batches it was picked from — read back, never guessed.
+      // Which batch comes off the shelf — read back, never guessed.
+      //
+      // From what was RECEIVED at that warehouse since 2026-08-19: an export
+      // order no longer takes bottles off Curaçao itself, so it has no pick of
+      // its own to read. What is standing there is what was signed in, and that
+      // is what can be given out. Order picks stay behind it for a delivery that
+      // still ran under the old rule.
+      const { data: received } = await supabase
+        .from('stock_movements')
+        .select('sku, batch_id')
+        .eq('transport_id', t.id)
+        .eq('reason', 'received')
       const { data: picks } = await supabase
         .from('stock_movements')
         .select('sku, batch_id')
         .eq('order_id', orderId)
         .eq('reason', 'order')
-      const batchOf = new Map((picks ?? []).map(p => [p.sku, p.batch_id]))
+      const batchOf = new Map([
+        ...(picks ?? []).map(p => [p.sku, p.batch_id] as const),
+        ...(received ?? []).map(p => [p.sku, p.batch_id] as const),
+      ])
 
       const rows = runItems
         .filter(i => batchOf.has(i.sku))

@@ -54,10 +54,20 @@ export function TransportDocuments({ transport }: { transport: Transport }) {
     return (s ?? '').replace(/[#/\\:*?"<>|]/g, '').trim()
   }
 
-  /** The batches of every order on the load, merged into one map for a document
-   *  that has one row per product rather than one per order. */
+  /**
+   * The batches on this load, as one map — a document has one row per product,
+   * not one per order.
+   *
+   * Read off the TRANSPORT since 2026-08-19: the bottles leave Curaçao when they
+   * are loaded, so that is where the batch is chosen. The orders are still
+   * merged in behind it, so a transport loaded under the old rule keeps printing
+   * its batch numbers.
+   */
   async function transportBatches() {
-    const { fetchOrderBatches, mergeBatches } = await import('@/lib/order-batches')
+    const { fetchOrderBatches, fetchTransportBatches, mergeBatches } =
+      await import('@/lib/order-batches')
+    const fromLoad = await fetchTransportBatches(transport.id)
+    if (Object.keys(fromLoad).length > 0) return fromLoad
     return mergeBatches(await Promise.all(orders.map(o => fetchOrderBatches(o.id))))
   }
 
@@ -81,18 +91,16 @@ export function TransportDocuments({ transport }: { transport: Transport }) {
     }
     const { ShippingLabelPDF } = await import('@/components/pdf/exports/shipping-label-pdf')
     const QRCode = (await import('qrcode')).default
-    // Batches are per order, so they are fetched once per order and then handed
-    // to every label of that order — a box names the batches inside it.
-    const { fetchOrderBatches } = await import('@/lib/order-batches')
-    const perOrder = new Map<string, Awaited<ReturnType<typeof fetchOrderBatches>>>()
-    for (const o of orders) perOrder.set(o.id, await fetchOrderBatches(o.id))
+    // The batches on the load, one map for every label. A box names the batches
+    // inside it, and since the whole load leaves Curaçao out of chosen batches
+    // that answer no longer depends on which order a box belongs to — which is
+    // just as well, because a box of loose stock belongs to none.
+    const batchesOnLoad = await transportBatches()
     const pages = await Promise.all(
       buildLabelPages(transport).map(async (p) => ({
         ...p,
         qrCodeDataUrl: await QRCode.toDataURL(
-          // A loose box belongs to no order, so there is no order to read its
-          // batches from. It gets no batch line rather than a guessed one.
-          colliQrText(transport, p, p.order ? perOrder.get(p.order.id) : undefined, productWeights),
+          colliQrText(transport, p, batchesOnLoad, productWeights),
           { margin: 1, width: 240 },
         ),
       }))

@@ -155,11 +155,127 @@ export function useTransportBatches(transportId: string | null | undefined) {
 }
 
 /**
+ * Which batch each product on a TRANSPORT was loaded from: { sku -> batch_id }.
+ *
+ * Danique, 2026-08-19: "het moment dat we een transport aanmaken, dan is de
+ * voorraad op Curacao al verminderd." A transport is a stock transfer, so the
+ * bottles leave home when they go on the load — not when somebody picks a batch
+ * on an order, and not when the customer signs weeks later.
+ *
+ * `transport_out` was written into the reason list back in migration 055 and
+ * never used for bottles; this is what it was for.
+ */
+export function useTransportPicks(transportId: string | null | undefined) {
+  const supabase = createClient()
+  return useQuery({
+    queryKey: ['transport_picks', transportId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('stock_movements')
+        .select('sku, batch_id, qty')
+        .eq('transport_id', transportId!)
+        .eq('reason', 'transport_out')
+      if (error) throw error
+      const picks: Record<string, { batch_id: string; qty: number }> = {}
+      for (const row of data ?? []) {
+        // Stored negative — it left the shelf. Shown positive.
+        picks[row.sku] = { batch_id: row.batch_id, qty: Math.abs(row.qty) }
+      }
+      return picks
+    },
+    enabled: !!transportId,
+  })
+}
+
+/**
+ * Bottles already taken off Curaçao by the ORDERS on a transport.
+ *
+ * Every export order booked out this way until 2026-08-19, when that moved to
+ * the transport. Those movements are real — the bottles genuinely left the
+ * shelf — so a transport carrying such an order must NOT book them out a second
+ * time. The load screen reads this to tell the two apart.
+ */
+export function useOrderPicksFor(orderIds: string[]) {
+  const supabase = createClient()
+  const key = [...orderIds].sort().join(',')
+  return useQuery({
+    queryKey: ['order_picks_for', key],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('stock_movements')
+        .select('order_id, sku, batch_id, qty, batch:batches(batch_number)')
+        .in('order_id', orderIds)
+        .eq('reason', 'order')
+      if (error) throw error
+      return (data ?? []).map(row => {
+        const batch = row.batch as unknown as { batch_number: string } | null
+        return {
+          order_id: row.order_id as string,
+          sku: row.sku as string,
+          batch_id: row.batch_id as string,
+          qty: Math.abs(row.qty as number),
+          batch_number: batch?.batch_number ?? '',
+        }
+      })
+    },
+    enabled: orderIds.length > 0,
+  })
+}
+
+/**
+ * Load one product onto a transport out of a batch, or take it off again.
+ *
+ * Re-picking REPLACES the earlier choice rather than mirroring it, the same rule
+ * as an order pick: nothing physically moved, somebody corrected which batch the
+ * bottles came off, and a reversal pair would only make the batch history
+ * unreadable. A real movement — filling, receiving, breakage — is still never
+ * deleted.
+ */
+export function useSetTransportPick() {
+  const supabase = createClient()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ transportId, sku, qty, batchId }: {
+      transportId: string; sku: string; qty: number; batchId: string | null
+    }) => {
+      const { error: delErr } = await supabase
+        .from('stock_movements')
+        .delete()
+        .eq('transport_id', transportId)
+        .eq('sku', sku)
+        .eq('reason', 'transport_out')
+      if (delErr) throw delErr
+      if (!batchId || qty <= 0) return
+      const { error } = await supabase.from('stock_movements').insert({
+        batch_id: batchId,
+        sku,
+        qty: -qty,
+        // Off Curaçao, where the bottles are filled. location_id null = home.
+        reason: 'transport_out' as StockReason,
+        transport_id: transportId,
+        note: 'Loaded onto this transport',
+      })
+      if (error) throw error
+    },
+    onSuccess: (_d, v) => {
+      queryClient.invalidateQueries({ queryKey: ['batch_stock'] })
+      queryClient.invalidateQueries({ queryKey: ['stock_movements'] })
+      queryClient.invalidateQueries({ queryKey: ['transport_picks', v.transportId] })
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+}
+
+/**
  * Which batch each product on an order was taken from: { sku -> batch_id }.
  *
  * A batch is CHOSEN on the order, per product — Danique, 2026-08-14. That choice
  * is not a field on the order: it is the stock movement that took the bottles
  * off the shelf, so the choice and the stock can never disagree.
+ *
+ * LOCAL orders only since 2026-08-19. An export order leaves Curaçao on a
+ * transport, and its batch is chosen there — see useTransportPicks above.
+ * Picking in both places would take the same bottles off the shelf twice.
  */
 export function useOrderPicks(orderId: string | null | undefined) {
   const supabase = createClient()

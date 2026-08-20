@@ -141,7 +141,20 @@ export function ArrivalCard({ transport }: { transport: Transport }) {
       if (upErr) throw upErr
 
       if (stores) {
-        // Book in what was COUNTED, out of the batches it was picked from.
+        // Book in what was COUNTED, out of the batch it LEFT CURAÇAO on.
+        //
+        // Read off the transport since 2026-08-19, not off the orders. The
+        // bottles come off the shelf when they are loaded, so the batch is a
+        // property of the load — and an order on two transports has no single
+        // pick to read any more. Falls back to the order picks so a transport
+        // loaded under the old rule can still be signed in.
+        const { data: loaded, error: loadErr } = await supabase
+          .from('stock_movements')
+          .select('sku, batch_id')
+          .eq('transport_id', t.id)
+          .eq('reason', 'transport_out')
+        if (loadErr) throw loadErr
+
         const { data: picks, error: pickErr } = await supabase
           .from('stock_movements')
           .select('sku, batch_id, order_id')
@@ -152,7 +165,8 @@ export function ArrivalCard({ transport }: { transport: Transport }) {
         const rows = lines
           .filter(l => l.received > 0)
           .map(l => {
-            const pick = (picks ?? []).find(p => p.order_id === l.order_id && p.sku === l.sku)
+            const pick = (loaded ?? []).find(p => p.sku === l.sku)
+              ?? (picks ?? []).find(p => p.order_id === l.order_id && p.sku === l.sku)
             return pick ? {
               batch_id: pick.batch_id,
               sku: l.sku,

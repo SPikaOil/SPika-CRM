@@ -44,6 +44,42 @@ export async function fetchOrderBatches(orderId: string | null | undefined): Pro
 }
 
 /**
+ * Which batches a TRANSPORT was loaded from.
+ *
+ * Since 2026-08-19 an export order does not take bottles off Curaçao — the
+ * transport does, out of a batch chosen on the load. So the batch numbers that
+ * belong on a transport's papers come from here, not from the orders on it.
+ *
+ * Same shape as fetchOrderBatches so every document reads one type.
+ */
+export async function fetchTransportBatches(
+  transportId: string | null | undefined,
+): Promise<OrderBatches> {
+  if (!transportId) return {}
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('stock_movements')
+    .select('sku, batch:batches(batch_number)')
+    .eq('transport_id', transportId)
+    .eq('reason', 'transport_out')
+    .order('created_at', { ascending: true })
+
+  // A missing batch never stops a document: the papers still have to come out,
+  // they just carry no batch line.
+  if (error || !data) return {}
+
+  const out: OrderBatches = {}
+  for (const row of data as unknown as { sku: string; batch: { batch_number: string } | null }[]) {
+    const number = row.batch?.batch_number
+    if (!number) continue
+    const list = out[row.sku] ?? []
+    if (!list.includes(number)) list.push(number)
+    out[row.sku] = list
+  }
+  return out
+}
+
+/**
  * The batches of several orders as one map, for a document that covers a whole
  * transport rather than one order — the packing list, since 2026-08-19.
  *

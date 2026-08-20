@@ -78,6 +78,11 @@ export default function OrderDetailPage({
   const { data: picks = {} } = useOrderPicks(id)
   const setOrderPick = useSetOrderPick()
 
+  // An export order leaves Curaçao on a transport, so its batch is chosen there
+  // (2026-08-19). One rule, read from the delivery address, shared with the
+  // Export tab — nothing to switch on and nothing to forget.
+  const isExportOrder = isExportCustomer(order?.customer)
+
   // Adjusted total accounting for table bottle credit
   const bottleCredit = order
     ? (order.delivery?.table_bottles_returned ?? 0) * (order.customer?.table_bottle_return_price ?? 2.50)
@@ -1595,8 +1600,13 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                           under Stock is what is really on the shelf — and the
                           batch number lands on the invoice and the packing
                           list. Per product, because one order can be picked
-                          from more than one batch. */}
-                      {isAdmin && item.qty > 0 && (
+                          from more than one batch.
+
+                          LOCAL orders only since 2026-08-19. An export order
+                          leaves Curaçao on a TRANSPORT, and the batch is chosen
+                          there, on the load. Offering it here as well would
+                          take the same bottles off the shelf twice. */}
+                      {isAdmin && item.qty > 0 && !isExportOrder && (
                         <div className="flex items-center gap-1.5 mt-1">
                           <span className={`text-xs ${picks[item.sku] ? 'text-muted-foreground' : 'text-red-600 font-medium'}`}>Batch</span>
                           <BatchSelect
@@ -1609,6 +1619,12 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                             })}
                           />
                         </div>
+                      )}
+                      {isAdmin && item.qty > 0 && isExportOrder && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Batch is chosen on the transport — that is where these
+                          bottles leave Curaçao.
+                        </p>
                       )}
                     </div>
                     {isAdmin && <p className="font-semibold text-sm shrink-0">{fmt(item.line_total)}</p>}
