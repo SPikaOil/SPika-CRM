@@ -19,7 +19,7 @@ import { toast } from 'sonner'
 import { SPIKA_PRODUCTS } from '@/lib/products'
 import { BatchSelect } from '@/components/batch-select'
 import { useBatches } from '@/hooks/use-batches'
-import { useTransportLocations } from '@/hooks/use-transports'
+import { useTransportLocations, useWarehouseMemberships } from '@/hooks/use-transports'
 
 // Only physical bottle products can be handed over
 const HANDOVER_SKUS = SPIKA_PRODUCTS.filter(p => !p.sku.includes('return')).map(p => p.sku)
@@ -71,6 +71,12 @@ export default function HandoverPage() {
   const { data: users } = useUsers()
   const { data: stockBatches } = useBatches()
   const { data: locations } = useTransportLocations()
+  // Which shelves this person actually works at. A warehouse member may hand
+  // stock over from their own place and from nowhere else.
+  const { data: memberships } = useWarehouseMemberships()
+  const myLocationIds = (memberships ?? [])
+    .filter(m => m.user_id === profile?.id)
+    .map(m => m.location_id)
 
   const [batches, setBatches] = useState<Batch[]>([])
   const [loading, setLoading] = useState(true)
@@ -345,8 +351,11 @@ export default function HandoverPage() {
         </Button>
       </div>
 
-      {/* New batch — admin only */}
-      {isAdmin && (
+      {/* Making a handover. Admin, or somebody who works at a shelf —
+          her instruction of 2026-08-20. The From list above is narrowed to the
+          places they are a member of, so they can move their own stock and
+          nobody else's. */}
+      {(isAdmin || myLocationIds.length > 0) && (
       <Card size="sm" className="py-3 gap-2">
         <CardHeader><CardTitle className="text-sm">New handover</CardTitle></CardHeader>
         <CardContent className="space-y-3">
@@ -366,10 +375,18 @@ export default function HandoverPage() {
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={CURACAO}>Curaçao</SelectItem>
-                  {(locations ?? []).map(l => (
-                    <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
-                  ))}
+                  {/* Only shelves you actually work at, unless you are the
+                      admin. Danique, 2026-08-20: a warehouse member has to be
+                      able to hand stock over to another warehouse — but from
+                      THEIR shelf, not from one they have never stood in. */}
+                  {(isAdmin || myLocationIds.includes(null)) && (
+                    <SelectItem value={CURACAO}>Curaçao</SelectItem>
+                  )}
+                  {(locations ?? [])
+                    .filter(l => isAdmin || myLocationIds.includes(l.id))
+                    .map(l => (
+                      <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>

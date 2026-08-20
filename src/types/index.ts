@@ -632,6 +632,8 @@ export interface Transport {
   receipt_lines?: {
     order_id: string; order_number: string; sku: string; name: string
     expected: number; received: number; reason: string
+    /** Which box this count came from. Intake is per colli since 2026-08-19. */
+    colli?: number
     /** What the customer gets: credited, delivered later, or carried by us. */
     outcome?: 'credit' | 'later' | 'our_loss'
   }[]

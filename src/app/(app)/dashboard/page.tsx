@@ -16,6 +16,8 @@ import { useAuth } from '@/contexts/auth-context'
 import { useUsers } from '@/hooks/use-users'
 import { useMyOpenRuns } from '@/hooks/use-delivery-runs'
 import { isPosLine } from '@/lib/pos'
+import { WarehouseDashboardCard } from './_components/warehouse-card'
+import { ShortageBanner } from './_components/shortage-banner'
 import { Order, Task, OrderCurrency } from '@/types'
 import { DEFAULT_TEMPLATES, TEMPLATE_LABELS, fillTemplate, type ReminderTemplate, type TemplateKey } from '@/lib/reminder-templates'
 import { computeOrderRhythm, assessQuiet } from '@/lib/order-rhythm'
@@ -1393,6 +1395,10 @@ export default function DashboardPage() {
       {/* Consignment orders out — awaiting settlement */}
       {isAdmin && <ConsignmentBanner orders={consignmentOrders} />}
 
+      {/* Bottles that never arrived, waiting for a decision. Her instruction of
+          2026-08-20: Curaçao has to see it to act on it. */}
+      {isAdmin && <ShortageBanner />}
+
       {/* Export orders with no transport behind them */}
       {isAdmin && <ExportBanner rows={exportGaps} />}
 
@@ -1429,6 +1435,10 @@ export default function DashboardPage() {
       {/* ── Sales view: my deliveries this week + bottles I picked up ── */}
       {!isAdmin && (
         <>
+          {/* Their own warehouse: what is on the shelves, what is coming in,
+              what came up short, and where to hand stock over. */}
+          <WarehouseDashboardCard userId={profile?.id} />
+
           {/* Runs prepared for this person (migration 105).
               Before this the assignee of a delivery saw nothing: the agenda
               below reads ORDERS assigned to you, and a run is assigned on the
