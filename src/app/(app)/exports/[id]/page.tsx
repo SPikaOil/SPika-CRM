@@ -124,6 +124,38 @@ export default function TransportDetailPage({
     update.mutate({ id, values })
   }
 
+  /**
+   * Rename the transport.
+   *
+   * Separate from `save` because this one field can be refused, and a heading
+   * that silently keeps the typed text while the database still holds the old
+   * number is worse than no rename at all. On refusal the input is put back to
+   * what is actually stored.
+   *
+   * The number is on the packing list, the invoice, the B/L, every shipping
+   * label and inside every QR — all of them read it off the transport, so a
+   * rename reaches them the next time a document is generated. Papers already
+   * printed keep the old number.
+   */
+  function saveNumber(value: string, el: HTMLInputElement) {
+    const next = value.trim()
+    if (next === t.transport_number) return
+    // Empty never reaches the database: the column is NOT NULL, and a transport
+    // nobody can look up by number is a lost transport.
+    if (!next) {
+      el.value = t.transport_number
+      return
+    }
+    update.mutate(
+      { id, values: { transport_number: next } },
+      // The message comes from useUpdateTransport, which knows how to phrase a
+      // number that is already taken. This only puts the heading back to what
+      // is actually stored, so the screen never shows a name the database
+      // refused.
+      { onError: () => { el.value = t.transport_number } },
+    )
+  }
+
   return (
     <div className="p-4 lg:p-6 space-y-3 max-w-5xl mx-auto w-full">
       {/* Header */}
@@ -136,7 +168,23 @@ export default function TransportDetailPage({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <Ship className="h-5 w-5 text-muted-foreground" />
-            <h1 className="text-xl font-bold font-mono">{t.transport_number}</h1>
+            {/* The number is OURS to decide — her instruction of 2026-08-19.
+                The database still hands out a next one when a transport is
+                created, so nobody has to invent one, but it is a starting point
+                and not a lock. Editable straight in the heading rather than
+                hidden in a field below: it is the name of this page.
+
+                Saved on blur, and empty is refused — the column is NOT NULL and
+                unique, and a transport with no number is unfindable. A number
+                already in use comes back from the database as 23505, which
+                saveNumber turns into something readable. */}
+            <Input
+              key={t.transport_number}
+              defaultValue={t.transport_number}
+              onBlur={e => saveNumber(e.target.value, e.target)}
+              aria-label="Transport number"
+              className="text-xl font-bold font-mono h-9 w-44 px-2"
+            />
             <Badge className={`capitalize ${statusColors[t.status]}`}>{statusLabels[t.status]}</Badge>
           </div>
           <p className="text-sm text-muted-foreground">

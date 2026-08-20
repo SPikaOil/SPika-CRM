@@ -176,7 +176,15 @@ export function useUpdateTransport() {
       queryClient.invalidateQueries({ queryKey: ['transports'] })
       queryClient.invalidateQueries({ queryKey: ['transports', id] })
     },
-    onError: (err: Error) => toast.error(err.message),
+    // The transport number is ours to choose since 2026-08-19, and the column
+    // is unique — so "already in use" is now a thing somebody will actually hit
+    // by typing. Said in words rather than as Postgres' own
+    // "duplicate key value violates unique constraint".
+    onError: (err: Error) => toast.error(
+      /duplicate key|23505/.test(err.message)
+        ? 'That transport number is already in use'
+        : err.message,
+    ),
   })
 }
 
