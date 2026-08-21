@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { PackageMinus } from 'lucide-react'
 import { BatchSelect } from '@/components/batch-select'
 import { useTransportPicks, useSetTransportPick, useOrderPicksFor } from '@/hooks/use-batches'
-import { Transport, QuoteItem } from '@/types'
+import { Transport } from '@/types'
+import { transportLoadLines } from '@/lib/transport-load'
 
 /**
  * What comes off Curaçao for this transport, and out of which batch.
@@ -40,23 +41,17 @@ export function LoadBatches({ transport }: { transport: Transport }) {
   const oldPick = (sku: string) => already.find(p => p.sku === sku)
 
   // Per product, what this transport carries: the agreed share of every order
-  // on it, added up.
-  const load = new Map<string, { sku: string; name: string; qty: number }>()
-  for (const o of transport.orders ?? []) {
-    for (const i of ((o.on_transport ?? o.items ?? []) as QuoteItem[])) {
-      if (i.qty <= 0) continue
-      const at = load.get(i.sku)
-      if (at) at.qty += i.qty
-      else load.set(i.sku, { sku: i.sku, name: i.name, qty: i.qty })
-    }
-  }
-  const lines = Array.from(load.values())
+  // on it, added up. Shared with the status guard, which refuses to let the
+  // transport leave while one of these has no batch — one list, so the guard
+  // can never block a product this screen did not show.
+  const lines = transportLoadLines(transport)
+  const carried = new Set(lines.map(l => l.sku))
 
   // Everything already taken off the shelf for this transport, including a
   // product that has since been removed from the load — those bottles really
   // did leave, so they stay visible until somebody clears the batch.
   for (const [sku, p] of Object.entries(picks)) {
-    if (!load.has(sku)) lines.push({ sku, name: sku, qty: p.qty })
+    if (!carried.has(sku)) lines.push({ sku, name: sku, qty: p.qty })
   }
 
   const off = lines.filter(l => picks[l.sku] || oldPick(l.sku)).length

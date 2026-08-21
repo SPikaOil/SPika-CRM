@@ -19,6 +19,9 @@ import {
   useTransportLocations, useExportOrders, useAddOrderToTransport,
   useRemoveOrderFromTransport, useWarehouseDeliveryAddresses,
 } from '@/hooks/use-transports'
+import { useTransportPicks, useOrderPicksFor } from '@/hooks/use-batches'
+import { bottlesWithoutBatch } from '@/lib/transport-load'
+import { toast } from 'sonner'
 import { ColliEditor } from '../_components/colli-editor'
 import { OrderShare } from '../_components/order-share'
 import { LoadBatches } from '../_components/load-batches'
@@ -64,6 +67,12 @@ export default function TransportDetailPage({
   const { data: exportOrders } = useExportOrders()
   // Bottle weights, for the gross weight of the load.
   const { data: products } = useProducts()
+  // Which batch each product on this load comes off, and what the ORDERS on it
+  // already took off under the older rule. Both count as "has a batch".
+  const { data: picks = {} } = useTransportPicks(id)
+  const { data: alreadyPicked = [] } = useOrderPicksFor(
+    (transport?.orders ?? []).map(o => o.id),
+  )
   const update = useUpdateTransport()
   const remove = useDeleteTransport()
   const addOrder = useAddOrderToTransport()
@@ -138,6 +147,35 @@ export default function TransportDetailPage({
 
   function save(values: Parameters<typeof update.mutate>[0]['values']) {
     update.mutate({ id, values })
+  }
+
+  /**
+   * Bottles on this load that no batch has been chosen for yet.
+   *
+   * Read from the same list the Batches card offers, so the refusal below can
+   * never name a product that card never showed.
+   */
+  const noBatch = bottlesWithoutBatch(t, picks, alreadyPicked)
+
+  /**
+   * A transport does not leave draft while a product on it has no batch.
+   *
+   * This is what put NBC010 at zero. Nothing was ever picked off Curaçao, so
+   * the goods receipt at the other end had no batch to book the bottles into,
+   * counted 93 bottles, said so in a toast that disappeared, and booked none of
+   * them. Two real receipts, on 14 and 19 August, and an empty warehouse.
+   *
+   * Draft is the moment to catch it: after that the load is on its way and
+   * nobody can go back and say which bottles left.
+   */
+  function moveStatus(next: TransportStatus) {
+    if (t.status === 'draft' && next !== 'draft' && noBatch.length > 0) {
+      toast.error(
+        `Pick a batch first for ${noBatch.map(l => l.name).join(', ')} — without one nothing can be booked in at the other end`,
+      )
+      return
+    }
+    save({ status: next })
   }
 
   /**
@@ -216,7 +254,7 @@ export default function TransportDetailPage({
           <div className="flex items-end gap-3">
             <div className="flex-1">
               <Label className="text-xs">Status</Label>
-              <Select value={t.status} onValueChange={(v) => v && save({ status: v as TransportStatus })}>
+              <Select value={t.status} onValueChange={(v) => v && moveStatus(v as TransportStatus)}>
                 <SelectTrigger className="w-48 h-8 mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {(Object.keys(statusLabels) as TransportStatus[]).map(s => (
@@ -224,6 +262,12 @@ export default function TransportDetailPage({
                   ))}
                 </SelectContent>
               </Select>
+              {t.status === 'draft' && noBatch.length > 0 && (
+                <p className="text-xs text-amber-600 mt-1">
+                  No batch yet for {noBatch.map(l => l.name).join(', ')} — pick one
+                  under Batches on the load before this transport leaves.
+                </p>
+              )}
             </div>
             <Button
               variant="outline"

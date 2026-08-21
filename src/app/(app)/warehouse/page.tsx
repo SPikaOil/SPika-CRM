@@ -87,10 +87,17 @@ export default function WarehousePage() {
     )
   }
 
-  /** Received here, so its bottles are on the shelves above. */
+  /**
+   * Booked in here, so its bottles are on the shelves above.
+   *
+   * The "stays here as stock" tick is no longer part of this question
+   * (2026-08-21). A goods receipt is a goods receipt: it happened, the bottles
+   * came through this door, and it belongs in this warehouse's history whatever
+   * the note says about what happens to them next.
+   */
   function arrivedAt(locationId: string) {
     return (transports ?? []).filter(
-      t => t.location_id === locationId && t.arrived_at && t.stores_at_warehouse
+      t => t.location_id === locationId && t.arrived_at
     )
   }
 
@@ -247,16 +254,30 @@ export default function WarehousePage() {
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                       Booked in here
                     </p>
-                    {arrived.map(t => (
-                      <Link key={t.id} href={`/exports/${t.id}`}
-                        className="flex items-center gap-2 text-sm hover:underline">
-                        <PackageCheck className="h-3.5 w-3.5 shrink-0 text-green-600" />
-                        <span className="font-mono">{t.transport_number}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(t.arrived_at!).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        </span>
-                      </Link>
-                    ))}
+                    {/* Only an admin gets a link. Export is admin-only, so for
+                        a warehouse member this was a link that threw them back
+                        out — worse than no link at all. */}
+                    {arrived.map(t => {
+                      const line = (
+                        <>
+                          <PackageCheck className="h-3.5 w-3.5 shrink-0 text-green-600" />
+                          <span className="font-mono">{t.transport_number}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(t.arrived_at!).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </span>
+                        </>
+                      )
+                      return isAdmin ? (
+                        <Link key={t.id} href={`/exports/${t.id}`}
+                          className="flex items-center gap-2 text-sm hover:underline">
+                          {line}
+                        </Link>
+                      ) : (
+                        <div key={t.id} className="flex items-center gap-2 text-sm">
+                          {line}
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </CardContent>

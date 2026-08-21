@@ -174,10 +174,18 @@ export function ArrivalCard({ transport }: { transport: Transport }) {
         .upload(path, blob, { contentType: 'image/png' })
       if (upErr) throw new Error(why('Signature', upErr))
 
-      if (stores) {
+      {
         // Book in what was COUNTED in THIS box, out of the batch it left Curaçao
         // on. Read off the transport since 2026-08-19; the order picks stay
         // behind it so a load sent under the old rule can still be booked in.
+        //
+        // ALWAYS, whatever the "stays here as stock" tick says. Danique,
+        // 2026-08-21: "dit is enkel een interne notitie en heeft nietsssssssss
+        // met inslag te maken, dat staat er los van... inslag is inslag... dus
+        // het komt fysiek de warehouse in." Goods that walk through the door
+        // are on the shelf; a note about what happens next does not change
+        // that. Booking it only when the tick was on is how NBC010 came to
+        // stand at zero after two real goods receipts.
         const { data: loaded, error: loadErr } = await supabase
           .from('stock_movements')
           .select('sku, batch_id')
@@ -309,7 +317,6 @@ export function ArrivalCard({ transport }: { transport: Transport }) {
             type="checkbox"
             className="mt-0.5 h-4 w-4 accent-red-600"
             checked={stores}
-            disabled={arrivedCount > 0}
             onChange={e => update.mutate({
               id: t.id,
               values: { stores_at_warehouse: e.target.checked } as never,
@@ -318,9 +325,9 @@ export function ArrivalCard({ transport }: { transport: Transport }) {
           <span>
             Stays here as stock
             <span className="block text-xs text-muted-foreground">
-              Tick this when the bottles are stored here and shipped onward later.
-              Leave it off when this place only forwards a load that is already sold.
-              Locked once the first box is in — it decides what was booked.
+              A note for yourselves: are these bottles kept here, or only passed
+              on? It does not decide anything — a goods receipt always puts what
+              was counted on the shelf. Change it whenever you like.
             </span>
           </span>
         </label>

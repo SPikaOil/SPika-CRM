@@ -411,10 +411,11 @@ export default function DeliveryPage({
         pos_item_id,
         qty: -Math.abs(qty),
         reason: 'to_customer',
-        // Where it physically left from: the warehouse when the transport
-        // stored there, otherwise Curacao.
-        location_id: (order as never as { transport?: { location_id?: string | null; stores_at_warehouse?: boolean } })
-          .transport?.stores_at_warehouse
+        // Where it physically left from: the warehouse once the transport was
+        // signed in there, otherwise Curacao. Read off the arrival, not off the
+        // "stays here as stock" note (2026-08-21).
+        location_id: (order as never as { transport?: { location_id?: string | null; arrived_at?: string | null } })
+          .transport?.arrived_at
           ? (order as never as { transport?: { location_id?: string | null } }).transport?.location_id ?? null
           : null,
         order_id: orderId,
@@ -461,10 +462,13 @@ export default function DeliveryPage({
 
       const { data: transports } = await supabase
         .from('transports')
-        .select('id, location_id, stores_at_warehouse, arrived_at')
+        .select('id, location_id, arrived_at')
         .in('id', ids)
+      // Arrived and at a place is enough. The "stays here as stock" tick is a
+      // note, not a fact about stock (2026-08-21) — and since a goods receipt
+      // now always books what was counted, the bottles really are there.
       const shelf = (transports ?? []).find(
-        t => t.stores_at_warehouse && t.arrived_at && t.location_id,
+        t => t.arrived_at && t.location_id,
       )
       if (!shelf?.location_id) return
 

@@ -425,6 +425,8 @@ export interface Batch {
   id: string
   /** Entered by hand, e.g. 'SPGE22'. */
   batch_number: string
+  /** The one product this batch holds. A batch is one product, always (mig 108). */
+  sku: string
   tht_date: string | null
   notes: string
   created_by: string | null

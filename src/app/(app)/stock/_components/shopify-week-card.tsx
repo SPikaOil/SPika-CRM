@@ -58,10 +58,11 @@ export function ShopifyWeekCard() {
   const { data: arrivedBatches } = useTransportBatches(transportId)
 
   // Only a transport that actually holds stock somewhere can be shipped from:
-  // it went to a warehouse, it was ticked "stays here as stock", and it has been
-  // signed in. Anything else has nothing over there to take off.
+  // it went to a place and it has been signed in. The "stays here as stock"
+  // tick is no longer part of it (2026-08-21) — a goods receipt always books
+  // what was counted, so arrived means there is something to take off.
   const stocked = (transports ?? []).filter(
-    t => t.stores_at_warehouse && t.arrived_at && t.location_id
+    t => t.arrived_at && t.location_id
   )
   const transport = stocked.find(t => t.id === transportId) ?? null
 

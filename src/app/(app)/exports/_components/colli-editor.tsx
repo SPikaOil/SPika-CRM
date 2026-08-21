@@ -9,6 +9,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { Colli, Order, QuoteItem, Transport } from '@/types'
+import { transportLoadLines } from '@/lib/transport-load'
 import { useSetTransportColli } from '@/hooks/use-transports'
 import { useProducts } from '@/hooks/use-products'
 import { usePosItems } from '@/hooks/use-pos-items'
@@ -125,15 +126,9 @@ export function ColliEditor({ transport }: { transport: Transport }) {
    *
    * A hint about the load, never a limit on it.
    */
-  const needed = new Map<string, { name: string; qty: number }>()
-  for (const o of orders) {
-    for (const i of ((o.on_transport ?? o.items ?? []) as QuoteItem[])) {
-      if (i.qty <= 0) continue
-      const at = needed.get(i.sku)
-      if (at) at.qty += i.qty
-      else needed.set(i.sku, { name: i.name, qty: i.qty })
-    }
-  }
+  const needed = new Map<string, { name: string; qty: number }>(
+    transportLoadLines({ orders } as Transport).map(l => [l.sku, { name: l.name, qty: l.qty }]),
+  )
 
   /**
    * Everything that can go in a box: the whole product catalogue, because a

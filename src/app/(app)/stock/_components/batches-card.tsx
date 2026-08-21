@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SPIKA_PRODUCTS } from '@/lib/products'
 
 // You cannot fill a returned bottle into a batch — the return sku is empty glass
@@ -45,7 +46,8 @@ export function BatchesCard() {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [number, setNumber] = useState('')
   const [tht, setTht] = useState('')
-  const [qty, setQty] = useState<Record<string, number>>({})
+  const [sku, setSku] = useState('')
+  const [bottles, setBottles] = useState(0)
   const [busy, setBusy] = useState(false)
 
   // What is left of a batch, on Curacao. location_id null = home.
@@ -61,31 +63,30 @@ export function BatchesCard() {
     setAdding(false)
     setNumber('')
     setTht('')
-    setQty({})
+    setSku('')
+    setBottles(0)
   }
 
   async function create() {
-    const lines = FILLABLE
-      .map(p => ({ sku: p.sku, name: p.name, qty: qty[p.sku] ?? 0 }))
-      .filter(l => l.qty > 0)
-
     if (!number.trim()) return
-    if (lines.length === 0) { toast.error('Allocate at least one product to this batch'); return }
+    if (!sku) { toast.error('Pick the product this batch holds'); return }
+    if (bottles <= 0) { toast.error('Say how many bottles were filled'); return }
 
     setBusy(true)
     try {
       const batch = await createBatch.mutateAsync({
         batch_number: number.trim().toUpperCase(),
         tht_date: monthInputToTht(tht),
+        sku,
       })
-      await addMovements.mutateAsync(lines.map(l => ({
+      await addMovements.mutateAsync([{
         batch_id: batch.id,
-        sku: l.sku,
-        qty: l.qty,
+        sku,
+        qty: bottles,
         // Filled on Curacao, so no location: null is home.
         reason: 'filled' as const,
         note: 'Filled and allocated to the batch',
-      })))
+      }])
       reset()
     } catch {
       // Both hooks already surface their own error; nothing to add here.
@@ -93,8 +94,6 @@ export function BatchesCard() {
       setBusy(false)
     }
   }
-
-  const totalToAllocate = FILLABLE.reduce((s, p) => s + (qty[p.sku] ?? 0), 0)
 
   return (
     <Card className="py-3 gap-2">
@@ -175,25 +174,33 @@ export function BatchesCard() {
               </div>
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs">Bottles filled</Label>
-              {FILLABLE.map(p => (
-                <div key={p.sku} className="flex items-center justify-between gap-2">
-                  <span className="text-sm flex-1 min-w-0 truncate">{p.name}</span>
-                  <Input type="number" min="0" className="h-7 w-24 text-sm text-right px-2"
-                    value={qty[p.sku] ?? ''}
-                    onChange={e => setQty(q => ({ ...q, [p.sku]: Math.max(0, Number(e.target.value) || 0) }))} />
-                </div>
-              ))}
-              <div className="flex justify-between text-sm font-semibold border-t pt-1.5">
-                <span>Total</span>
-                <span>{totalToAllocate} bottles</span>
+            {/* One batch, one product. Her rule of 2026-08-21: "1 partij kan
+                maar 1 product item zijn." This used to be a quantity box per
+                product, which put several products on one batch number and made
+                that number useless on a defect report. */}
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Product *</Label>
+                <Select value={sku || undefined} onValueChange={v => v && setSku(v)}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Pick a product" /></SelectTrigger>
+                  <SelectContent>
+                    {FILLABLE.map(p => (
+                      <SelectItem key={p.sku} value={p.sku}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Bottles filled *</Label>
+                <Input type="number" min="1" className="h-8 text-sm"
+                  value={bottles || ''}
+                  onChange={e => setBottles(Math.max(0, Number(e.target.value) || 0))} />
               </div>
             </div>
 
             <div className="flex gap-2">
               <Button size="sm" className="bg-red-600 hover:bg-red-700 gap-1.5"
-                disabled={busy || !number.trim() || totalToAllocate === 0} onClick={create}>
+                disabled={busy || !number.trim() || !sku || bottles <= 0} onClick={create}>
                 <Check className="h-3.5 w-3.5" />
                 Create batch
               </Button>
