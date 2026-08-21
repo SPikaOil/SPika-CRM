@@ -25,6 +25,8 @@ import { isExportCustomer } from '@/lib/country'
 import { getTaxIdInfo } from '@/lib/tax-id'
 import { useCustomers } from '@/hooks/use-customers'
 import { useUsers } from '@/hooks/use-users'
+import { useTransportLocations } from '@/hooks/use-transports'
+import { useWarehousesFor, type Place } from '@/hooks/use-customer-warehouses'
 import { usePricePresets } from '@/hooks/use-price-presets'
 import { PriceInput } from '@/components/ui/price-input'
 
@@ -80,7 +82,12 @@ type CustomerFormValues = z.infer<typeof customerSchema>
 
 interface Props {
   defaultValues?: Partial<Customer>
-  onSubmit: (values: Partial<Customer>) => Promise<void>
+  /**
+   * `places` are the warehouses that may serve this customer — NULL is Curaçao.
+   * They live in their own table (migration 109), so they cannot ride along in
+   * the customer row; the caller saves them once the customer exists.
+   */
+  onSubmit: (values: Partial<Customer>, places: Place[]) => Promise<void>
   isLoading?: boolean
 }
 
@@ -108,6 +115,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
   const { data: allCustomers } = useCustomers()
   const { data: pricePresets } = usePricePresets()
   const { data: team } = useUsers()
+  const { data: locations } = useTransportLocations()
 
   // Track the category the user just selected so we can apply its preset
   // even if pricePresets hasn't loaded yet at the time of selection.
@@ -323,6 +331,21 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
     defaultValues: formDefaults,
   })
 
+  /**
+   * The warehouses that may serve this customer.
+   *
+   * Held here rather than in the form schema because they are a table of their
+   * own. Curaçao is NULL, and it is in the list like any other warehouse — a
+   * customer served straight off the island is ticked to Curaçao, not left
+   * blank. Blank means nobody can deliver to them at all.
+   */
+  const { data: savedPlaces } = useWarehousesFor(defaultValues?.id)
+  const [places, setPlaces] = useState<Place[] | null>(null)
+  const ticked = places ?? savedPlaces
+  const togglePlace = (p: Place) => setPlaces(
+    ticked.some(x => x === p) ? ticked.filter(x => x !== p) : [...ticked, p],
+  )
+
   async function handleFormSubmit(data: CustomerFormValues) {
     const {
       billing_street, billing_city, billing_zip, billing_country,
@@ -370,7 +393,7 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
         zip: delivery_zip,
         country: delivery_country,
       },
-    })
+    }, ticked)
   }
 
   const category = watch('customer_category')
@@ -570,6 +593,41 @@ export function CustomerForm({ defaultValues, onSubmit, isLoading }: Props) {
                 </Select>
                 <p className="text-xs text-muted-foreground">
                   Leave on &ldquo;Nobody assigned&rdquo; and their portal shows only the general contact details.
+                </p>
+              </div>
+
+              {/* Which warehouses may serve this customer. Her decision of
+                  2026-08-21: the area of a warehouse IS the customers ticked to
+                  it, set here rather than in Settings — "makkelijker via
+                  klantinfo linken aan een warehouse en dan is automatisch die
+                  gelinkte ook het levergebied van desbetreffende warehouse."
+
+                  Several is normal. La Bandera is served from NBC010 today and
+                  could be shipped straight from Curaçao tomorrow; tick both and
+                  the order decides, not a change to the customer. */}
+              <div className="space-y-1.5">
+                <Label>Delivered from</Label>
+                <div className="space-y-1 rounded-lg border p-3">
+                  {[{ id: null as Place, name: 'Curaçao' },
+                    ...(locations ?? []).map(l => ({ id: l.id as Place, name: l.name }))
+                  ].map(place => (
+                    <label key={place.id ?? 'home'} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-red-600"
+                        checked={ticked.some(p => p === place.id)}
+                        onChange={() => togglePlace(place.id)}
+                      />
+                      <span>{place.name}</span>
+                    </label>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {ticked.length === 0
+                    ? 'Tick at least one — nobody can deliver to this customer until you do.'
+                    : ticked.length === 1
+                      ? 'Every order for this customer goes out from here.'
+                      : 'You pick which one on each order.'}
                 </p>
               </div>
 

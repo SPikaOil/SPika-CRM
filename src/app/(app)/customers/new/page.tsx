@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { AlertCircle } from 'lucide-react'
 import { CustomerForm } from '../_components/customer-form'
 import { useCreateCustomer } from '@/hooks/use-customers'
+import { useSetCustomerWarehouses, type Place } from '@/hooks/use-customer-warehouses'
 import { createClient } from '@/lib/supabase/client'
 import { Customer } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -29,15 +30,21 @@ function NewCustomerInner() {
   const searchParams = useSearchParams()
   const isLead = searchParams.get('lead') === '1'
   const createCustomer = useCreateCustomer()
+  const setWarehouses = useSetCustomerWarehouses()
   const [duplicates, setDuplicates] = useState<PossibleDuplicate[]>([])
-  const [pendingValues, setPendingValues] = useState<Partial<Customer> | null>(null)
+  const [pendingValues, setPendingValues] = useState<{ values: Partial<Customer>; places: Place[] } | null>(null)
 
-  async function doCreate(values: Partial<Customer>) {
+  async function doCreate(values: Partial<Customer>, places: Place[]) {
     const customer = await createCustomer.mutateAsync(values)
+    // The warehouses live in their own table, so they can only be written once
+    // the customer has an id (migration 109).
+    if (places.length > 0) {
+      await setWarehouses.mutateAsync({ customerId: customer.id, places })
+    }
     router.push(`/customers/${customer.id}`)
   }
 
-  async function onSubmit(values: Partial<Customer>) {
+  async function onSubmit(values: Partial<Customer>, places: Place[]) {
     // Guard against double customers: compare the new name against every
     // existing customer (case/punctuation-insensitive, both directions)
     const supabase = createClient()
@@ -53,10 +60,10 @@ function NewCustomerInner() {
 
     if (found.length > 0) {
       setDuplicates(found)
-      setPendingValues(values)
+      setPendingValues({ values, places })
       return
     }
-    await doCreate(values)
+    await doCreate(values, places)
   }
 
   return (
@@ -102,7 +109,7 @@ function NewCustomerInner() {
             <Button
               className="bg-red-600 hover:bg-red-700"
               disabled={createCustomer.isPending}
-              onClick={() => pendingValues && doCreate(pendingValues)}
+              onClick={() => pendingValues && doCreate(pendingValues.values, pendingValues.places)}
             >
               Create anyway
             </Button>

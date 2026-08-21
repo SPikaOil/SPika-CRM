@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, Edit, Building2, Package, CheckCircle2, Clock, Truck, FileSignature, AlertTriangle, Download, Upload, Info, RefreshCw, CalendarClock, Trash2, Power, X, RotateCcw, UserCheck, PackagePlus } from 'lucide-react'
 import { useRef } from 'react'
 import { useCustomer, useUpdateCustomer } from '@/hooks/use-customers'
+import { useSetCustomerWarehouses, type Place } from '@/hooks/use-customer-warehouses'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { useCustomerOrders } from '@/hooks/use-orders'
@@ -156,6 +157,7 @@ export default function CustomerDetailPage({
   const { data: portalUsers } = useCustomerPortalUsers(id)
   const { data: posRequests } = usePosRequests({ customerId: id })
   const updateCustomer = useUpdateCustomer()
+  const setWarehouses = useSetCustomerWarehouses()
   const { isAdmin, profile, can } = useAuth()
   const [editing, setEditing] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
@@ -221,8 +223,11 @@ export default function CustomerDetailPage({
   const [deletePassword, setDeletePassword] = useState('')
   const [deleting, setDeleting] = useState(false)
 
-  async function onUpdate(values: Partial<Customer>) {
+  async function onUpdate(values: Partial<Customer>, places: Place[]) {
     await updateCustomer.mutateAsync({ id, values })
+    // Separate table, so a separate write (migration 109). Always, including an
+    // empty list — clearing every warehouse is a real answer.
+    await setWarehouses.mutateAsync({ customerId: id, places })
     setEditing(false)
   }
 
