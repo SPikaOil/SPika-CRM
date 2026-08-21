@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/select'
 import type { TransportLocation, WarehouseDeliveryAddress } from '@/types'
 
-const EMPTY = { name: '', street: '', zip: '', city: '', country: '', user_id: '', min_bottles: '' }
+const EMPTY = { name: '', code: '', street: '', zip: '', city: '', country: '', user_id: '', min_bottles: '' }
 
 const EMPTY_DROP = {
   // Two names on purpose, and only `name` is ever printed — see migration 096.
@@ -103,7 +103,7 @@ export function WarehousesCard() {
     setAdding(false)
     setEditingId(l.id)
     setForm({
-      name: l.name ?? '', street: l.street ?? '', zip: l.zip ?? '',
+      name: l.name ?? '', code: (l as { code?: string | null }).code ?? '', street: l.street ?? '', zip: l.zip ?? '',
       city: l.city ?? '', country: l.country ?? '',
       min_bottles: l.min_bottles === null || l.min_bottles === undefined ? '' : String(l.min_bottles),
       user_id: (l as { user_id?: string | null }).user_id ?? '',
@@ -113,7 +113,11 @@ export function WarehousesCard() {
   function save() {
     if (!form.name.trim()) { toast.error('Give it a name'); return }
     const values = {
-      name: form.name.trim(), street: form.street.trim(), zip: form.zip.trim(),
+      name: form.name.trim(),
+      // First three letters unless somebody types their own — her rule of
+      // 2026-08-21. Editable for the day two warehouses share three letters.
+      code: (form.code.trim() || form.name.trim().slice(0, 3)).toUpperCase(),
+      street: form.street.trim(), zip: form.zip.trim(),
       city: form.city.trim(), country: form.country.trim(),
       user_id: form.user_id || null,
       // Empty means no floor at all, which is not the same as a floor of nought.
@@ -128,11 +132,21 @@ export function WarehousesCard() {
 
   const editor = (
     <div className="rounded-lg border p-3 space-y-2.5">
-      <div className="space-y-1">
-        <Label className="text-xs">Name</Label>
-        <Input className="h-8 text-sm" value={form.name}
-          onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-          placeholder="e.g. Rotterdam warehouse" />
+      <div className="grid gap-2.5 sm:grid-cols-3">
+        <div className="space-y-1 sm:col-span-2">
+          <Label className="text-xs">Name</Label>
+          <Input className="h-8 text-sm" value={form.name}
+            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+            placeholder="e.g. Rotterdam warehouse" />
+        </div>
+        {/* The short name that goes in a batch number: SPGE22-20260722-NBC.
+            Her numbering of 2026-08-20. Left empty it uses the full name. */}
+        <div className="space-y-1">
+          <Label className="text-xs">Short code</Label>
+          <Input className="h-8 text-sm font-mono uppercase" value={form.code}
+            onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
+            placeholder={form.name.trim().slice(0, 3).toUpperCase() || "NBC"} />
+        </div>
       </div>
       <div className="grid gap-2.5 sm:grid-cols-2">
         <div className="space-y-1 sm:col-span-2">

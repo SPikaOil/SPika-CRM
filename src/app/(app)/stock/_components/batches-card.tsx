@@ -37,7 +37,13 @@ import { toast } from 'sonner'
  * of editing history.
  */
 export function BatchesCard() {
-  const { data: batches } = useBatches()
+  const { data: allBatches } = useBatches()
+  // PRODUCTION batches only. Since migration 110 a goods receipt at a warehouse
+  // makes a batch of its own, and those belong to that warehouse — not to this
+  // screen, which is about filling bottles on Curacao. Her split of 2026-08-21:
+  // 'Stock en production is voor productie... partijen en deze partijen zaken
+  // hebben uitgeleverd heeft niets met productie te maken.'
+  const batches = (allBatches ?? []).filter(b => !b.parent_batch_id)
   const { data: stock } = useBatchStock()
   const createBatch = useCreateBatch()
   const addMovements = useAddStockMovements()
@@ -104,14 +110,14 @@ export function BatchesCard() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
-        {(batches ?? []).length === 0 && !adding && (
+        {batches.length === 0 && !adding && (
           <p className="text-sm text-muted-foreground">
             No batches yet. Fill bottles, then create a batch and allocate them to it.
           </p>
         )}
 
         <div className="space-y-1.5">
-          {(batches ?? []).map(b => {
+          {batches.map(b => {
             const left = remaining.get(b.id) ?? []
             const total = left.reduce((s, l) => s + l.qty, 0)
             const open = expanded === b.id

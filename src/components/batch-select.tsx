@@ -54,7 +54,19 @@ export function BatchSelect({
       .reduce((sum, r) => sum + r.qty, 0)
   }
 
-  const options = (batches ?? []).map(b => ({ ...b, left: left(b.id) }))
+  /**
+   * Only batches that live HERE and hold THIS product.
+   *
+   * Both follow from rules set on 2026-08-21. A batch is one product (migration
+   * 108), so offering a 100ml batch for a 50ml line is offering a mistake. And
+   * a goods receipt makes a batch of its own at the warehouse (migration 110),
+   * so a production batch on Curaçao has nothing to do with a pick in
+   * Rotterdam — before this it would have been listed there with nought left.
+   */
+  const options = (batches ?? [])
+    .filter(b => (b.location_id ?? null) === locationId)
+    .filter(b => !sku || b.sku === sku)
+    .map(b => ({ ...b, left: left(b.id) }))
   const short = value ? options.find(o => o.id === value) : undefined
   const isShort = short && needed !== undefined && short.left < 0
 

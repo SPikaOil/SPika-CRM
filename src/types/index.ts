@@ -427,6 +427,12 @@ export interface Batch {
   batch_number: string
   /** The one product this batch holds. A batch is one product, always (mig 108). */
   sku: string
+  /** The production batch this intake batch came from. Null on a production batch (mig 110). */
+  parent_batch_id?: string | null
+  /** Where this batch lives. Null = Curaçao (mig 110). */
+  location_id?: string | null
+  /** The transport that brought it in, for an intake batch (mig 110). */
+  transport_id?: string | null
   tht_date: string | null
   notes: string
   created_by: string | null
@@ -578,6 +584,8 @@ export interface TransportLocation {
   user?: { id: string; name: string; email: string } | null
   id: string
   name: string
+  /** Short name used in intake batch numbers, e.g. NBC in SPGE22-20260722-NBC. */
+  code?: string | null
   street: string
   zip: string
   city: string

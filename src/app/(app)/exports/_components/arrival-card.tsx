@@ -12,6 +12,7 @@ import { useUpdateTransport } from '@/hooks/use-transports'
 import { useAuth } from '@/contexts/auth-context'
 import { transportColli } from '@/lib/transport-cargo'
 import { isPosLine } from '@/lib/pos'
+import { intakeBatchFor } from '@/lib/intake-batch'
 import { Colli, Transport } from '@/types'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -67,11 +68,15 @@ function why(step: string, err: unknown): string {
  * straight to them is signed for on the delivery note, and the delivery IS the
  * arrival. That is why this card is not rendered at all for those.
  *
- * Two things happen at a warehouse and both occur:
- *   stays as stock  → the counted bottles of that box are booked IN here
- *   only forwarded  → nothing is booked; the goods are sold and travelling on.
- *                     The count and the signature are still recorded, because a
- *                     shortage has to be provable either way.
+ * What is counted is ALWAYS booked in. Her rule of 2026-08-21: "inslag is
+ * inslag... dus het komt fysiek de warehouse in." The "stays here as stock"
+ * tick used to decide this and is now only a note; deciding it made NBC010
+ * stand at zero after two real goods receipts.
+ *
+ * It is booked onto a batch of THIS warehouse, made here and pointing back at
+ * the production batch it came out of (migration 110) — the freight and the
+ * local costs of this leg belong to these bottles, not to the ones still
+ * standing on Curaçao.
  *
  * There is deliberately no 'left Curaçao' booking here — that happened when the
  * load was picked, on the transport (migration 100 and the load screen).
@@ -203,26 +208,37 @@ export function ArrivalCard({ transport }: { transport: Transport }) {
           : { data: [], error: null }
         if (pickErr) throw new Error(why('Reading the picks', pickErr))
 
-        const rows = lines
-          .filter(l => l.received > 0)
-          .map(l => {
-            const pick = (loaded ?? []).find(p => p.sku === l.sku)
-              ?? (picks ?? []).find(p => p.sku === l.sku)
-            return pick ? {
-              batch_id: pick.batch_id,
-              sku: l.sku,
-              qty: l.received,
-              location_id: t.location_id,
-              reason: 'received',
-              // The order this box was packed for, when it was packed for one.
-              order_id: box?.for_order_id ?? null,
-              transport_id: t.id,
-              note: l.received === l.expected
-                ? `Colli ${index + 1} received at ${t.location?.name ?? 'the warehouse'}`
-                : `Colli ${index + 1} received at ${t.location?.name ?? 'the warehouse'} — counted ${l.received} of ${l.expected}`,
-            } : null
+        // What arrives becomes a batch of THIS warehouse, pointing back at the
+        // production batch it came out of (migration 110). Not the production
+        // batch itself: the freight and the local costs of this leg land on
+        // these bottles and not on the ones still standing on Curaçao, and one
+        // batch cannot carry two cost prices. Her rule of 2026-08-20 —
+        // "een productiepartij is anders dan een warehouse partij".
+        const rows: Record<string, unknown>[] = []
+        for (const l of lines.filter(l => l.received > 0)) {
+          const pick = (loaded ?? []).find(p => p.sku === l.sku)
+            ?? (picks ?? []).find(p => p.sku === l.sku)
+          if (!pick) continue
+          const intakeId = await intakeBatchFor(supabase, {
+            parentBatchId: pick.batch_id,
+            transportId: t.id,
+            locationId: t.location_id ?? null,
+            sku: l.sku,
           })
-          .filter((r): r is NonNullable<typeof r> => r !== null)
+          rows.push({
+            batch_id: intakeId,
+            sku: l.sku,
+            qty: l.received,
+            location_id: t.location_id,
+            reason: 'received',
+            // The order this box was packed for, when it was packed for one.
+            order_id: box?.for_order_id ?? null,
+            transport_id: t.id,
+            note: l.received === l.expected
+              ? `Colli ${index + 1} received at ${t.location?.name ?? 'the warehouse'}`
+              : `Colli ${index + 1} received at ${t.location?.name ?? 'the warehouse'} — counted ${l.received} of ${l.expected}`,
+          })
+        }
 
         // Only bottles are missing a batch. POS material never has one — a
         // stand does not come out of a filling run — so a box holding nothing
