@@ -433,6 +433,14 @@ export interface Batch {
   location_id?: string | null
   /** The transport that brought it in, for an intake batch (mig 110). */
   transport_id?: string | null
+  /** The person this batch belongs to. Null = a place holds it (mig 112). */
+  holder_id?: string | null
+  /** The handover that created it, for a batch that came by hand (mig 112). */
+  handover_batch_id?: string | null
+  /** Landed cost per bottle, worked out at intake. Never typed (mig 113). */
+  vvp?: number | null
+  /** How that cost price was arrived at: product, freight, local, storage, rate (mig 113). */
+  vvp_breakdown?: Record<string, unknown> | null
   tht_date: string | null
   notes: string
   created_by: string | null
@@ -623,6 +631,12 @@ export interface Transport {
   total_weight_kg: number | null
   freight_cost: number | null
   other_costs: number | null
+  /** Local costs of this leg — clearing, handling (mig 113). */
+  local_costs?: number | null
+  /** Storage charged on this leg. Part of the cost price (mig 113). */
+  storage_costs?: number | null
+  /** What the cost amounts are in; converted at the intake day's rate (mig 113). */
+  costs_currency?: string
   notes: string
   /** Printed on the transport's documents. `notes` above is internal (091). */
   notes_on_documents?: string

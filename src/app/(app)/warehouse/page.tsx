@@ -9,9 +9,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTransports, useTransportLocations, useWarehouseMemberships } from '@/hooks/use-transports'
-import { useBatchStock } from '@/hooks/use-batches'
+import { useBatchStock, useBatches } from '@/hooks/use-batches'
 import { atPlace } from '@/lib/stock-place'
-import { formatTht } from '@/lib/utils'
+import { transportColli } from '@/lib/transport-cargo'
+import { formatTht, formatCurrency } from '@/lib/utils'
 import { SPIKA_PRODUCTS } from '@/lib/products'
 import { ShopifyWeekCard } from '../stock/_components/shopify-week-card'
 import { PosStockPanel } from '@/components/pos-stock-panel'
@@ -37,6 +38,7 @@ export default function WarehousePage() {
   const { data: memberships } = useWarehouseMemberships()
   const { data: transports } = useTransports()
   const { data: stock } = useBatchStock()
+  const { data: batches } = useBatches()
 
   const [openLocation, setOpenLocation] = useState<string | null>(null)
 
@@ -73,6 +75,11 @@ export default function WarehousePage() {
   const unlinked = !isAdmin && mine.length === 0
 
   const productName = (sku: string) => SPIKA_PRODUCTS.find(p => p.sku === sku)?.name ?? sku
+  /** The landed cost per bottle of a batch, worked out at intake (migration 113). */
+  const vvpOf = (batchId: string) => {
+    const v = (batches ?? []).find(b => b.id === batchId)?.vvp
+    return v === null || v === undefined ? null : Number(v)
+  }
 
   /** Everything still standing at one location, per product and per batch. */
   function stockAt(locationId: string) {
@@ -83,10 +90,19 @@ export default function WarehousePage() {
       .sort((a, b) => a.sku.localeCompare(b.sku) || (a.tht_date ?? '').localeCompare(b.tht_date ?? ''))
   }
 
-  /** On its way: sent to this warehouse, no goods receipt yet. */
+  /**
+   * On its way: sent to this warehouse and not finished with.
+   *
+   * A transport stays here while any box is still expected, so the goods
+   * receipt for a late colli remains reachable. It drops off once it is closed
+   * — either everything landed, or the warehouse said the rest is not coming.
+   */
   function inboundTo(locationId: string) {
     return (transports ?? []).filter(
-      t => t.ship_to === 'warehouse' && t.location_id === locationId && !t.arrived_at
+      t => t.ship_to === 'warehouse'
+        && t.location_id === locationId
+        && t.status !== 'delivered'
+        && transportColli(t).some(c => !c.ata)
     )
   }
 
@@ -213,6 +229,13 @@ export default function WarehousePage() {
                     <span className="font-mono text-xs text-muted-foreground shrink-0">{r.batch_number}</span>
                     {r.tht_date && (
                       <span className="text-xs text-muted-foreground shrink-0">THT {formatTht(r.tht_date)}</span>
+                    )}
+                    {/* What a bottle of this batch cost to get here. Admin only:
+                        the count is warehouse business, the cost price is not. */}
+                    {isAdmin && vvpOf(r.batch_id) !== null && (
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        {formatCurrency(vvpOf(r.batch_id)!, 'XCG')}
+                      </span>
                     )}
                     <span className="font-medium shrink-0 w-12 text-right">{r.qty}</span>
                   </div>

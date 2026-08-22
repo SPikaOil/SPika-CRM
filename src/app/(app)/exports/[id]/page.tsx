@@ -118,7 +118,11 @@ export default function TransportDetailPage({
     v === null || v === undefined || v === '' ? null : Number(v)
   const freight = num(t.freight_cost)
   const other = num(t.other_costs)
-  const totalCost = freight === null && other === null ? null : (freight ?? 0) + (other ?? 0)
+  const local = num((t as { local_costs?: unknown }).local_costs)
+  const storage = num((t as { storage_costs?: unknown }).storage_costs)
+  const totalCost = [freight, other, local, storage].every(v => v === null)
+    ? null
+    : (freight ?? 0) + (other ?? 0) + (local ?? 0) + (storage ?? 0)
 
   // Colli drives the QR on the shipping label.
   //
@@ -147,6 +151,31 @@ export default function TransportDetailPage({
 
   function save(values: Parameters<typeof update.mutate>[0]['values']) {
     update.mutate({ id, values })
+  }
+
+  /**
+   * A cost, and the cost price it changes.
+   *
+   * Every batch that came in off this load carries a share of these amounts, so
+   * changing one means working all of them out again — her rule of 2026-08-21
+   * that the VVP has to be able to change afterwards, whether that is a late
+   * invoice or a box that turned out not to be coming.
+   *
+   * It says how many batches moved rather than going quiet, because a cost
+   * price that changed behind your back is exactly the kind of silent write
+   * this app has been bitten by before.
+   */
+  async function saveCost(
+    values: Parameters<typeof update.mutate>[0]['values'],
+    reason: string,
+  ) {
+    await update.mutateAsync({ id, values })
+    const { recalcTransportVvp } = await import('@/lib/vvp')
+    const { createClient } = await import('@/lib/supabase/client')
+    const { updated } = await recalcTransportVvp(createClient(), id, reason)
+    if (updated > 0) {
+      toast.success(`Cost price worked out again for ${updated} ${updated === 1 ? 'batch' : 'batches'}`)
+    }
   }
 
   /**
@@ -561,12 +590,30 @@ export default function TransportDetailPage({
       <Card size="sm">
         <CardHeader><CardTitle className="text-base">Costs</CardTitle></CardHeader>
         <CardContent className="space-y-3">
+          {/* Freight is paid up front, always — her rule of 2026-08-20. Local
+              costs and storage turn up later, sometimes weeks later, and every
+              one of them changes what a bottle on that shelf cost. So each of
+              these works the cost price out again the moment it is changed:
+              "als we ineens 3 weken later een factuur krijgen van iets wat
+              erbij hoort, dan moet dat ook nog mogelijk zijn." */}
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label className="text-xs">Freight cost</Label>
               <Input type="number" step="0.01" min="0" className="h-8" placeholder="Not filled in"
                 defaultValue={freight ?? ''}
-                onBlur={e => save({ freight_cost: e.target.value === '' ? null : Number(e.target.value) })} />
+                onBlur={e => saveCost({ freight_cost: e.target.value === '' ? null : Number(e.target.value) }, 'Freight cost changed')} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Local costs</Label>
+              <Input type="number" step="0.01" min="0" className="h-8" placeholder="Not filled in"
+                defaultValue={local ?? ''}
+                onBlur={e => saveCost({ local_costs: e.target.value === '' ? null : Number(e.target.value) }, 'Local costs changed')} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Storage costs</Label>
+              <Input type="number" step="0.01" min="0" className="h-8" placeholder="Not filled in"
+                defaultValue={storage ?? ''}
+                onBlur={e => saveCost({ storage_costs: e.target.value === '' ? null : Number(e.target.value) }, 'Storage costs changed')} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Other costs</Label>
@@ -575,10 +622,29 @@ export default function TransportDetailPage({
                 onBlur={e => save({ other_costs: e.target.value === '' ? null : Number(e.target.value) })} />
             </div>
           </div>
+
+          {/* What the three amounts above are IN. XCG needs no conversion; a
+              freight bill in euros is converted at the rate of the intake day,
+              her rule: "dagkoers van inslag nemen". */}
+          <div className="space-y-1.5 max-w-[12rem]">
+            <Label className="text-xs">Costs are in</Label>
+            <Select
+              value={(t as { costs_currency?: string }).costs_currency ?? 'XCG'}
+              onValueChange={v => v && saveCost({ costs_currency: v }, 'Cost currency changed')}
+            >
+              <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {['XCG', 'USD', 'EUR'].map(c => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {totalCost !== null && (
             <div className="flex justify-between text-sm font-semibold border-t pt-2">
               <span>Total transport cost</span>
-              <span>{formatCurrency(totalCost, 'XCG')}</span>
+              <span>{formatCurrency(totalCost, ((t as { costs_currency?: string }).costs_currency ?? 'XCG') as never)}</span>
             </div>
           )}
         </CardContent>

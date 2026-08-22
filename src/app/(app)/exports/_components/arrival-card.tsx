@@ -13,6 +13,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { transportColli } from '@/lib/transport-cargo'
 import { isPosLine } from '@/lib/pos'
 import { intakeBatchFor } from '@/lib/intake-batch'
+import { recalcTransportVvp } from '@/lib/vvp'
 import { Colli, Transport } from '@/types'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -151,6 +152,45 @@ export function ArrivalCard({ transport }: { transport: Transport }) {
   const differences = lines.filter(l => l.received !== l.expected)
   const missingReason = differences.filter(l => !l.reason)
 
+  /**
+   * The load is finished, and the boxes that never came are written off.
+   *
+   * Their contents stop being expected, so nothing keeps asking for them, and
+   * the freight they would have carried lands on the bottles that did arrive —
+   * the cost price rises and the log says exactly why. Her instruction of
+   * 2026-08-21, and the reason a lost box is a loss rather than a discount.
+   */
+  async function closeTransport() {
+    setBusy(true)
+    try {
+      const supabase = createClient()
+      const lost = colli.map(c => c.ata ? c : { ...c, lost_at: new Date().toISOString() })
+      const { error } = await supabase
+        .from('transports')
+        .update({ status: 'delivered', colli_contents: lost })
+        .eq('id', t.id)
+      if (error) throw new Error(why('Closing the transport', error))
+
+      const missing = colli.length - arrivedCount
+      const { updated } = await recalcTransportVvp(
+        supabase,
+        t.id,
+        `Transport closed — ${missing} ${missing === 1 ? 'box' : 'boxes'} never arrived`,
+      )
+      queryClient.invalidateQueries({ queryKey: ['transports'] })
+      queryClient.invalidateQueries({ queryKey: ['batch_stock'] })
+      toast.success(
+        updated > 0
+          ? `Closed. Cost price worked out again for ${updated} ${updated === 1 ? 'batch' : 'batches'}`
+          : 'Closed',
+      )
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not close this transport')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function receiveBox(index: number) {
     if (missingReason.length > 0) {
       toast.error('Say why the count differs — every difference needs a reason')
@@ -250,6 +290,12 @@ export function ArrivalCard({ transport }: { transport: Transport }) {
         } else if (rows.length > 0) {
           const { error } = await supabase.from('stock_movements').insert(rows)
           if (error) throw new Error(why('Booking stock in', error))
+
+          // What this box cost to get here changes the cost price of every
+          // batch off this load, not just its own: the freight is paid once and
+          // shared over everything that arrives. So the whole transport is
+          // worked out again, every time a box lands.
+          await recalcTransportVvp(supabase, t.id, `Goods receipt — colli ${index + 1}`)
         }
       }
 
@@ -328,6 +374,33 @@ export function ArrivalCard({ transport }: { transport: Transport }) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
+        {/* A box that is simply not coming.
+            Danique, 2026-08-21: "als 1 colli niet aankomt, en ook van
+            desbetreffende transport ook echt kwijt is, dan moet warehouse dat tp
+            op status afgerond kunnen plaatsen, waardoor die laatste colli niet
+            kan meerekenen in de partijen, maar de kosten die normaal op de
+            kwijte colli zouden vallen, worden nu verdeeld over de andere
+            producten die wel ingeslagen zijn."
+            The warehouse decides this, not the office: they are the ones who
+            know the box never turned up. */}
+        {arrivedCount > 0 && arrivedCount < colli.length && t.status !== 'delivered' && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50/60 dark:bg-amber-950/10 dark:border-amber-900 p-3 space-y-1.5">
+            <p className="text-sm font-medium">
+              {colli.length - arrivedCount} {colli.length - arrivedCount === 1 ? 'box' : 'boxes'} never arrived
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Close this transport when they are really lost. What they would have
+              carried stops counting, and their share of the freight moves onto the
+              bottles that did come in — so the cost price goes up and says why.
+            </p>
+            <Button size="sm" variant="outline" className="gap-1.5" disabled={busy}
+              onClick={closeTransport}>
+              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+              They are not coming — close this transport
+            </Button>
+          </div>
+        )}
+
         <label className="flex items-start gap-2 text-sm">
           <input
             type="checkbox"
