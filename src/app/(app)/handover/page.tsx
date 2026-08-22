@@ -6,6 +6,7 @@ import { PackageCheck, Loader2, Plus, Minus, Check, Clock, X, Trash2, Eye, FileS
 import { downloadCsv, csvDate } from '@/lib/csv-export'
 import { useAuth } from '@/contexts/auth-context'
 import { useUsers } from '@/hooks/use-users'
+import { handoverBatchFor } from '@/lib/intake-batch'
 import { createClient } from '@/lib/supabase/client'
 import { openPrivateFile } from '@/lib/storage'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -261,25 +262,45 @@ export default function HandoverPage() {
       }).eq('id', signBatch.id)
       if (error) throw error
 
-      // Signing is the moment the bottles land. If the receiver holds a place,
-      // what they COUNTED goes onto that place — never what was sent. Somebody
-      // without a place keeps it as personal stock, exactly as before.
-      const place = placeOf(signBatch.member_id)
-      if (place && signBatch.batch_id) {
-        const rows = countLines
-          .filter(l => l.received > 0)
-          .map(l => ({
-            batch_id: signBatch.batch_id,
+      /**
+       * Signing is the moment the bottles land — in the hands of the person who
+       * signed, and on a batch of their own.
+       *
+       * It used to book them onto the warehouse that person happened to be
+       * ticked at, which for Djamy is Curaçao: the fifty bottles went straight
+       * back where they came from and the island count never moved. Somebody
+       * ticked nowhere had nothing booked at all, so the bottles left the books
+       * entirely. Migration 112 gives a person a place of their own; her
+       * question of 2026-08-21, "dat de app bijhoudt hoeveel flessen hij nog
+       * over heeft".
+       *
+       * What they COUNTED, never what was sent.
+       */
+      if (signBatch.batch_id) {
+        const rows = []
+        for (const l of countLines.filter(l => l.received > 0)) {
+          const holderBatch = await handoverBatchFor(supabase, {
+            parentBatchId: signBatch.batch_id,
+            handoverId: signBatch.id,
+            locationId: null,
+            holderId: signBatch.member_id,
+            sku: l.sku,
+            on: signBatch.handover_date ?? new Date().toISOString().slice(0, 10),
+          })
+          rows.push({
+            batch_id: holderBatch,
             sku: l.sku,
             qty: l.received,
-            location_id: place.id,
+            location_id: null,
+            holder_id: signBatch.member_id,
             reason: 'received',
             handover_batch_id: signBatch.id,
             note: l.received === l.expected
-              ? `Received at ${place.name}`
-              : `Received at ${place.name} — counted ${l.received} of ${l.expected}`,
+              ? `Received by ${memberName(signBatch.member_id)}`
+              : `Received by ${memberName(signBatch.member_id)} — counted ${l.received} of ${l.expected}`,
             created_by: profile?.id,
-          }))
+          })
+        }
         if (rows.length > 0) {
           const { error: moveErr } = await supabase.from('stock_movements').insert(rows)
           if (moveErr) throw moveErr

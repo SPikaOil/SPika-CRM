@@ -63,8 +63,10 @@ export function WarehouseDashboardCard({ userId }: { userId: string | undefined 
       .filter(l => l.received < l.expected && !l.outcome)
       .map(l => ({ transport: t.transport_number, ...l })))
 
+  // The warehouse's OWN stock. What a colleague is carrying belongs on their
+  // own list, not on this shelf (migration 112).
   const stockHere = (stock ?? []).filter(
-    r => myLocationIds.includes(r.location_id) && r.qty !== 0,
+    r => !r.holder_id && myLocationIds.includes(r.location_id) && r.qty !== 0,
   )
   const bottles = stockHere.reduce((s, r) => s + r.qty, 0)
 

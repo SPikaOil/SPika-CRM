@@ -1,3 +1,4 @@
+import { atPlace } from '@/lib/stock-place'
 /**
  * Which batch comes off the shelf first.
  *
@@ -78,14 +79,18 @@ export function allocateFifo(lots: StockLot[], needed: number): FifoResult {
  * location_id null means Curaçao everywhere in this app, and `is` versus `eq`
  * is the difference between getting the home shelf and getting nothing at all —
  * so the caller passes rows and this only filters and shapes them.
+ *
+ * The PLACE's own stock: what a person is carrying is theirs, not the shelf's
+ * (migration 112). Counting Djamy's fifty bottles as Curaçao stock is exactly
+ * what that migration exists to stop.
  */
 export function lotsFor(
-  stock: { batch_id: string; batch_number: string; tht_date: string | null; sku: string; location_id: string | null; qty: number }[] | undefined,
+  stock: { batch_id: string; batch_number: string; tht_date: string | null; sku: string; location_id: string | null; holder_id?: string | null; qty: number }[] | undefined,
   sku: string,
   locationId: string | null,
 ): StockLot[] {
   return (stock ?? [])
-    .filter(r => r.sku === sku && r.location_id === locationId && r.qty > 0)
+    .filter(r => r.sku === sku && atPlace(r, locationId) && r.qty > 0)
     .map(r => ({
       batch_id: r.batch_id,
       batch_number: r.batch_number,

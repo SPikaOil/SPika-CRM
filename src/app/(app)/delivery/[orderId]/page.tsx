@@ -449,6 +449,28 @@ export default function DeliveryPage({
    */
   async function bookOffWarehouse() {
     try {
+      /**
+       * You deliver out of what you are carrying.
+       *
+       * Whoever runs this delivery may be holding bottles of their own — Djamy
+       * takes fifty on Monday and works through them over the week (migration
+       * 112). Those come off HIM, and only what he is not carrying comes off a
+       * warehouse shelf. Her question of 2026-08-21: "dat de app bijhoudt
+       * hoeveel flessen hij nog over heeft."
+       *
+       * Before this his fifty never went down at all: a local order has no
+       * transport, so this function turned round at the first step and booked
+       * nothing.
+       */
+      const runner = runAssignee || (order as { assigned_to?: string | null } | undefined)?.assigned_to || null
+
+      const { data: carried } = runner
+        ? await supabase
+            .from('batch_stock')
+            .select('batch_id, batch_number, tht_date, sku, location_id, holder_id, qty')
+            .eq('holder_id', runner)
+        : { data: [] }
+
       const { data: links } = await supabase
         .from('transport_orders')
         .select('transport_id')
@@ -458,35 +480,69 @@ export default function DeliveryPage({
       // migration 100 still finds its warehouse.
       const legacy = (order as any)?.transport_id
       if (legacy && !ids.includes(legacy)) ids.push(legacy)
-      if (ids.length === 0) return
 
-      const { data: transports } = await supabase
-        .from('transports')
-        .select('id, location_id, arrived_at')
-        .in('id', ids)
+      const { data: transports } = ids.length > 0
+        ? await supabase
+            .from('transports')
+            .select('id, location_id, arrived_at')
+            .in('id', ids)
+        : { data: [] }
       // Arrived and at a place is enough. The "stays here as stock" tick is a
       // note, not a fact about stock (2026-08-21) — and since a goods receipt
       // now always books what was counted, the bottles really are there.
       const shelf = (transports ?? []).find(
         t => t.arrived_at && t.location_id,
       )
-      if (!shelf?.location_id) return
+
+      if ((carried ?? []).length === 0 && !shelf?.location_id) return
 
       // What is really standing at that place, per batch. batch_stock is the sum
       // of the movements, so this is the shelf as it is right now.
-      const { data: stock } = await supabase
-        .from('batch_stock')
-        .select('batch_id, batch_number, tht_date, sku, location_id, qty')
-        .eq('location_id', shelf.location_id)
+      const { data: stock } = shelf?.location_id
+        ? await supabase
+            .from('batch_stock')
+            .select('batch_id, batch_number, tht_date, sku, location_id, holder_id, qty')
+            .eq('location_id', shelf.location_id)
+            // The warehouse's OWN stock. Bottles a colleague is carrying are
+            // theirs and cannot be given out from this shelf (migration 112).
+            .is('holder_id', null)
+        : { data: [] }
 
       const { allocateFifo, lotsFor } = await import('@/lib/fifo')
 
       const rows: Record<string, unknown>[] = []
       const shortages: string[] = []
       for (const item of runItems) {
+        // What the runner is carrying first — those bottles are already in the
+        // car, so taking them off a shelf instead would be a fiction.
+        const mine = (carried ?? []).filter(r => r.sku === item.sku && r.qty > 0)
+        const fromMe = allocateFifo(
+          mine.map(r => ({
+            batch_id: r.batch_id, batch_number: r.batch_number,
+            tht_date: r.tht_date, qty: r.qty,
+          })),
+          item.qty,
+        )
+        for (const t of fromMe.take) {
+          rows.push({
+            batch_id: t.batch_id,
+            sku: item.sku,
+            qty: -t.qty,
+            location_id: null,
+            holder_id: runner,
+            reason: 'warehouse_out',
+            order_id: orderId,
+            note: `Delivered to the customer from own stock — ${t.batch_number}`,
+          })
+        }
+
+        const rest = fromMe.short
+        if (rest <= 0) continue
+        if (!shelf?.location_id) { shortages.push(`${rest}× ${item.name}`); continue }
+
         const { take, short } = allocateFifo(
           lotsFor(stock ?? [], item.sku, shelf.location_id),
-          item.qty,
+          rest,
         )
         for (const t of take) {
           rows.push({

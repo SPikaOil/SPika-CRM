@@ -18,6 +18,7 @@ import { useMyOpenRuns } from '@/hooks/use-delivery-runs'
 import { isPosLine } from '@/lib/pos'
 import { WarehouseDashboardCard } from './_components/warehouse-card'
 import { ShortageBanner, CoverageBanner } from './_components/shortage-banner'
+import { MyBottlesCard } from './_components/my-bottles-card'
 import { Order, Task, OrderCurrency } from '@/types'
 import { DEFAULT_TEMPLATES, TEMPLATE_LABELS, fillTemplate, type ReminderTemplate, type TemplateKey } from '@/lib/reminder-templates'
 import { computeOrderRhythm, assessQuiet } from '@/lib/order-rhythm'
@@ -1391,6 +1392,10 @@ export default function DashboardPage() {
 
       {/* Upcoming bottle refills */}
       {isAdmin && <RefillBanner rows={refillRows} />}
+
+      {/* What you are carrying yourself. Everyone, not just admin: this is the
+          one number a sales person needs before they set off. */}
+      <MyBottlesCard />
 
       {/* Consignment orders out — awaiting settlement */}
       {isAdmin && <ConsignmentBanner orders={consignmentOrders} />}

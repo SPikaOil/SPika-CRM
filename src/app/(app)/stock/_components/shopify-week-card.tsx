@@ -11,6 +11,7 @@ import { SPIKA_PRODUCTS } from '@/lib/products'
 import { BatchSelect } from '@/components/batch-select'
 import { useTransports } from '@/hooks/use-transports'
 import { useAddStockMovements, useBatchStock, useTransportBatches } from '@/hooks/use-batches'
+import { atPlace } from '@/lib/stock-place'
 import { formatTht } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -74,7 +75,7 @@ export function ShopifyWeekCard() {
       .map(b => ({
         ...b,
         left: (stock ?? [])
-          .filter(r => r.batch_id === b.batch_id && r.sku === sku && r.location_id === transport.location_id)
+          .filter(r => r.batch_id === b.batch_id && r.sku === sku && atPlace(r, transport.location_id ?? null))
           .reduce((s, r) => s + r.qty, 0),
       }))
       .filter(b => b.left > 0)

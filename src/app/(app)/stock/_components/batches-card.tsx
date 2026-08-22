@@ -17,6 +17,7 @@ import { formatTht, thtToMonthInput, monthInputToTht, currentMonthInput } from '
 import {
   useBatches, useBatchStock, useCreateBatch, useAddStockMovements,
 } from '@/hooks/use-batches'
+import { atPlace } from '@/lib/stock-place'
 import { toast } from 'sonner'
 
 /**
@@ -59,7 +60,9 @@ export function BatchesCard() {
   // What is left of a batch, on Curacao. location_id null = home.
   const remaining = new Map<string, { sku: string; name: string; qty: number }[]>()
   for (const row of stock ?? []) {
-    if (row.location_id !== null) continue
+    // Curaçao's own shelf. Bottles a colleague took with them still belong to
+    // the batch but are no longer here (migration 112).
+    if (!atPlace(row, null)) continue
     const list = remaining.get(row.batch_id) ?? []
     list.push({ sku: row.sku, name: row.product_name, qty: row.qty })
     remaining.set(row.batch_id, list)

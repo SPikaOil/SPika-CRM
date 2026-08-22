@@ -2,6 +2,7 @@
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useBatches, useBatchStock } from '@/hooks/use-batches'
+import { atPlace } from '@/lib/stock-place'
 import { formatTht } from '@/lib/utils'
 
 const NONE = '__none__'
@@ -50,7 +51,7 @@ export function BatchSelect({
    */
   function left(batchId: string): number {
     return (stock ?? [])
-      .filter(r => r.batch_id === batchId && r.location_id === locationId && (!sku || r.sku === sku))
+      .filter(r => r.batch_id === batchId && atPlace(r, locationId) && (!sku || r.sku === sku))
       .reduce((sum, r) => sum + r.qty, 0)
   }
 

@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTransports, useTransportLocations, useWarehouseMemberships } from '@/hooks/use-transports'
 import { useBatchStock } from '@/hooks/use-batches'
+import { atPlace } from '@/lib/stock-place'
 import { formatTht } from '@/lib/utils'
 import { SPIKA_PRODUCTS } from '@/lib/products'
 import { ShopifyWeekCard } from '../stock/_components/shopify-week-card'
@@ -76,7 +77,9 @@ export default function WarehousePage() {
   /** Everything still standing at one location, per product and per batch. */
   function stockAt(locationId: string) {
     return (stock ?? [])
-      .filter(r => r.location_id === locationId && r.qty !== 0)
+      // The place's own stock. What a colleague is carrying is on THEIR list,
+      // not on this shelf (migration 112).
+      .filter(r => atPlace(r, locationId) && r.qty !== 0)
       .sort((a, b) => a.sku.localeCompare(b.sku) || (a.tht_date ?? '').localeCompare(b.tht_date ?? ''))
   }
 

@@ -468,6 +468,8 @@ export interface BatchStock {
   sku: string
   product_name: string
   location_id: string | null
+  /** Who is carrying it. Null = the place itself holds it (mig 112). */
+  holder_id?: string | null
   qty: number
 }
 

@@ -31,6 +31,8 @@ export interface StockLine {
   sku: string
   product_name?: string
   location_id: string | null
+  /** Who is carrying it. Null = the place itself (migration 112). */
+  holder_id?: string | null
   qty: number
 }
 
@@ -56,7 +58,9 @@ export function coverageGaps(
 
   const have = new Map<string, number>()
   for (const row of stock ?? []) {
-    if (!locationIds.includes(row.location_id) || row.qty <= 0) continue
+    // The place's own stock. Bottles in a person's car are not on the shelf,
+    // so they cannot cover a run standing ready at that shelf.
+    if (row.holder_id || !locationIds.includes(row.location_id) || row.qty <= 0) continue
     have.set(row.sku, (have.get(row.sku) ?? 0) + row.qty)
   }
 
