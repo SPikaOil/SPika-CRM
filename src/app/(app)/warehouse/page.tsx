@@ -1,19 +1,17 @@
 'use client'
 
-import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Warehouse, ChevronDown, ChevronRight, Ship, PackageCheck, Clock, User } from 'lucide-react'
+import { Warehouse, Ship, PackageCheck, Clock, User } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTransports, useTransportLocations, useWarehouseMemberships } from '@/hooks/use-transports'
-import { useBatchStock, useBatches } from '@/hooks/use-batches'
+import { useBatchStock } from '@/hooks/use-batches'
+import { BatchesAtPlace } from '@/components/batches-at-place'
 import { atPlace } from '@/lib/stock-place'
 import { transportColli } from '@/lib/transport-cargo'
-import { formatTht, formatCurrency } from '@/lib/utils'
-import { SPIKA_PRODUCTS } from '@/lib/products'
 import { ShopifyWeekCard } from '../stock/_components/shopify-week-card'
 import { PosStockPanel } from '@/components/pos-stock-panel'
 import { ArrivalCard } from '../exports/_components/arrival-card'
@@ -38,9 +36,6 @@ export default function WarehousePage() {
   const { data: memberships } = useWarehouseMemberships()
   const { data: transports } = useTransports()
   const { data: stock } = useBatchStock()
-  const { data: batches } = useBatches()
-
-  const [openLocation, setOpenLocation] = useState<string | null>(null)
 
   // A warehouse member has to reach their own shelves, so this is gated on the
   // permission, not on being an admin.
@@ -74,12 +69,6 @@ export default function WarehousePage() {
   // gives them nothing; this is so the page says why instead of looking empty.
   const unlinked = !isAdmin && mine.length === 0
 
-  const productName = (sku: string) => SPIKA_PRODUCTS.find(p => p.sku === sku)?.name ?? sku
-  /** The landed cost per bottle of a batch, worked out at intake (migration 113). */
-  const vvpOf = (batchId: string) => {
-    const v = (batches ?? []).find(b => b.id === batchId)?.vvp
-    return v === null || v === undefined ? null : Number(v)
-  }
 
   /** Everything still standing at one location, per product and per batch. */
   function stockAt(locationId: string) {
@@ -169,7 +158,6 @@ export default function WarehousePage() {
           const total = rows.reduce((s, r) => s + r.qty, 0)
           const inbound = inboundTo(loc.id)
           const arrived = arrivedAt(loc.id)
-          const open = openLocation === loc.id
 
           return (
             <Card key={loc.id} size="sm">
@@ -208,38 +196,13 @@ export default function WarehousePage() {
                     would only be a chance to pick the wrong one. */}
                 <PosStockPanel locationId={loc.id} embedded />
 
-                {/* On the shelves, per product and per batch — a recall has to be
-                    answerable from here. */}
-                {rows.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nothing standing here</p>
-                ) : (
-                  <button
-                    onClick={() => setOpenLocation(open ? null : loc.id)}
-                    className="w-full text-left"
-                  >
-                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-                      {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                      On the shelves · {rows.length} lines
-                    </span>
-                  </button>
-                )}
-                {open && rows.map(r => (
-                  <div key={`${r.batch_id}-${r.sku}`} className="flex items-center gap-2 text-sm pl-4">
-                    <span className="flex-1 min-w-0 truncate">{productName(r.sku)}</span>
-                    <span className="font-mono text-xs text-muted-foreground shrink-0">{r.batch_number}</span>
-                    {r.tht_date && (
-                      <span className="text-xs text-muted-foreground shrink-0">THT {formatTht(r.tht_date)}</span>
-                    )}
-                    {/* What a bottle of this batch cost to get here. Admin only:
-                        the count is warehouse business, the cost price is not. */}
-                    {isAdmin && vvpOf(r.batch_id) !== null && (
-                      <span className="text-xs text-muted-foreground shrink-0">
-                        {formatCurrency(vvpOf(r.batch_id)!, 'XCG')}
-                      </span>
-                    )}
-                    <span className="font-medium shrink-0 w-12 text-right">{r.qty}</span>
-                  </div>
-                ))}
+                {/* The batches standing here, each one openable.
+                    Her design of 2026-08-21: "partijen als dun vakje die je kunt
+                    uitklappen waar je alle info in ziet (tp#, ATA, VVP per item
+                    etc etc)". A recall is answered from here, and so is "what
+                    came through this warehouse six months ago" — an empty batch
+                    stays in the list rather than disappearing. */}
+                <BatchesAtPlace locationId={loc.id} />
 
                 {/* On its way, and the goods receipt itself.
                     Her instruction of 2026-08-20: a warehouse member has the

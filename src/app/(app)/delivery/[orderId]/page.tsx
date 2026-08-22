@@ -332,12 +332,36 @@ export default function DeliveryPage({
       } else {
         const { data: created } = await supabase.from('deliveries').insert({
           order_id: orderId,
+          items: runItems,
+          assigned_to: runAssignee || (order as { assigned_to?: string | null })?.assigned_to || null,
           delivery_started_at: new Date().toISOString(),
           gps_location: coords
             ? { lat: coords.latitude, lng: coords.longitude, accuracy: coords.accuracy }
             : null,
         }).select('id').single()
-        if (created?.id) setDeliveryId(created.id as string)
+        if (created?.id) {
+          setDeliveryId(created.id as string)
+          /**
+           * No run was made up beforehand, so this IS the moment it is made up
+           * — and that is when the bottles leave the shelf (her rule of
+           * 2026-08-21). A run prepared on the order page was already booked
+           * off when it was prepared, so that branch books nothing again.
+           */
+          const { bookRunOut } = await import('@/lib/stock-out')
+          const { shortages } = await bookRunOut(supabase, {
+            orderId,
+            deliveryId: created.id as string,
+            items: runItems as { sku: string; name: string; qty: number }[],
+            runnerId: runAssignee || (order as { assigned_to?: string | null })?.assigned_to || null,
+            warehouseId: (order as { warehouse_id?: string | null } | undefined)?.warehouse_id ?? null,
+          })
+          if (shortages.length > 0) {
+            toast.warning(
+              `Started, but not everything was on the shelf: ${shortages.join(', ')}. Nothing was booked below zero.`,
+              { duration: 12000 },
+            )
+          }
+        }
       }
 
       toast.success('Delivery started!')
@@ -400,7 +424,7 @@ export default function DeliveryPage({
    *
    * Best-effort on purpose. A delivery that has been signed for happened,
    * whatever the stock table thinks, and a failure here must never leave the
-   * driver stuck at the door — the same reasoning as bookOffWarehouse.
+   * driver stuck at the door — the same reasoning as booking the run off stock.
    */
   async function bookOutPosMaterial() {
     const picked = Object.entries(posPicked)
@@ -430,168 +454,6 @@ export default function DeliveryPage({
     }
   }
 
-  /**
-   * Take this run off the warehouse shelf, oldest batch first.
-   *
-   * FIFO, her instruction of 2026-08-19 — and because a batch holds ONE
-   * best-before, oldest batch and shortest THT are the same batch. A run of 50
-   * off a shelf holding 30 of one and 40 of the next is two movements, both
-   * traceable.
-   *
-   * WHICH shelf comes from the transports this order is named on (migration
-   * 100), not from `orders.transport_id`: an order that had to be sent twice
-   * has no single one. Any of them that arrived at a warehouse and stayed there
-   * as stock is a shelf this order can be given out from.
-   *
-   * What is TAKEN is what is standing there, not what a pick once said. That is
-   * the difference FIFO makes: the goods on the shelf are the goods, whoever
-   * booked them in and on whichever run.
-   */
-  async function bookOffWarehouse() {
-    try {
-      /**
-       * You deliver out of what you are carrying.
-       *
-       * Whoever runs this delivery may be holding bottles of their own — Djamy
-       * takes fifty on Monday and works through them over the week (migration
-       * 112). Those come off HIM, and only what he is not carrying comes off a
-       * warehouse shelf. Her question of 2026-08-21: "dat de app bijhoudt
-       * hoeveel flessen hij nog over heeft."
-       *
-       * Before this his fifty never went down at all: a local order has no
-       * transport, so this function turned round at the first step and booked
-       * nothing.
-       */
-      const runner = runAssignee || (order as { assigned_to?: string | null } | undefined)?.assigned_to || null
-
-      const { data: carried } = runner
-        ? await supabase
-            .from('batch_stock')
-            .select('batch_id, batch_number, tht_date, sku, location_id, holder_id, qty')
-            .eq('holder_id', runner)
-        : { data: [] }
-
-      /**
-       * WHICH warehouse this order goes out from: the one on the order.
-       *
-       * Her model, 2026-08-21: "uitslag pakt uit inslagpartij om uit te leveren
-       * op een order binnen het gebied van de warehouse", and the warehouse is
-       * chosen when the order is written or approved (migration 114). It used
-       * to be worked out from the transports the order travelled on, which
-       * answers a different question — where the goods went — and has no answer
-       * at all for a local order that never travels.
-       *
-       * NULL is Curaçao. An order with no warehouse set is a Curaçao order,
-       * which is what 24 of the 26 customers are.
-       */
-      const shelfId = (order as { warehouse_id?: string | null } | undefined)?.warehouse_id ?? null
-
-      // Which transport put the goods there, for the note on the movement. Not
-      // for deciding the place any more — that is settled above.
-      const { data: links } = await supabase
-        .from('transport_orders')
-        .select('transport_id')
-        .eq('order_id', orderId)
-      const ids = (links ?? []).map(l => l.transport_id as string)
-      const legacy = (order as any)?.transport_id
-      if (legacy && !ids.includes(legacy)) ids.push(legacy)
-
-      const { data: transports } = ids.length > 0
-        ? await supabase
-            .from('transports')
-            .select('id, location_id, arrived_at')
-            .in('id', ids)
-        : { data: [] }
-      const shelf = (transports ?? []).find(
-        t => t.arrived_at && t.location_id === shelfId,
-      ) ?? null
-
-      // What is really standing at that place, per batch. batch_stock is the sum
-      // of the movements, so this is the shelf as it is right now.
-      //
-      // The place's OWN stock: bottles a colleague is carrying are theirs and
-      // cannot be given out from this shelf (migration 112). And `= null` matches
-      // nothing in SQL, so Curaçao needs `is`.
-      const shelfQuery = supabase
-        .from('batch_stock')
-        .select('batch_id, batch_number, tht_date, sku, location_id, holder_id, qty')
-        .is('holder_id', null)
-      const { data: stock } = await (shelfId === null
-        ? shelfQuery.is('location_id', null)
-        : shelfQuery.eq('location_id', shelfId))
-
-      const { allocateFifo, lotsFor } = await import('@/lib/fifo')
-
-      const rows: Record<string, unknown>[] = []
-      const shortages: string[] = []
-      for (const item of runItems) {
-        // What the runner is carrying first — those bottles are already in the
-        // car, so taking them off a shelf instead would be a fiction.
-        const mine = (carried ?? []).filter(r => r.sku === item.sku && r.qty > 0)
-        const fromMe = allocateFifo(
-          mine.map(r => ({
-            batch_id: r.batch_id, batch_number: r.batch_number,
-            tht_date: r.tht_date, qty: r.qty,
-          })),
-          item.qty,
-        )
-        for (const t of fromMe.take) {
-          rows.push({
-            batch_id: t.batch_id,
-            sku: item.sku,
-            qty: -t.qty,
-            location_id: null,
-            holder_id: runner,
-            reason: 'warehouse_out',
-            order_id: orderId,
-            note: `Delivered to the customer from own stock — ${t.batch_number}`,
-          })
-        }
-
-        const rest = fromMe.short
-        if (rest <= 0) continue
-
-        const { take, short } = allocateFifo(
-          lotsFor(stock ?? [], item.sku, shelfId),
-          rest,
-        )
-        for (const t of take) {
-          rows.push({
-            batch_id: t.batch_id,
-            sku: item.sku,
-            qty: -t.qty,
-            location_id: shelfId,
-            reason: 'warehouse_out',
-            order_id: orderId,
-            transport_id: shelf?.id ?? null,
-            note: `Delivered to the customer from the warehouse — ${t.batch_number}`,
-          })
-        }
-        // Never booked below zero. A location that quietly goes negative makes
-        // every later count meaningless, so the gap is reported instead.
-        if (short > 0) shortages.push(`${short}× ${item.name}`)
-      }
-
-      if (rows.length > 0) {
-        const { error } = await supabase.from('stock_movements').insert(rows)
-        if (error) throw error
-      }
-
-      if (shortages.length > 0) {
-        toast.warning(
-          `Delivered, but the shelf did not cover it: ${shortages.join(', ')}. Nothing was booked below zero.`,
-          { duration: 12000 },
-        )
-      }
-    } catch (err) {
-      // The delivery itself is already signed and saved — that must stand. But
-      // a stock booking that silently failed is how a warehouse count starts
-      // lying, so it is said out loud.
-      toast.error(
-        `Delivered, but the warehouse stock was not booked off: ${err instanceof Error ? err.message : 'unknown error'}`
-      )
-    }
-  }
 
   async function handleCompleteDelivery() {
     if (missingTht) {
@@ -723,7 +585,10 @@ export default function DeliveryPage({
           ...(signatureDataUrl ? { signature_data_url: signatureDataUrl } : {}),
         } as any).eq('id', orderId)
 
-        await bookOffWarehouse()
+        // The bottles came off the shelf when this run was made up, not here.
+        // Her rule of 2026-08-21: "zodra het je de run klaarzet, echter is die
+        // order pas echt rond bij tekenen klant." The signature is what closes
+        // the order; it moves no stock.
         await bookOutPosMaterial()
 
         // Tell OURSELVES, never the customer. Danique, 2026-08-14: the e-mail

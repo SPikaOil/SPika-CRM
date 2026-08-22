@@ -149,7 +149,7 @@ export async function recalcTransportVvp(
 
   const { data: batches } = await supabase
     .from('batches')
-    .select('id, sku, vvp')
+    .select('id, sku')
     .eq('transport_id', transportId)
   if (!batches || batches.length === 0) return { updated: 0 }
 
@@ -181,6 +181,17 @@ export async function recalcTransportVvp(
     (transport as { costs_currency?: string }).costs_currency ?? 'XCG',
   )
 
+  // What each of them costs today, so an unchanged one is left alone. The
+  // money lives apart from the batch since migration 116 — a warehouse may read
+  // a batch and may not read a cost price, and RLS cannot hide one column.
+  const { data: costs } = await supabase
+    .from('batch_costs')
+    .select('batch_id, vvp')
+    .in('batch_id', batches.map(b => b.id as string))
+  const costNow = new Map(
+    (costs ?? []).map(c => [c.batch_id as string, c.vvp === null || c.vvp === undefined ? null : Number(c.vvp)]),
+  )
+
   let updated = 0
   for (const b of batches) {
     const id = b.id as string
@@ -195,13 +206,12 @@ export async function recalcTransportVvp(
       productVvp.get(b.sku as string) ?? null,
     )
 
-    const before = b.vvp === null || b.vvp === undefined ? null : Number(b.vvp)
+    const before = costNow.get(id) ?? null
     if (before === vvp) continue
 
     const { error } = await supabase
-      .from('batches')
-      .update({ vvp, vvp_breakdown: breakdown })
-      .eq('id', id)
+      .from('batch_costs')
+      .upsert({ batch_id: id, vvp, breakdown, updated_at: new Date().toISOString() })
     if (error) continue
 
     await supabase.from('batch_cost_log').insert({

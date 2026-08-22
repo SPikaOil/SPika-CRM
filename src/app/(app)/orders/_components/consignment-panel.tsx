@@ -248,6 +248,12 @@ export function ConsignmentPanel({ order }: { order: Order }) {
               batch_id: batchOf.get(r.sku),
               sku: r.sku,
               qty: r.open,
+              // Back where it went OUT from, not to Curaçao by default. Bottles
+              // returned from a shop in Rotterdam are standing in Rotterdam;
+              // booking them home would grow the island count by goods that are
+              // three thousand miles away. Null is still Curaçao, which is what
+              // a Curaçao order says (migration 114).
+              location_id: (order as { warehouse_id?: string | null }).warehouse_id ?? null,
               reason: 'return',
               order_id: order.id,
               note: `Returned from consignment ${order.order_number}`,

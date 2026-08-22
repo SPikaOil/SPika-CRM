@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
+import { bookRunOut, bookRunBack } from '@/lib/stock-out'
 import { QuoteItem } from '@/types'
 import { toast } from 'sonner'
 
@@ -110,6 +111,36 @@ export function usePrepareDeliveryRun() {
         .single()
       if (error) throw new Error(`Preparing the run: ${error.message}`)
 
+      /**
+       * The bottles leave the shelf NOW.
+       *
+       * Her rule of 2026-08-21: "zodra het je de run klaarzet". They are boxed
+       * up and about to go, so leaving them on the shelf until somebody signs
+       * meant the same fifty could be promised to two customers.
+       *
+       * A shortage is said out loud but never blocks: a run can be made up
+       * before the stock lands, and a warning that stops work is a warning
+       * people learn to route around.
+       */
+      const { data: ord } = await supabase
+        .from('orders')
+        .select('warehouse_id')
+        .eq('id', orderId)
+        .single()
+      const { shortages } = await bookRunOut(supabase, {
+        orderId,
+        deliveryId: (data as { id: string }).id,
+        items: items as { sku: string; name: string; qty: number }[],
+        runnerId: assignedTo,
+        warehouseId: (ord as { warehouse_id?: string | null } | null)?.warehouse_id ?? null,
+      })
+      if (shortages.length > 0) {
+        toast.warning(
+          `Run prepared, but not everything was on the shelf: ${shortages.join(', ')}. Nothing was booked below zero.`,
+          { duration: 12000 },
+        )
+      }
+
       // Only forward, never back. An order already invoiced or paid is not
       // dragged into "out for delivery" by a second run being prepared.
       const { error: statusErr } = await supabase
@@ -164,6 +195,12 @@ export function useCancelDeliveryRun() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ id }: { id: string; orderId: string }) => {
+      // Put the bottles back BEFORE the run goes, while its movements can still
+      // be found. Deleting first would leave stock booked out for a run that no
+      // longer exists — bottles standing in the warehouse that the app has
+      // already given away.
+      await bookRunBack(supabase, id)
+
       const { error } = await supabase
         .from('deliveries')
         .delete()
