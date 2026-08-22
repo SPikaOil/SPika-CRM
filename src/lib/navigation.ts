@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Users, Sprout, ReceiptText, FileText, ShoppingCart, Package,
   Megaphone, CalendarRange, Store, FolderOpen, ClipboardList, CalendarDays,
   BarChart2, Droplets, PackageCheck, Warehouse, MapPin, Ship, Globe, UserCog,
-  ShieldCheck, Mail, Settings,
+  ShieldCheck, Mail, Settings, Boxes,
 } from 'lucide-react'
 import type { ComponentType } from 'react'
 
@@ -61,6 +61,9 @@ export const NAV_ITEMS: NavItem[] = [
   // works on a phone — it says so at the top of this file — and the one tab
   // they open all day was two taps away. Her instruction, 2026-08-20.
   { href: '/warehouse',       label: 'Warehouse',                                 icon: Warehouse,       permission: 'warehouse.view',     mainOnMobile: 'both'  },
+  // Her tab, 2026-08-21: "Stock en production is voor productie... partijen en
+  // deze partijen zaken hebben uitgeleverd heeft niets met productie te maken."
+  { href: '/sales-batches',   label: 'Sales Batches',    shortLabel: 'Batches',   icon: Boxes,           permission: 'batches.view'        },
   { href: '/store-locator',   label: 'Store Locator',    shortLabel: 'Locator',   icon: MapPin,          permission: 'storelocator.view'   },
 
   { href: '/exports',           label: 'Export',                                  icon: Ship,            permission: null, adminOnly: true },

@@ -68,6 +68,7 @@ export const PERMISSIONS: PermissionGroup[] = [
       { key: 'stock.view', label: 'Stock & production' },
       { key: 'warehouse.view', label: 'Warehouse tab', hint: 'Stock lying at our warehouses and sales staff abroad' },
       { key: 'warehouse.receive', label: 'Sign transports in', hint: 'Book an arriving transport in, including any differences' },
+      { key: 'batches.view', label: 'Sales Batches tab', hint: 'Every batch, where it is, what came in on it and which orders went out of it. A warehouse sees only its own place; the cost price is admin business and has its own rule in the database' },
       { key: 'salesdocs.view', label: 'Sales documents' },
       { key: 'marketing.view', label: 'Marketing tab', hint: 'The material customers also see in their portal' },
       { key: 'marketing.manage', label: 'Add and remove marketing assets', hint: 'Making the material. Deciding who it is for is the separate switch below. Enforced in the database too, so a role without it sees no save button and would be refused anyway' },
@@ -108,7 +109,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Exclude<Role, 'admin'>, string[]> 
     'customers.view', 'customers.edit', 'customernames.view', 'leads.view',
     'orders.view', 'orders.create', 'orders.approve', 'orders.edit_items', 'quotations.view',
     'deliveries.own', 'deliveries.all',
-    'products.view', 'stock.view', 'salesdocs.view', 'tasks.view',
+    'products.view', 'stock.view', 'batches.view', 'salesdocs.view', 'tasks.view',
     'storelocator.view', 'storelocator.edit', 'carriers.edit',
     'tasks.create',
     // work.assign is deliberately absent. Allocating work is the admin's for
@@ -141,6 +142,9 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Exclude<Role, 'admin'>, string[]> 
   warehouse: [
     'warehouse.view',
     'warehouse.receive',
+    // Their own place's batches, and no cost price — that lives behind its own
+    // rule since migration 116.
+    'batches.view',
     'deliveries.own',
     // Sees the order behind the goods it is handing over — never the prices on
     // it, those live on price_presets. Added 2026-08-16.
