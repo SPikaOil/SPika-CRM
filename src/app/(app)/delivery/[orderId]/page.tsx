@@ -471,13 +471,28 @@ export default function DeliveryPage({
             .eq('holder_id', runner)
         : { data: [] }
 
+      /**
+       * WHICH warehouse this order goes out from: the one on the order.
+       *
+       * Her model, 2026-08-21: "uitslag pakt uit inslagpartij om uit te leveren
+       * op een order binnen het gebied van de warehouse", and the warehouse is
+       * chosen when the order is written or approved (migration 114). It used
+       * to be worked out from the transports the order travelled on, which
+       * answers a different question — where the goods went — and has no answer
+       * at all for a local order that never travels.
+       *
+       * NULL is Curaçao. An order with no warehouse set is a Curaçao order,
+       * which is what 24 of the 26 customers are.
+       */
+      const shelfId = (order as { warehouse_id?: string | null } | undefined)?.warehouse_id ?? null
+
+      // Which transport put the goods there, for the note on the movement. Not
+      // for deciding the place any more — that is settled above.
       const { data: links } = await supabase
         .from('transport_orders')
         .select('transport_id')
         .eq('order_id', orderId)
       const ids = (links ?? []).map(l => l.transport_id as string)
-      // The single column stays behind it so a delivery prepared before
-      // migration 100 still finds its warehouse.
       const legacy = (order as any)?.transport_id
       if (legacy && !ids.includes(legacy)) ids.push(legacy)
 
@@ -487,26 +502,23 @@ export default function DeliveryPage({
             .select('id, location_id, arrived_at')
             .in('id', ids)
         : { data: [] }
-      // Arrived and at a place is enough. The "stays here as stock" tick is a
-      // note, not a fact about stock (2026-08-21) — and since a goods receipt
-      // now always books what was counted, the bottles really are there.
       const shelf = (transports ?? []).find(
-        t => t.arrived_at && t.location_id,
-      )
-
-      if ((carried ?? []).length === 0 && !shelf?.location_id) return
+        t => t.arrived_at && t.location_id === shelfId,
+      ) ?? null
 
       // What is really standing at that place, per batch. batch_stock is the sum
       // of the movements, so this is the shelf as it is right now.
-      const { data: stock } = shelf?.location_id
-        ? await supabase
-            .from('batch_stock')
-            .select('batch_id, batch_number, tht_date, sku, location_id, holder_id, qty')
-            .eq('location_id', shelf.location_id)
-            // The warehouse's OWN stock. Bottles a colleague is carrying are
-            // theirs and cannot be given out from this shelf (migration 112).
-            .is('holder_id', null)
-        : { data: [] }
+      //
+      // The place's OWN stock: bottles a colleague is carrying are theirs and
+      // cannot be given out from this shelf (migration 112). And `= null` matches
+      // nothing in SQL, so Curaçao needs `is`.
+      const shelfQuery = supabase
+        .from('batch_stock')
+        .select('batch_id, batch_number, tht_date, sku, location_id, holder_id, qty')
+        .is('holder_id', null)
+      const { data: stock } = await (shelfId === null
+        ? shelfQuery.is('location_id', null)
+        : shelfQuery.eq('location_id', shelfId))
 
       const { allocateFifo, lotsFor } = await import('@/lib/fifo')
 
@@ -538,10 +550,9 @@ export default function DeliveryPage({
 
         const rest = fromMe.short
         if (rest <= 0) continue
-        if (!shelf?.location_id) { shortages.push(`${rest}× ${item.name}`); continue }
 
         const { take, short } = allocateFifo(
-          lotsFor(stock ?? [], item.sku, shelf.location_id),
+          lotsFor(stock ?? [], item.sku, shelfId),
           rest,
         )
         for (const t of take) {
@@ -549,10 +560,10 @@ export default function DeliveryPage({
             batch_id: t.batch_id,
             sku: item.sku,
             qty: -t.qty,
-            location_id: shelf.location_id,
+            location_id: shelfId,
             reason: 'warehouse_out',
             order_id: orderId,
-            transport_id: shelf.id,
+            transport_id: shelf?.id ?? null,
             note: `Delivered to the customer from the warehouse — ${t.batch_number}`,
           })
         }

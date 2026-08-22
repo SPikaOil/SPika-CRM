@@ -228,6 +228,8 @@ export interface Order {
   id: string
   quote_id: string | null
   customer_id: string
+  /** The warehouse this order is delivered from. Null = Curaçao (mig 114). */
+  warehouse_id?: string | null
   order_number: string
   /** The transport this order travels in. Null = not on a transport number yet. */
   transport_id?: string | null

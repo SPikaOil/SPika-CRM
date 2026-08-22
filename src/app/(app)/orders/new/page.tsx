@@ -8,6 +8,8 @@ import { useCreateOrder } from '@/hooks/use-orders'
 import { useCustomers } from '@/hooks/use-customers'
 import { useUsers } from '@/hooks/use-users'
 import { useAssignableForNewOrder } from '@/hooks/use-assignable-users'
+import { useWarehousesFor } from '@/hooks/use-customer-warehouses'
+import { WarehousePicker } from '@/components/warehouse-picker'
 import { useAuth } from '@/contexts/auth-context'
 import { PosPicker } from '@/components/pos-register'
 import { usePosItems, useCustomerPosItems } from '@/hooks/use-pos-items'
@@ -67,6 +69,20 @@ function NewDeliveryNoteInner() {
   const isAdmin = can('prices.view')   // price fields follow the permission, not the role
 
   const [customerId, setCustomerId] = useState(searchParams.get('customer') ?? '')
+
+  /**
+   * The warehouse this order goes out from.
+   *
+   * Only admin and manager choose it — her rule of 2026-08-21. A customer ticked
+   * to one warehouse needs no choosing, so it follows the tick; with several it
+   * has to be picked, and the picker says what each of them can cover.
+   */
+  const [warehouseId, setWarehouseId] = useState<string | null>(null)
+  const { data: customerWarehouses } = useWarehousesFor(customerId)
+  useEffect(() => {
+    if (customerWarehouses.length === 1) setWarehouseId(customerWarehouses[0])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerId, customerWarehouses.length])
   const [assignedTo, setAssignedTo] = useState('')
   const [plannedDate, setPlannedDate] = useState('')
   const [orderNumber, setOrderNumber] = useState('')
@@ -202,6 +218,9 @@ function NewDeliveryNoteInner() {
         order_number: finalOrderNumber,
         order_type: orderType,
         po_number: poNumber.trim() || null,
+        // Where it goes out from. NULL is Curaçao, which is what a customer
+        // ticked only to Curaçao needs — 24 of the 26 (migration 114).
+        warehouse_id: warehouseId,
       } as any)
       toast.success('Delivery note created and assigned!')
       router.push(`/orders/${order.id}`)
@@ -343,6 +362,21 @@ function NewDeliveryNoteInner() {
                   Leave it to us — an admin picks this up and allocates it.
                 </p>
               </div>
+            )}
+
+            {/* Which warehouse this goes out from, with what each of them can
+                cover of THIS order. Her rule of 2026-08-21 — the point of
+                seeing it here is being able to pick another one before you
+                save, instead of finding out at the shelf.
+                Only for whoever may allocate work; for anybody else it is
+                decided at approval, where the order goes anyway. */}
+            {can('work.assign') && customerId && customerWarehouses.length > 1 && (
+              <WarehousePicker
+                customerId={customerId}
+                items={activeItems.map(i => ({ sku: i.sku, qty: i.qty }))}
+                value={warehouseId}
+                onChange={setWarehouseId}
+              />
             )}
 
             <div className="space-y-1.5">

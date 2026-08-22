@@ -8,6 +8,8 @@ import { useOrder, useUpdateOrder } from '@/hooks/use-orders'
 import { useTransportsForOrder } from '@/hooks/use-transports'
 import { useUsers } from '@/hooks/use-users'
 import { useAssignableUsers } from '@/hooks/use-assignable-users'
+import { WarehousePicker } from '@/components/warehouse-picker'
+import { useWarehousesFor } from '@/hooks/use-customer-warehouses'
 import { useAuth } from '@/contexts/auth-context'
 import { OrderPosLine } from '@/components/order-pos-line'
 import { DeliveryRunsCard } from '../_components/delivery-runs-card'
@@ -111,6 +113,17 @@ export default function OrderDetailPage({
   const [selectedWorker, setSelectedWorker] = useState<string>('')
   const [approveOrderNum, setApproveOrderNum] = useState('')
   const [approveDate, setApproveDate] = useState('')
+  /** The warehouse this order goes out from, picked at approval (migration 114). */
+  const [approveWarehouse, setApproveWarehouse] = useState<string | null>(null)
+  const { data: customerWarehouses } = useWarehousesFor(order?.customer_id)
+  // Start on what the order already says, or on the customer's only warehouse.
+  // Somebody with one place to deliver from should not have to pick it.
+  useEffect(() => {
+    const already = (order as { warehouse_id?: string | null } | undefined)?.warehouse_id
+    if (already !== undefined && already !== null) { setApproveWarehouse(already); return }
+    if (customerWarehouses.length === 1) setApproveWarehouse(customerWarehouses[0])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order?.id, customerWarehouses.length])
   const [editingOrderNumber, setEditingOrderNumber] = useState(false)
   const [orderNumberDraft, setOrderNumberDraft] = useState('')
   const [poNumber, setPoNumber] = useState('')
@@ -750,13 +763,28 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Which warehouse this order goes out from.
+                Her rule of 2026-08-21: only admin and manager choose it, from
+                the warehouses ticked on the customer, and they see what each
+                one can cover before deciding. This is the moment for it — an
+                order written by sales or dropped in through the portal has
+                nobody who may pick, and it passes through here anyway. */}
+            {(order.customer_id) && (
+              <WarehousePicker
+                customerId={order.customer_id}
+                items={(order.items ?? []).map(i => ({ sku: i.sku, qty: i.qty }))}
+                value={approveWarehouse}
+                onChange={setApproveWarehouse}
+              />
+            )}
             <div className="flex gap-2">
               <Button
                 className="flex-1 bg-green-600 hover:bg-green-700 gap-2"
                 disabled={!selectedWorker || !approveOrderNum.trim() || !approveDate || updateOrder.isPending}
                 onClick={() => updateOrder.mutate({
                   id: order.id,
-                  values: { status: 'processing', assigned_to: selectedWorker, order_number: approveOrderNum.trim(), planned_date: approveDate } as any,
+                  values: { status: 'processing', assigned_to: selectedWorker, order_number: approveOrderNum.trim(), planned_date: approveDate, warehouse_id: approveWarehouse } as any,
                 }, {
                   onSuccess: () => {
                     // No mail to the customer. Danique, 2026-08-14: the e-mail
