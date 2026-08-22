@@ -68,6 +68,7 @@ export const PERMISSIONS: PermissionGroup[] = [
       { key: 'stock.view', label: 'Stock & production' },
       { key: 'warehouse.view', label: 'Warehouse tab', hint: 'Stock lying at our warehouses and sales staff abroad' },
       { key: 'warehouse.receive', label: 'Sign transports in', hint: 'Book an arriving transport in, including any differences' },
+      { key: 'handover.send', label: 'Send stock to another warehouse', hint: 'Order or arrange a handover from one warehouse to another. Handing bottles to a colleague needs nothing extra — this is only warehouse to warehouse. Admin and manager hold it; tick it for a warehouse when you want them to arrange their own' },
       { key: 'batches.view', label: 'Sales Batches tab', hint: 'Every batch, where it is, what came in on it and which orders went out of it. A warehouse sees only its own place; the cost price is admin business and has its own rule in the database' },
       { key: 'salesdocs.view', label: 'Sales documents' },
       { key: 'marketing.view', label: 'Marketing tab', hint: 'The material customers also see in their portal' },
@@ -110,6 +111,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Exclude<Role, 'admin'>, string[]> 
     'orders.view', 'orders.create', 'orders.approve', 'orders.edit_items', 'quotations.view',
     'deliveries.own', 'deliveries.all',
     'products.view', 'stock.view', 'batches.view', 'salesdocs.view', 'tasks.view',
+    'handover.send',
     'storelocator.view', 'storelocator.edit', 'carriers.edit',
     'tasks.create',
     // work.assign is deliberately absent. Allocating work is the admin's for

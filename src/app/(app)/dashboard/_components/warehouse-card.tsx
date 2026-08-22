@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { useTransports, useTransportLocations, useWarehouseMemberships } from '@/hooks/use-transports'
 import { useBatchStock } from '@/hooks/use-batches'
 import { usePosStock } from '@/hooks/use-pos-stock'
-import { useOpenRunsForOrders, useIncomingHandovers } from '@/hooks/use-warehouse-work'
+import { useOpenRunsForOrders, useIncomingHandovers, useHandoversToSend } from '@/hooks/use-warehouse-work'
 import { transportColli } from '@/lib/transport-cargo'
 import { coverageGaps } from '@/lib/coverage'
 import { formatTht } from '@/lib/utils'
@@ -86,8 +86,12 @@ export function WarehouseDashboardCard({ userId }: { userId: string | undefined 
   const openRuns = runsHere ?? []
 
   /** On its way to this person by hand or by post, not signed for yet. */
-  const { data: incoming } = useIncomingHandovers(userId)
+  // Coming TO you, by name or to a warehouse you work at (migration 117), and
+  // what your own warehouse has been asked to send but has not packed yet.
+  const { data: incoming } = useIncomingHandovers(userId, myLocationIds)
+  const { data: toSend } = useHandoversToSend(myLocationIds)
   const handovers = incoming ?? []
+  const waitingToSend = toSend ?? []
 
   /**
    * Places that have dropped below the floor an admin set for them (106).
@@ -269,6 +273,31 @@ export function WarehouseDashboardCard({ userId }: { userId: string | undefined 
                 )
               })}
             </div>
+          )}
+
+          {/* Asked of YOU: pack it and send it.
+              Her case of 2026-08-21 — an admin tells warehouse A to send stock
+              to warehouse B, and A has to see that without a phone call. The
+              bottles are still on their shelf until they press send, which is
+              why this is its own line and not mixed in with what is on its way. */}
+          {waitingToSend.length > 0 && (
+            <Link href="/handover" className="flex items-start gap-3 px-3 py-2 hover:bg-accent transition-colors">
+              <ArrowLeftRight className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">
+                  {waitingToSend.length} {waitingToSend.length === 1 ? 'handover' : 'handovers'} to pack and send
+                </p>
+                {waitingToSend.slice(0, 3).map(h => (
+                  <p key={h.id} className="text-xs text-muted-foreground truncate">
+                    {(h.items ?? []).reduce((s, i) => s + i.qty, 0)} bottles to{' '}
+                    {(locations ?? []).find(l => l.id === h.to_location_id)?.name ?? 'Curaçao'}
+                  </p>
+                ))}
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  They are still on your shelf until you send it.
+                </p>
+              </div>
+            </Link>
           )}
 
           {/* Handovers on their way to you, still to sign */}

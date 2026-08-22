@@ -30,6 +30,7 @@ export function BatchSelect({
   className,
   placeholder = 'Choose batch',
   locationId = null,
+  holderId = null,
 }: {
   sku?: string
   value: string | null | undefined
@@ -40,6 +41,11 @@ export function BatchSelect({
   placeholder?: string
   /** Where the bottles are taken from. Null = Curaçao, the default. */
   locationId?: string | null
+  /**
+   * Whose hands they come out of, when somebody hands back what they carry.
+   * Null = off a shelf (migration 112).
+   */
+  holderId?: string | null
 }) {
   const { data: batches } = useBatches()
   const { data: stock } = useBatchStock()
@@ -51,7 +57,9 @@ export function BatchSelect({
    */
   function left(batchId: string): number {
     return (stock ?? [])
-      .filter(r => r.batch_id === batchId && atPlace(r, locationId) && (!sku || r.sku === sku))
+      .filter(r => r.batch_id === batchId
+        && (holderId ? r.holder_id === holderId : atPlace(r, locationId))
+        && (!sku || r.sku === sku))
       .reduce((sum, r) => sum + r.qty, 0)
   }
 
@@ -65,7 +73,9 @@ export function BatchSelect({
    * Rotterdam — before this it would have been listed there with nought left.
    */
   const options = (batches ?? [])
-    .filter(b => (b.location_id ?? null) === locationId)
+    .filter(b => holderId
+      ? b.holder_id === holderId
+      : (b.location_id ?? null) === locationId && !b.holder_id)
     .filter(b => !sku || b.sku === sku)
     .map(b => ({ ...b, left: left(b.id) }))
   const short = value ? options.find(o => o.id === value) : undefined

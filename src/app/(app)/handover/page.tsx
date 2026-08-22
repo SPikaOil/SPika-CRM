@@ -19,7 +19,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { SPIKA_PRODUCTS } from '@/lib/products'
 import { BatchSelect } from '@/components/batch-select'
-import { useBatches } from '@/hooks/use-batches'
+import { useBatches, useBatchStock } from '@/hooks/use-batches'
 import { useTransportLocations, useWarehouseMemberships } from '@/hooks/use-transports'
 
 // Only physical bottle products can be handed over
@@ -27,6 +27,15 @@ const HANDOVER_SKUS = SPIKA_PRODUCTS.filter(p => !p.sku.includes('return')).map(
 
 // A Select item cannot carry an empty value. Null keeps meaning Curaçao.
 const CURACAO = '__curacao__'
+
+/**
+ * Handing back what you are still carrying.
+ *
+ * Her rule of 2026-08-21 for a return: "terug naar Curacao, via dezelfde
+ * handover maar dan de andere kant op" — one mechanism, both directions, so a
+ * person is somewhere you can send FROM as well as to.
+ */
+const MY_OWN = '__mine__'
 
 /** Why a counted number is not the one that was sent. */
 const RECEIPT_REASONS = [
@@ -45,9 +54,15 @@ interface Batch {
   /** The batch these bottles came off. Chosen, never typed. */
   batch_id: string | null
   handover_date: string | null
-  member_id: string
+  member_id: string | null
   /** Where it left from. Null = Curaçao. */
   from_location_id: string | null
+  /** Where it is going, when that is a place rather than a person (mig 117). */
+  to_location_id: string | null
+  /** The person handing it back, for a return (mig 117). */
+  from_holder_id: string | null
+  /** When it really left. Null = ordered, still on the sending shelf (mig 117). */
+  sent_at: string | null
   /** Set when it travelled by post instead of hand to hand. */
   tracking_number: string | null
   tracking_carrier: string | null
@@ -67,7 +82,7 @@ function todayStr() {
 }
 
 export default function HandoverPage() {
-  const { isAdmin, profile } = useAuth()
+  const { isAdmin, profile, can } = useAuth()
   const supabase = createClient()
   const { data: users } = useUsers()
   const { data: stockBatches } = useBatches()
@@ -79,6 +94,9 @@ export default function HandoverPage() {
     .filter(m => m.user_id === profile?.id)
     .map(m => m.location_id)
 
+  const { data: allStock } = useBatchStock()
+  const iAmCarrying = (allStock ?? []).some(r => r.holder_id === profile?.id && r.qty > 0)
+
   const [batches, setBatches] = useState<Batch[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -86,6 +104,13 @@ export default function HandoverPage() {
   const [batchId, setBatchId] = useState<string | null>(null)
   /** Where the bottles leave from. Null = Curaçao. */
   const [fromLocationId, setFromLocationId] = useState<string | null>(null)
+  /** Handing back your own stock instead of taking it off a shelf. */
+  const [fromMine, setFromMine] = useState(false)
+  /** To a colleague, or to another warehouse. Both are hers, neither replaces the other. */
+  const [destination, setDestination] = useState<'person' | 'warehouse'>('person')
+  const [toLocationId, setToLocationId] = useState<string | null>(null)
+  /** A warehouse handover can be ordered now and packed later. */
+  const [sendImmediately, setSendImmediately] = useState(true)
   const [tracking, setTracking] = useState('')
   const [trackingCarrier, setTrackingCarrier] = useState('')
   const [handoverDate, setHandoverDate] = useState(todayStr())
@@ -107,8 +132,23 @@ export default function HandoverPage() {
 
   async function loadBatches() {
     let q = supabase.from('handover_batches').select('*').order('created_at', { ascending: false })
-    // Sales members only see their own handovers
-    if (!isAdmin && profile?.id) q = q.eq('member_id', profile.id)
+    /**
+     * Yours: the ones addressed to you, and the ones your warehouse is sending
+     * or expecting (migration 117).
+     *
+     * It used to be only "addressed to me", which meant a warehouse-to-warehouse
+     * handover was invisible to both warehouses — the very thing she wanted to
+     * stop having to ring somebody about.
+     */
+    if (!isAdmin && profile?.id) {
+      const places = myLocationIds.filter((l): l is string => !!l)
+      const clauses = [`member_id.eq.${profile.id}`, `from_holder_id.eq.${profile.id}`]
+      if (places.length > 0) {
+        clauses.push(`from_location_id.in.(${places.join(',')})`)
+        clauses.push(`to_location_id.in.(${places.join(',')})`)
+      }
+      q = q.or(clauses.join(','))
+    }
     const { data } = await q
     setBatches((data as Batch[]) ?? [])
     setLoading(false)
@@ -146,26 +186,62 @@ export default function HandoverPage() {
     (stockBatches ?? []).find(x => x.id === b.batch_id)?.batch_number ?? b.batch_number
   // Where a person's stock lands. One person, one place — migration 068 makes
   // sure of that, so this find can only ever match once.
-  const placeOf = (userId: string) => (locations ?? []).find(l => l.user_id === userId) ?? null
-  /** From → to, in plain words. A null from-location means Curaçao. */
+  const placeOf = (userId: string | null) => (userId ? (locations ?? []).find(l => l.user_id === userId) : null) ?? null
+  /**
+   * Who this handover is FOR, in one word.
+   *
+   * A colleague or a warehouse since migration 117. Every place that used to
+   * print the member's name now asks this instead — otherwise a handover to a
+   * warehouse reads as 'Unknown', which is what happens when a screen assumes
+   * there is always a person.
+   */
+  const forWhom = (b: { to_location_id: string | null; member_id: string | null }) =>
+    b.to_location_id ? placeName(b.to_location_id) : memberName(b.member_id)
+  const placeName = (id: string | null) =>
+    id ? ((locations ?? []).find(l => l.id === id)?.name ?? 'a warehouse') : 'Curaçao'
+  /**
+   * From → to, in plain words.
+   *
+   * Either end can be a place or a person now (migration 117): bottles going to
+   * a warehouse, bottles going to a colleague, and a colleague handing what is
+   * left back to Curaçao.
+   */
   const routeOf = (b: Batch) => {
-    const from = b.from_location_id
-      ? (locations ?? []).find(l => l.id === b.from_location_id)?.name ?? 'a warehouse'
-      : 'Curaçao'
-    const to = placeOf(b.member_id)?.name ?? memberName(b.member_id)
+    const from = b.from_holder_id ? memberName(b.from_holder_id) : placeName(b.from_location_id)
+    const to = forWhom(b)
     return `${from} → ${to}`
   }
   /** How many bottles went missing between sending and signing. */
   const shortOf = (b: Batch) =>
     (b.receipt_lines ?? []).reduce((sum, l) => sum + Math.max(0, l.expected - l.received), 0)
-  const memberName = (id: string) => users?.find(u => u.id === id)?.name ?? 'Unknown'
+  const memberName = (id: string | null) => (id ? users?.find(u => u.id === id)?.name : null) ?? 'Unknown'
 
   function adjust(sku: string, delta: number) {
     setQtys(prev => ({ ...prev, [sku]: Math.max(0, (prev[sku] ?? 0) + delta) }))
   }
 
+  /**
+   * Hand bottles over, or order that they be handed over.
+   *
+   * Two kinds of destination since 2026-08-21, both hers and neither replacing
+   * the other: a colleague who takes fifty bottles and works through them, and
+   * a warehouse that needs stock from another warehouse.
+   *
+   * SENT NOW or ORDERED. Handing something to somebody standing in front of you
+   * is one act, so that goes straight out. Telling a warehouse on another island
+   * to send a load is not: the goods are still on their shelf until they
+   * actually pack them, and booking them off before that would empty a shelf
+   * that is still full. Her words — "admin stelt dit in, zodra warehouse a dit
+   * gaat regelen en alles invoert".
+   */
   async function createBatch() {
-    if (!memberId) { toast.error('Select a team member'); return }
+    const toPerson = destination === 'person'
+    if (toPerson && !memberId) { toast.error('Select a team member'); return }
+    if (!toPerson && !toLocationId) { toast.error('Select the warehouse it goes to'); return }
+    if (!toPerson && toLocationId === fromLocationId) {
+      toast.error('It has to go somewhere else than where it is')
+      return
+    }
     const items = HANDOVER_SKUS
       .filter(sku => (qtys[sku] ?? 0) > 0)
       .map(sku => ({ sku, name: SPIKA_PRODUCTS.find(p => p.sku === sku)!.name, qty: qtys[sku] }))
@@ -173,37 +249,92 @@ export default function HandoverPage() {
     // No batch, no handover: you cannot give away bottles that were never
     // filled — the rule migration 055 was written for.
     if (!batchId) { toast.error('Choose the batch these bottles come from'); return }
+
+    // Ordering one for somebody else to arrange is only for whoever may do
+    // that. Handing bottles to a colleague yourself needs nothing extra.
+    if (!toPerson && !can('handover.send')) {
+      toast.error('Only an admin or manager sends stock between warehouses')
+      return
+    }
+
     setCreating(true)
+    const sendNow = toPerson || sendImmediately
     const { data: created, error } = await supabase.from('handover_batches').insert({
       batch_id: batchId,
-      from_location_id: fromLocationId,
+      from_location_id: fromMine ? null : fromLocationId,
+      from_holder_id: fromMine ? profile?.id ?? null : null,
+      to_location_id: toPerson ? null : toLocationId,
       tracking_number: tracking.trim(),
       tracking_carrier: trackingCarrier.trim(),
       handover_date: handoverDate || null,
-      member_id: memberId, items, notes, created_by: profile?.id,
+      sent_at: sendNow ? new Date().toISOString() : null,
+      member_id: toPerson ? memberId : null,
+      items, notes, created_by: profile?.id,
     }).select('id').single()
     if (error) { setCreating(false); toast.error(error.message); return }
 
-    // The bottles leave the shelf now, not when the member signs. They are
-    // physically gone the moment they are handed over — in the post, in a car,
-    // in somebody's hands — and the place they left has to say so.
-    const { error: moveErr } = await supabase.from('stock_movements').insert(
+    if (sendNow) {
+      const moveErr = await bookOut(created.id as string, batchId, items, fromMine ? profile?.id ?? null : null)
+      setCreating(false)
+      if (moveErr) { toast.error(`Handover saved, but the stock was not booked: ${moveErr}`); return }
+      toast.success('Handover created')
+    } else {
+      setCreating(false)
+      toast.success('Asked for — the bottles stay on the shelf until it is sent')
+    }
+
+    setBatchId(null); setHandoverDate(todayStr()); setMemberId(''); setQtys({}); setNotes('')
+    setFromLocationId(null); setFromMine(false); setToLocationId(null); setTracking(''); setTrackingCarrier('')
+    loadBatches()
+  }
+
+  /**
+   * The bottles leave the shelf.
+   *
+   * At SENDING, not at signing: they are physically gone the moment they are
+   * handed over — in the post, in a car, in somebody's hands — and the place
+   * they left has to say so.
+   */
+  async function bookOut(
+    handoverId: string,
+    fromBatch: string,
+    items: { sku: string; name: string; qty: number }[],
+    fromHolder: string | null = null,
+  ): Promise<string | null> {
+    const { error } = await supabase.from('stock_movements').insert(
       items.map(i => ({
-        batch_id: batchId,
+        batch_id: fromBatch,
         sku: i.sku,
         qty: -i.qty,
-        location_id: fromLocationId,
+        location_id: fromHolder ? null : fromLocationId,
+        holder_id: fromHolder,
         reason: 'handover',
-        handover_batch_id: created.id,
-        note: `Handed to ${memberName(memberId)}`,
+        handover_batch_id: handoverId,
+        note: 'Handed over',
         created_by: profile?.id,
       }))
     )
+    return error ? error.message : null
+  }
+
+  /**
+   * An ordered handover that is now really going.
+   *
+   * This is the moment warehouse A packs the boxes and fills in the carrier and
+   * the tracking number. Only then do the bottles come off their shelf, and only
+   * then does it appear on the other warehouse's dashboard as on its way.
+   */
+  async function sendBatch(b: Batch) {
+    setCreating(true)
+    const { error } = await supabase
+      .from('handover_batches')
+      .update({ sent_at: new Date().toISOString() })
+      .eq('id', b.id)
+    if (error) { setCreating(false); toast.error(error.message); return }
+    const moveErr = b.batch_id ? await bookOut(b.id, b.batch_id, b.items, b.from_holder_id) : null
     setCreating(false)
-    if (moveErr) { toast.error(`Handover saved, but the stock was not booked: ${moveErr.message}`); return }
-    toast.success('Handover batch created')
-    setBatchId(null); setHandoverDate(todayStr()); setMemberId(''); setQtys({}); setNotes('')
-    setFromLocationId(null); setTracking(''); setTrackingCarrier('')
+    if (moveErr) { toast.error(`Sent, but the stock was not booked: ${moveErr}`); return }
+    toast.success('On its way')
     loadBatches()
   }
 
@@ -257,7 +388,7 @@ export default function HandoverPage() {
       // The PATH, not a public URL: pod-files is private. See lib/storage.ts.
       const signedAt = new Date().toISOString()
       const { error } = await supabase.from('handover_batches').update({
-        signature_url: path, signer_name: memberName(signBatch.member_id), signed_at: signedAt,
+        signature_url: path, signer_name: signBatch.to_location_id ? (profile?.name ?? memberName(signBatch.member_id)) : memberName(signBatch.member_id), signed_at: signedAt,
         receipt_lines: countLines,
       }).eq('id', signBatch.id)
       if (error) throw error
@@ -279,25 +410,31 @@ export default function HandoverPage() {
       if (signBatch.batch_id) {
         const rows = []
         for (const l of countLines.filter(l => l.received > 0)) {
-          const holderBatch = await handoverBatchFor(supabase, {
+          // A warehouse or a pair of hands — both are a place to stand stock
+          // (migrations 112 and 117), and both open a batch of their own out of
+          // the one it came from.
+          const toPlace = signBatch.to_location_id ?? null
+          const toPerson = toPlace ? null : signBatch.member_id
+          const landedOn = await handoverBatchFor(supabase, {
             parentBatchId: signBatch.batch_id,
             handoverId: signBatch.id,
-            locationId: null,
-            holderId: signBatch.member_id,
+            locationId: toPlace,
+            holderId: toPerson,
             sku: l.sku,
             on: signBatch.handover_date ?? new Date().toISOString().slice(0, 10),
           })
+          const whom = toPlace ? placeName(toPlace) : memberName(toPerson)
           rows.push({
-            batch_id: holderBatch,
+            batch_id: landedOn,
             sku: l.sku,
             qty: l.received,
-            location_id: null,
-            holder_id: signBatch.member_id,
+            location_id: toPlace,
+            holder_id: toPerson,
             reason: 'received',
             handover_batch_id: signBatch.id,
             note: l.received === l.expected
-              ? `Received by ${memberName(signBatch.member_id)}`
-              : `Received by ${memberName(signBatch.member_id)} — counted ${l.received} of ${l.expected}`,
+              ? `Received by ${whom}`
+              : `Received by ${whom} — counted ${l.received} of ${l.expected}`,
             created_by: profile?.id,
           })
         }
@@ -359,7 +496,7 @@ export default function HandoverPage() {
             batches.map(b => [
               batchNumberOf(b) ?? '',
               b.handover_date ?? '',
-              memberName(b.member_id),
+              forWhom(b),
               (b.items ?? []).reduce((s, i) => s + (i.qty ?? 0), 0),
               (b.items ?? []).map(i => `${i.qty}x ${i.sku}`).join('; '),
               b.signer_name ?? '',
@@ -386,16 +523,26 @@ export default function HandoverPage() {
               {/* The same batch can be lying on Curaçao and in Rotterdam at
                   once, so the shelf it leaves has to be named. Null = Curaçao,
                   the same convention the stock movements use. */}
-              <Select value={fromLocationId ?? CURACAO}
-                onValueChange={v => { if (v) { setFromLocationId(v === CURACAO ? null : v); setBatchId(null) } }}>
+              <Select value={fromMine ? MY_OWN : (fromLocationId ?? CURACAO)}
+                onValueChange={v => {
+                  if (!v) return
+                  setFromMine(v === MY_OWN)
+                  setFromLocationId(v === MY_OWN || v === CURACAO ? null : v)
+                  setBatchId(null)
+                }}>
                 <SelectTrigger className="h-9 text-sm">
                   <SelectValue>
-                    {(v: string) => v === CURACAO
-                      ? 'Curaçao'
-                      : (locations ?? []).find(l => l.id === v)?.name ?? 'Curaçao'}
+                    {(v: string) => v === MY_OWN
+                      ? 'My own stock'
+                      : v === CURACAO
+                        ? 'Curaçao'
+                        : (locations ?? []).find(l => l.id === v)?.name ?? 'Curaçao'}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
+                  {/* Only offered while you are really carrying something.
+                      Handing back nothing is not a thing anybody needs to do. */}
+                  {iAmCarrying && <SelectItem value={MY_OWN}>My own stock</SelectItem>}
                   {/* Only shelves you actually work at, unless you are the
                       admin. Danique, 2026-08-20: a warehouse member has to be
                       able to hand stock over to another warehouse — but from
@@ -426,28 +573,89 @@ export default function HandoverPage() {
               value={batchId}
               onChange={setBatchId}
               locationId={fromLocationId}
+              holderId={fromMine ? profile?.id ?? null : null}
               placeholder="Choose batch"
             />
           </div>
+          {/* Two kinds of destination, both hers and neither replacing the
+              other (2026-08-21): a colleague who takes bottles with them, and
+              another warehouse that needs stock. */}
           <div className="space-y-1">
             <Label className="text-xs">To</Label>
-            <Select value={memberId} onValueChange={v => setMemberId(v ?? '')}>
-              <SelectTrigger className="h-9"><SelectValue placeholder="Select team member" /></SelectTrigger>
-              <SelectContent>
-                {salesTeam.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            {/* Where it lands follows from WHO receives it — there is no
-                destination field on purpose. A destination you can set apart
-                from the receiver is one you can set wrong. */}
-            {memberId && (
-              <p className="text-xs text-muted-foreground">
-                {placeOf(memberId)
-                  ? `Lands at ${placeOf(memberId)!.name}`
-                  : 'Not tied to a place — stays personal stock, outside the warehouse counts'}
-              </p>
-            )}
+            <div className="flex gap-2">
+              {(['person', 'warehouse'] as const).map(kind => (
+                <button
+                  key={kind}
+                  type="button"
+                  onClick={() => setDestination(kind)}
+                  className={`flex-1 rounded-lg border px-3 py-1.5 text-sm ${
+                    destination === kind
+                      ? 'border-red-500 bg-red-50 dark:bg-red-950/20 font-medium'
+                      : 'text-muted-foreground'
+                  }`}
+                >
+                  {kind === 'person' ? 'A colleague' : 'Another warehouse'}
+                </button>
+              ))}
+            </div>
           </div>
+
+          {destination === 'person' ? (
+            <div className="space-y-1">
+              <Label className="text-xs">Team member</Label>
+              <Select value={memberId} onValueChange={v => setMemberId(v ?? '')}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="Select team member" /></SelectTrigger>
+                <SelectContent>
+                  {salesTeam.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              {/* Since migration 112 the bottles land with the PERSON, not on
+                  the warehouse they happen to be ticked at. Djamy carrying fifty
+                  bottles used to book them straight back onto Curaçao, so the
+                  island count never moved. */}
+              {memberId && (
+                <p className="text-xs text-muted-foreground">
+                  Lands with {memberName(memberId)}, on their own batch. Their
+                  dashboard counts down as they deliver.
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <Label className="text-xs">Warehouse</Label>
+              <Select
+                value={toLocationId ?? CURACAO}
+                onValueChange={v => v && setToLocationId(v === CURACAO ? null : v)}
+              >
+                <SelectTrigger className="h-9"><SelectValue placeholder="Select warehouse" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={CURACAO}>Curaçao</SelectItem>
+                  {(locations ?? []).map(l => (
+                    <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {/* Ordered now, packed later. Her case: "admin stelt dit in, zodra
+                  warehouse a dit gaat regelen en alles invoert". Until it is
+                  sent the bottles are still standing where they are, so nothing
+                  comes off that shelf yet. */}
+              <label className="flex items-start gap-2 text-sm pt-1">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 accent-red-600"
+                  checked={!sendImmediately}
+                  onChange={e => setSendImmediately(!e.target.checked)}
+                />
+                <span>
+                  Ask them to send it
+                  <span className="block text-xs text-muted-foreground">
+                    The bottles stay on their shelf until they pack it and press
+                    send. Both warehouses see it in the list until then.
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
           <div className="grid gap-2 sm:grid-cols-2">
             <div className="space-y-1">
               <Label className="text-xs">Track &amp; trace / label</Label>
@@ -496,7 +704,7 @@ export default function HandoverPage() {
                   <CardContent className="py-2.5 px-3 flex items-center gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium">{memberName(b.member_id)}</p>
+                        <p className="text-sm font-medium">{forWhom(b)}</p>
                         {batchNumberOf(b) && <span className="font-mono text-xs text-muted-foreground shrink-0">{batchNumberOf(b)}</span>}
                         {b.handover_date && <span className="text-xs text-muted-foreground shrink-0">{new Date(b.handover_date + 'T12:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short' })}</span>}
                       </div>
@@ -511,8 +719,26 @@ export default function HandoverPage() {
                         {shortOf(b) > 0 ? ` · ${shortOf(b)} short at intake` : ''}
                       </p>
                     </div>
-                    <Badge className="bg-orange-500 text-white text-xs shrink-0"><Clock className="h-3 w-3 mr-1" />Pending</Badge>
-                    <Button size="sm" className="bg-red-600 hover:bg-red-700 shrink-0" onClick={() => setSignBatch(b)}>Sign</Button>
+                    {/* Three states since migration 117: asked for, on its way,
+                        signed for. A handover that has not been sent yet cannot
+                        be signed for — the bottles are still on the shelf it is
+                        supposed to leave. */}
+                    {b.sent_at ? (
+                      <>
+                        <Badge className="bg-orange-500 text-white text-xs shrink-0"><Clock className="h-3 w-3 mr-1" />On its way</Badge>
+                        <Button size="sm" className="bg-red-600 hover:bg-red-700 shrink-0" onClick={() => setSignBatch(b)}>Sign</Button>
+                      </>
+                    ) : (
+                      <>
+                        <Badge className="bg-slate-200 text-slate-700 text-xs shrink-0">Asked for</Badge>
+                        <Button
+                          size="sm" variant="outline" className="shrink-0" disabled={creating}
+                          onClick={() => sendBatch(b)}
+                        >
+                          Send it
+                        </Button>
+                      </>
+                    )}
                     {isAdmin && <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-red-600" onClick={() => setDeleteBatch(b)} title="Delete"><Trash2 className="h-4 w-4" /></Button>}
                   </CardContent>
                 </Card>
@@ -528,7 +754,7 @@ export default function HandoverPage() {
                   <CardContent className="py-2.5 px-3 flex items-center gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium">{memberName(b.member_id)}</p>
+                        <p className="text-sm font-medium">{forWhom(b)}</p>
                         {batchNumberOf(b) && <span className="font-mono text-xs text-muted-foreground shrink-0">{batchNumberOf(b)}</span>}
                       </div>
                       <p className="text-xs text-muted-foreground truncate">
@@ -575,7 +801,7 @@ export default function HandoverPage() {
           <div className="bg-background rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md shadow-xl">
             <div className="flex items-center justify-between px-4 py-3 border-b">
               <div>
-                <p className="font-semibold text-sm">Sign for receipt — {memberName(signBatch.member_id)}</p>
+                <p className="font-semibold text-sm">Sign for receipt — {forWhom(signBatch)}</p>
                 <p className="text-xs text-muted-foreground">
                   {signBatch.items.map(i => `${i.qty}× ${i.name.replace('SPika Oil - ', '').replace('SPika2Go - ', '')}`).join(' · ')}
                 </p>
@@ -584,7 +810,7 @@ export default function HandoverPage() {
             </div>
             <div className="p-4 space-y-3">
               <p className="text-xs text-muted-foreground">
-                By signing, {memberName(signBatch.member_id)} confirms receipt of these bottles for delivery.
+                By signing, {forWhom(signBatch)} confirms receipt of these bottles.
               </p>
 
               {/* Count first, sign after. A handover that travels by post can
@@ -652,7 +878,7 @@ export default function HandoverPage() {
             </p>
             <p className="text-sm text-muted-foreground">
               Only remove {batchNumberOf(deleteBatch) ? `batch ${batchNumberOf(deleteBatch)}` : 'this handover'} for{' '}
-              {memberName(deleteBatch.member_id)} once all deliveries are done and there are no discrepancies.
+              {forWhom(deleteBatch)} once all deliveries are done and there are no discrepancies.
               This deletes the record and its signature permanently.
             </p>
             <div className="rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
