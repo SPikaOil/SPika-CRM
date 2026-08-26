@@ -282,12 +282,15 @@ export default function OrderDetailPage({
       // Soft delete, like an order: the document stays, it simply stops
       // counting. A credit note that vanished without trace would be the very
       // problem credit notes exist to solve.
-      await supabase.from('orders').update({
+      // Checked: a credit note that says it is gone and is not would be the
+      // very problem credit notes exist to solve.
+      const { error: delErr } = await supabase.from('orders').update({
         status: 'deleted',
         deleted_by: profile?.id,
         deleted_reason: creditDeleteReason.trim(),
         deleted_at: new Date().toISOString(),
       } as any).eq('id', creditDeleteTarget.id)
+      if (delErr) { toast.error(`Not deleted: ${delErr.message}`); return }
 
       toast.success(`${creditDeleteTarget.order_number} deleted`)
       setCreditDeleteTarget(null)
@@ -596,6 +599,20 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
 
   const currentStepIndex = TIMELINE.indexOf(order.status as any)
   const items = order.items as QuoteItem[]
+
+  // The ONE place where an edited order line is recalculated. Quantity, price
+  // and discount all go through here, so the line total can never drift from
+  // what is on screen: line total = (price − discount) × qty, the same rule as
+  // /orders/new and /quotations/new. Before this, qty and price each carried
+  // their own copy of the sum and discount had no way in at all.
+  function updateDraftLine(i: number, patch: Partial<QuoteItem>) {
+    setDraftItems(prev => prev.map((it, idx) => {
+      if (idx !== i) return it
+      const next = { ...it, ...patch }
+      const unit = Number(next.unit_price) - Number(next.discount ?? 0)
+      return { ...next, line_total: parseFloat((unit * next.qty).toFixed(2)) }
+    }))
+  }
 
   return (
     <div className="p-3 lg:p-6 space-y-3 max-w-3xl mx-auto w-full">
@@ -1462,49 +1479,102 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
         <CardContent className="space-y-2">
           {editingItems ? (
             <div className="overflow-x-auto -mx-1 px-1">
-              {/* Edit mode header */}
-              <div className="grid grid-cols-[1fr_60px_90px_90px_32px] gap-2 text-xs text-muted-foreground pb-1 border-b min-w-[340px]">
+              {/* Edit mode header — desktop only. On a phone every line is its
+                  own block with labelled fields, so there is no column to head. */}
+              <div className="hidden sm:grid grid-cols-[1fr_56px_84px_84px_84px_32px] gap-2 text-xs text-muted-foreground pb-1 border-b min-w-[430px]">
                 <span>Product</span>
                 <span className="text-center">Qty</span>
                 <span className="text-right">Price ({cur})</span>
+                <span className="text-right">Discount ({cur})</span>
                 <span className="text-right">Total</span>
                 <span />
               </div>
               {draftItems.map((item, i) => (
-                <div key={i} className="grid grid-cols-[1fr_60px_90px_90px_32px] gap-2 items-center py-1 border-b last:border-0 min-w-[340px]">
-                  <div>
-                    <p className="text-sm font-medium leading-tight">{item.name}</p>
-                    <p className="text-xs text-muted-foreground">{item.sku}</p>
+                <div key={i} className="border-b last:border-0 py-2 sm:py-1">
+                  {/* Desktop: one row, six columns. */}
+                  <div className="hidden sm:grid grid-cols-[1fr_56px_84px_84px_84px_32px] gap-2 items-center min-w-[430px]">
+                    <div>
+                      <p className="text-sm font-medium leading-tight">{item.name}</p>
+                      <p className="text-xs text-muted-foreground">{item.sku}</p>
+                    </div>
+                    <QtyInput
+                      value={item.qty}
+                      onChange={qty => updateDraftLine(i, { qty })}
+                      className="h-7 text-center px-1 text-sm"
+                    />
+                    <PriceInput
+                      value={item.unit_price}
+                      onChange={unit_price => updateDraftLine(i, { unit_price })}
+                      className="h-7 px-1 text-sm"
+                    />
+                    <PriceInput
+                      value={item.discount ?? 0}
+                      onChange={discount => updateDraftLine(i, { discount })}
+                      className="h-7 px-1 text-sm"
+                    />
+                    <span className="text-sm text-right font-medium">
+                      {item.line_total.toFixed(2)}
+                    </span>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                      onClick={() => setDraftItems(prev => prev.filter((_, idx) => idx !== i))}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
-                  <QtyInput
-                    value={item.qty}
-                    onChange={qty => {
-                      setDraftItems(prev => prev.map((it, idx) =>
-                        idx === i ? { ...it, qty, line_total: parseFloat(((it.unit_price - (it.discount ?? 0)) * qty).toFixed(2)) } : it
-                      ))
-                    }}
-                    className="h-7 text-center px-1 text-sm"
-                  />
-                  <PriceInput
-                    value={item.unit_price}
-                    onChange={unit_price => {
-                      setDraftItems(prev => prev.map((it, idx) =>
-                        idx === i ? { ...it, unit_price, line_total: parseFloat(((unit_price - (it.discount ?? 0)) * it.qty).toFixed(2)) } : it
-                      ))
-                    }}
-                    className="h-7 px-1 text-sm"
-                  />
-                  <span className="text-sm text-right font-medium">
-                    {item.line_total.toFixed(2)}
-                  </span>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                    onClick={() => setDraftItems(prev => prev.filter((_, idx) => idx !== i))}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+
+                  {/* Phone: a block per product, the same shape as the screen
+                      where the order is created — quantity, price and discount
+                      under each other with their own labels. A sixth column
+                      would have pushed the discount off the side of a phone,
+                      which is how it went missing in the first place. */}
+                  <div className="sm:hidden">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium leading-tight">{item.name}</p>
+                        <p className="text-xs text-muted-foreground">{item.sku}</p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <p className="text-sm font-semibold whitespace-nowrap">{fmt(item.line_total)}</p>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                          onClick={() => setDraftItems(prev => prev.filter((_, idx) => idx !== i))}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Qty</Label>
+                        <QtyInput
+                          value={item.qty}
+                          onChange={qty => updateDraftLine(i, { qty })}
+                          className="h-8"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Price ({cur})</Label>
+                        <PriceInput
+                          value={item.unit_price}
+                          onChange={unit_price => updateDraftLine(i, { unit_price })}
+                          className="h-8"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Discount ({cur})</Label>
+                        <PriceInput
+                          value={item.discount ?? 0}
+                          onChange={discount => updateDraftLine(i, { discount })}
+                          className="h-8"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ))}
 
@@ -1517,13 +1587,20 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                     const product = SPIKA_PRODUCTS.find(p => p.sku === sku)
                     if (!product) return
                     const price = (order.customer?.product_prices as Record<string, number> | undefined)?.[sku] ?? product.default_price
+                    // The discount agreed with THIS customer, exactly as
+                    // /orders/new does it. Hard-coding 0 here meant a product
+                    // added to an existing order silently lost the customer's
+                    // standing discount, while the same product on the same
+                    // order added at creation kept it. It stays typeable —
+                    // this only fills it in.
+                    const discount = (order.customer?.product_discounts as Record<string, number> | undefined)?.[sku] ?? 0
                     setDraftItems(prev => [...prev, {
                       sku: product.sku,
                       name: product.name,
                       qty: 1,
                       unit_price: price,
-                      discount: 0,
-                      line_total: price,
+                      discount,
+                      line_total: parseFloat((price - discount).toFixed(2)),
                     }])
                   }}
                 >
@@ -1608,7 +1685,19 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                   <div className="flex justify-between items-start gap-2">
                     <div>
                       <p className="font-medium text-sm">{item.name}</p>
-                      {isAdmin && <p className="text-xs text-muted-foreground">{item.sku} · {fmt(item.unit_price)} × {item.qty}</p>}
+                      {/* The price shown here is the one the line is actually
+                          billed at — price minus discount. It used to print the
+                          gross price, so on a discounted line the sum on screen
+                          did not add up to the amount beside it, while the
+                          invoice did show a DISCOUNT column. */}
+                      {isAdmin && (
+                        <p className="text-xs text-muted-foreground">
+                          {item.sku} · {fmt(Number(item.unit_price) - Number(item.discount ?? 0))} × {item.qty}
+                          {Number(item.discount ?? 0) > 0 && (
+                            <span className="text-green-700 dark:text-green-500"> · {fmt(Number(item.discount))} discount</span>
+                          )}
+                        </p>
+                      )}
                       {!isAdmin && <p className="text-xs text-muted-foreground">{item.sku} · qty: {item.qty}</p>}
                       {/* THT per item — printed on the invoice for traceability */}
                       {/* THT follows the BATCH, it is not typed.
