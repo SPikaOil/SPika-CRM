@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Search, Mail, MailCheck, ShieldOff, RefreshCw, Globe, Clock, UserPlus, CheckCircle, XCircle, Inbox, Send, FileSpreadsheet } from 'lucide-react'
@@ -19,9 +19,23 @@ import { toast } from 'sonner'
 
 type PortalStatus = 'no_access' | 'invited' | 'active'
 
-type CustomerWithPortal = Customer & {
-  portalStatus: PortalStatus
-  portalUserId?: string
+/**
+ * One portal login. A customer can have any number of them since 2026-08-19 —
+ * a shop has a buyer and a branch manager and both order. They are equal: same
+ * orders, same invoices, same prices.
+ */
+type PortalLogin = { id: string; email: string; name: string }
+
+/** Rows from `users` into one list per customer, newest query wins. */
+function groupLogins(
+  rows: { id: string; customer_id: string | null; email: string; name: string }[] | null,
+): Record<string, PortalLogin[]> {
+  const map: Record<string, PortalLogin[]> = {}
+  for (const u of rows ?? []) {
+    if (!u.customer_id) continue
+    ;(map[u.customer_id] ??= []).push({ id: u.id, email: u.email, name: u.name })
+  }
+  return map
 }
 
 function statusBadge(status: PortalStatus) {
@@ -34,7 +48,14 @@ export default function PortalManagementPage() {
   const { isAdmin, isLoading: authLoading } = useAuth()
   const router = useRouter()
   const { data: customers, isLoading: customersLoading } = useCustomers()
-  const [portalUsers, setPortalUsers] = useState<Record<string, string>>({})
+  /**
+   * Every portal login, grouped by customer.
+   *
+   * It used to be one id per customer, which is why a second login could
+   * neither be shown nor removed. Her decision of 2026-08-19: a shop has a
+   * buyer and a branch manager and both order.
+   */
+  const [portalUsers, setPortalUsers] = useState<Record<string, PortalLogin[]>>({})
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [countryFilter, setCountryFilter] = useState('all')
@@ -66,25 +87,29 @@ export default function PortalManagementPage() {
       })
   }, [isAdmin])
 
-  // Load all portal users (role=customer) to determine per-customer status
-  useEffect(() => {
+  /**
+   * Every portal login, grouped by the customer it belongs to.
+   *
+   * A named function rather than only an effect, because adding or removing a
+   * login has to re-read this. It used to keep one id per customer and patch it
+   * by hand after an action, which is how the screen and the database drifted
+   * apart the moment there were two.
+   */
+  const reloadLogins = useCallback(() =>
     supabase
       .from('users')
-      .select('id, customer_id')
+      .select('id, customer_id, email, name')
       .eq('role', 'customer')
       .not('customer_id', 'is', null)
-      .then(({ data }) => {
-        if (!data) return
-        const map: Record<string, string> = {}
-        for (const u of data) {
-          if (u.customer_id) map[u.customer_id] = u.id
-        }
-        setPortalUsers(map)
-      })
-  }, [])
+      .order('email')
+      .then(({ data }) => setPortalUsers(groupLogins(data)))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  , [])
+
+  useEffect(() => { reloadLogins() }, [reloadLogins])
 
   function getStatus(customer: Customer): PortalStatus {
-    if (!portalUsers[customer.id]) return 'no_access'
+    if (!(portalUsers[customer.id]?.length)) return 'no_access'
     return 'active'
   }
 
@@ -108,8 +133,11 @@ export default function PortalManagementPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      toast.success(data.resent ? `Invite resent to ${email}` : `Invite sent to ${email}`)
-      setPortalUsers(prev => ({ ...prev, [customer.id]: 'pending' }))
+      toast.success(data.resent ? `New link sent to ${email}` : `Invite sent to ${email}`)
+      // Re-read rather than guess: the route decides whether this was a new
+      // login or a fresh link for one that existed, and the list has to match
+      // what is actually stored.
+      await reloadLogins()
       setInviting(null)
       setInviteEmail('')
     } catch (err: any) {
@@ -119,8 +147,33 @@ export default function PortalManagementPage() {
     }
   }
 
+  /** Take away ONE login and leave the colleague's alone. */
+  async function handleRevokeOne(customer: Customer, login: PortalLogin) {
+    if (!confirm(`Remove ${login.email}? They will no longer be able to log in for ${customer.company_name}.`)) return
+    setLoading(customer.id)
+    try {
+      const res = await fetch('/api/admin/portal-invite', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customer_id: customer.id, user_id: login.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      toast.success(`${login.email} removed`)
+      await reloadLogins()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not remove that login')
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  /** The whole reseller is out — every login at once. */
   async function handleRevoke(customer: Customer) {
-    if (!confirm(`Remove portal access for ${customer.company_name}? They will no longer be able to log in.`)) return
+    const count = portalUsers[customer.id]?.length ?? 0
+    if (!confirm(
+      `Remove ALL ${count} login${count === 1 ? '' : 's'} for ${customer.company_name}? Nobody there will be able to log in.`
+    )) return
     setLoading(customer.id)
     try {
       const res = await fetch('/api/admin/portal-invite', {
@@ -131,11 +184,7 @@ export default function PortalManagementPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       toast.success(`Portal access revoked for ${customer.company_name}`)
-      setPortalUsers(prev => {
-        const next = { ...prev }
-        delete next[customer.id]
-        return next
-      })
+      await reloadLogins()
     } catch (err: any) {
       toast.error(err.message)
     } finally {
@@ -226,8 +275,8 @@ export default function PortalManagementPage() {
     .filter(c => categoryFilter === 'all' || c.customer_category === categoryFilter)
     .filter(c => countryFilter === 'all' || customerCountryCode(c) === countryFilter)
 
-  const activeCount = filtered.filter(c => portalUsers[c.id]).length
-  const noAccessCount = filtered.filter(c => !portalUsers[c.id]).length
+  const activeCount = filtered.filter(c => portalUsers[c.id]?.length).length
+  const noAccessCount = filtered.filter(c => !portalUsers[c.id]?.length).length
 
   if (authLoading || customersLoading) {
     return (
@@ -258,12 +307,13 @@ export default function PortalManagementPage() {
           disabled={!filtered.length}
           onClick={() => downloadCsv(
             'portal-access',
-            ['Company', 'Contact', 'Email', 'Category', 'Country', 'Portal access', 'Portal user'],
+            ['Company', 'Contact', 'Email', 'Category', 'Country', 'Portal access', 'Logins', 'Portal addresses'],
             filtered.map(c => [
               c.company_name, c.contact_person, c.email, c.customer_category,
               customerCountryCode(c) ?? '',
-              portalUsers[c.id] ? 'yes' : 'no',
-              portalUsers[c.id] ?? '',
+              portalUsers[c.id]?.length ? 'yes' : 'no',
+              String(portalUsers[c.id]?.length ?? 0),
+              (portalUsers[c.id] ?? []).map(u => u.email).join(', '),
             ])
           )}>
           <FileSpreadsheet className="h-4 w-4" />
@@ -463,6 +513,7 @@ export default function PortalManagementPage() {
           const status = getStatus(customer)
           const hasAccess = status !== 'no_access'
           const isActioning = loading === customer.id
+          const logins = portalUsers[customer.id] ?? []
 
           return (
             <Card key={customer.id} className="py-0">
@@ -500,43 +551,75 @@ export default function PortalManagementPage() {
                   )}
                 </div>
 
+                {/* One button. "Resend" is gone from here: with several logins
+                    it could not say WHICH one it was resending to, and that is
+                    exactly how a mail used to reach the wrong person. Resending
+                    now sits on the login itself, in the list below. */}
                 <div className="flex gap-2 shrink-0">
-                  {hasAccess ? (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="gap-1.5 text-xs"
-                        disabled={isActioning}
-                        onClick={() => { setInviting(customer.id); setInviteEmail('') }}
-                      >
-                        <RefreshCw className={`h-3 w-3 ${isActioning ? 'animate-spin' : ''}`} />
-                        Resend
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="gap-1.5 text-xs text-red-600 border-red-200 hover:bg-red-50"
-                        disabled={isActioning}
-                        onClick={() => handleRevoke(customer)}
-                      >
-                        <ShieldOff className="h-3 w-3" />
-                        Revoke
-                      </Button>
-                    </>
-                  ) : (
+                  <Button
+                    size="sm"
+                    className={`gap-1.5 text-xs ${hasAccess ? '' : 'bg-red-600 hover:bg-red-700'}`}
+                    variant={hasAccess ? 'outline' : 'default'}
+                    disabled={isActioning}
+                    onClick={() => { setInviting(customer.id); setInviteEmail('') }}
+                  >
+                    <UserPlus className={`h-3 w-3 ${isActioning ? 'animate-spin' : ''}`} />
+                    {hasAccess ? 'Add login' : 'Invite'}
+                  </Button>
+                  {hasAccess && (
                     <Button
                       size="sm"
-                      className="gap-1.5 text-xs bg-red-600 hover:bg-red-700"
+                      variant="outline"
+                      className="gap-1.5 text-xs text-red-600 border-red-200 hover:bg-red-50"
                       disabled={isActioning}
-                      onClick={() => { setInviting(customer.id); setInviteEmail('') }}
+                      onClick={() => handleRevoke(customer)}
                     >
-                      <Mail className={`h-3 w-3 ${isActioning ? 'animate-spin' : ''}`} />
-                      Invite
+                      <ShieldOff className="h-3 w-3" />
+                      Revoke all
                     </Button>
                   )}
                 </div>
               </CardContent>
+
+              {/* Everyone who can log in for this reseller. Equal to each other
+                  — same orders, same invoices, same prices — her answer of
+                  2026-08-19, and it needs no rule of its own: every portal
+                  policy reads the customer off the row of whoever is logged in,
+                  so five logins resolve to the same customer. */}
+              {logins.length > 0 && (
+                <CardContent className="pt-0 pb-2 px-3">
+                  <div className="rounded-lg border divide-y">
+                    {logins.map(u => (
+                      <div key={u.id} className="flex items-center gap-2 px-2.5 py-1.5">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-medium truncate">{u.email}</p>
+                          {u.name && u.name !== u.email && (
+                            <p className="text-[11px] text-muted-foreground truncate">{u.name}</p>
+                          )}
+                        </div>
+                        <Button
+                          size="sm" variant="ghost" className="h-7 gap-1 text-xs shrink-0"
+                          disabled={isActioning}
+                          title="Send a new set-password link to this address"
+                          onClick={() => sendInvite(customer, u.email)}
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                          Resend
+                        </Button>
+                        <Button
+                          size="sm" variant="ghost"
+                          className="h-7 w-7 p-0 shrink-0 text-muted-foreground hover:text-red-600"
+                          disabled={isActioning}
+                          title={`Remove ${u.email}`}
+                          onClick={() => handleRevokeOne(customer, u)}
+                        >
+                          <ShieldOff className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              )}
 
               {/* Type the address of whoever will place the orders. Left empty
                   on purpose — pre-filling it with the billing address is exactly
