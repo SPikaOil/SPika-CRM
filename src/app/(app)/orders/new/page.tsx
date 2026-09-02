@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
+import { deliveryDateFloor } from '@/lib/utils'
 import { toast } from 'sonner'
 import { useCreateOrder } from '@/hooks/use-orders'
 import { useCustomers } from '@/hooks/use-customers'
@@ -65,7 +66,11 @@ function NewDeliveryNoteInner() {
   // rule. A new order is a Curaçao order until a transport says otherwise.
   const { data: users } = useUsers()
   const { data: assignable } = useAssignableForNewOrder()
-  const { profile, can } = useAuth()
+  // Two different things, and they were one word apart from colliding.
+  // `isAdmin` here has never meant the role — it is the price permission, and
+  // it gates the price fields below. Back-dating a delivery follows the ROLE,
+  // so that one is named for what it is.
+  const { profile, can, isAdmin: isRealAdmin } = useAuth()
   const isAdmin = can('prices.view')   // price fields follow the permission, not the role
 
   const [customerId, setCustomerId] = useState(searchParams.get('customer') ?? '')
@@ -385,7 +390,7 @@ function NewDeliveryNoteInner() {
                 type="date"
                 value={plannedDate}
                 onChange={(e) => setPlannedDate(e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
+                min={deliveryDateFloor(isRealAdmin)}
               />
               <p className="text-xs text-muted-foreground">Appears in the worker's Agenda</p>
             </div>

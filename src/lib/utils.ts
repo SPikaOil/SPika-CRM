@@ -91,3 +91,19 @@ export function isThtInPast(value?: string | null): boolean {
   if (!value) return false
   return value.slice(0, 7) < currentMonthInput()
 }
+
+/**
+ * The earliest delivery date a date picker will accept — or none, for an admin.
+ *
+ * Everyone else is held to today: a delivery planned for last week is almost
+ * always a typo, and it lands in a worker's Agenda where nobody will see it
+ * again. An admin is not: her instruction of 2026-08-19, because an order that
+ * was actually delivered days ago still has to be entered with the date it
+ * really went out, and back-dating it is the whole point.
+ *
+ * Returning undefined rather than an empty string is deliberate — an empty
+ * `min` on an <input type="date"> is not the same as no `min` in every browser.
+ */
+export function deliveryDateFloor(isAdmin: boolean): string | undefined {
+  return isAdmin ? undefined : new Date().toISOString().split('T')[0]
+}

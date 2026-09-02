@@ -28,7 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Order, OrderCurrency, OrderEditLogEntry, OrderStatus, QuoteItem } from '@/types'
 import { SPIKA_PRODUCTS } from '@/lib/products'
 import { getNextCashOrderNumber, getNextOrderNumber, getCreditNoteNumber } from '@/lib/order-number'
-import { formatCurrency, formatTht, thtToMonthInput, monthInputToTht, currentMonthInput } from '@/lib/utils'
+import { formatCurrency, formatTht, thtToMonthInput, monthInputToTht, currentMonthInput, deliveryDateFloor } from '@/lib/utils'
 import { isExportCustomer } from '@/lib/country'
 import { storagePath } from '@/lib/storage'
 import { BatchSelect } from '@/components/batch-select'
@@ -762,7 +762,7 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
               </div>
               <div className="space-y-1.5">
                 <p className="text-sm font-medium">Delivery date</p>
-                <Input type="date" value={approveDate} onChange={(e) => setApproveDate(e.target.value)} min={new Date().toISOString().split('T')[0]} />
+                <Input type="date" value={approveDate} onChange={(e) => setApproveDate(e.target.value)} min={deliveryDateFloor(isAdmin)} />
               </div>
             </div>
             <div className="space-y-1.5">
