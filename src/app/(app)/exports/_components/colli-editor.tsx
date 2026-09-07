@@ -414,10 +414,10 @@ export function ColliEditor({ transport }: { transport: Transport }) {
                           {info ? (
                             <span className="text-[11px] text-muted-foreground shrink-0">
                               {info.label ? `${info.label} · ` : ''}
-                              {info.tht ? `THT ${formatTht(info.tht)}` : 'no THT'}
+                              {info.tht ? `Best Before ${formatTht(info.tht)}` : 'no best before'}
                             </span>
                           ) : !isPosLine(it) && (
-                            <span className="text-[11px] text-red-600 shrink-0">no THT</span>
+                            <span className="text-[11px] text-red-600 shrink-0">no best before</span>
                           )}
                           <Input
                             type="number"

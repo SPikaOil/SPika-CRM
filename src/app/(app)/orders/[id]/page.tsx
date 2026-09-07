@@ -1715,7 +1715,7 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                           // A batch is chosen, so the batch has the last word and
                           // there is nothing to type.
                           <p className="text-xs text-muted-foreground mt-0.5">
-                            THT: {item.tht_date ? formatTht(item.tht_date) : '—'} · from the batch
+                            Best Before: {item.tht_date ? formatTht(item.tht_date) : '—'} · from the batch
                           </p>
                         ) : isAdmin ? (
                           // No batch — and there may be none to choose: the
@@ -1725,7 +1725,7 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                           // which is worse than a typed one. It is stamped over
                           // the moment a batch is picked.
                           <div className="flex items-center gap-1.5 mt-1">
-                            <span className={`text-xs ${item.tht_date ? 'text-muted-foreground' : 'text-red-600 font-medium'}`}>THT</span>
+                            <span className={`text-xs ${item.tht_date ? 'text-muted-foreground' : 'text-red-600 font-medium'}`}>Best Before</span>
                             <Input
                               type="month"
                               // A best-before in the past is always a typo. `min`
@@ -1737,7 +1737,7 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                               onChange={e => {
                                 const month = e.target.value
                                 if (month && month < currentMonthInput()) {
-                                  toast.error('THT cannot be in the past')
+                                  toast.error('Best Before cannot be in the past')
                                   return
                                 }
                                 const newItems = items.map((it, idx) => idx === i ? { ...it, tht_date: monthInputToTht(month) ?? undefined } : it)
@@ -1748,7 +1748,7 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                             <span className="text-[11px] text-muted-foreground">until a batch is picked</span>
                           </div>
                         ) : (
-                          item.tht_date && <p className="text-xs text-muted-foreground mt-0.5">THT: {formatTht(item.tht_date)}</p>
+                          item.tht_date && <p className="text-xs text-muted-foreground mt-0.5">Best Before: {formatTht(item.tht_date)}</p>
                         )
                       )}
                       {/* Which batch this product came off. Choosing one takes

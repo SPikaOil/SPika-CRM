@@ -220,7 +220,7 @@ export default function SalesBatchesPage() {
                     <Badge className="text-[10px] bg-slate-100 text-slate-700 shrink-0">{b.where}</Badge>
                     {b.tht_date && (
                       <span className="text-xs text-muted-foreground shrink-0 hidden sm:inline">
-                        THT {formatTht(b.tht_date)}
+                        Best Before {formatTht(b.tht_date)}
                       </span>
                     )}
                     {b.left === 0 && (
@@ -234,7 +234,7 @@ export default function SalesBatchesPage() {
                       <div className="space-y-0.5">
                         <Row label="Product" value={productName(b.sku)} />
                         <Row label="Where" value={b.where} />
-                        {formatTht(b.tht_date) && <Row label="Best before" value={formatTht(b.tht_date)!} />}
+                        {formatTht(b.tht_date) && <Row label="Best Before" value={formatTht(b.tht_date)!} />}
                         {/* Jumping to the parent is a filter on this same list,
                             not another page — you are already looking at every
                             batch there is. */}

@@ -107,7 +107,7 @@ export function BatchesAtPlace({ locationId }: { locationId: string | null }) {
                 {productName(b.sku)}
               </span>
               {b.tht_date && (
-                <span className="text-xs text-muted-foreground shrink-0">THT {formatTht(b.tht_date)}</span>
+                <span className="text-xs text-muted-foreground shrink-0">Best Before {formatTht(b.tht_date)}</span>
               )}
               {b.left === 0 && <Badge className="text-[10px] bg-gray-100 text-gray-500 shrink-0">Empty</Badge>}
               <span className="ml-auto text-sm font-semibold shrink-0">{b.left}</span>

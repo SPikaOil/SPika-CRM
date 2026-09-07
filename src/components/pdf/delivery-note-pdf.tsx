@@ -77,8 +77,23 @@ const styles = StyleSheet.create({
   addressRed: { fontSize: 9, color: RED, marginBottom: 1 },
 
   // ── Meta table ──
-  metaRow: { flexDirection: 'row', gap: 0, marginBottom: 10 },
-  metaBlock: { flex: 1, backgroundColor: LIGHT, padding: 8, borderRadius: 2 },
+  metaRow: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 3, marginBottom: 10 },
+  /**
+   * A meta box is a THIRD of the width and the row wraps — never "as many as
+   * fit on one line".
+   *
+   * Six boxes on 515pt left 70pt of room for the value, and "September 30,
+   * 2026" measures 81.3pt in Helvetica at 9. So the date broke over two lines
+   * on any invoice in the long months, which is what she kept seeing.
+   *
+   * Measured across all twelve months rather than the one in front of me:
+   * September is the widest at 81.3pt, then November and December at 78.8,
+   * down to July at 53.3. With padding a box therefore needs 97.3pt at the
+   * very least. A third of the width is 171.7pt, so 155.7pt of room — twice
+   * what the worst month asks for, and it stays true whatever gets added to
+   * this row later.
+   */
+  metaBlock: { width: '33.333%', backgroundColor: LIGHT, padding: 8, borderRadius: 2 },
   metaLabel: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: GRAY, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
   metaValue: { fontSize: 9, color: DARK },
 
@@ -375,9 +390,14 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
                     if it is printed. One product can name two batches when the
                     first ran out mid-pick. */}
                 {(item.tht_date || batchLabel(batches, item.sku)) && (
-                  <Text style={{ fontSize: 7, color: GRAY, marginTop: 1 }}>
+                  /* Smaller, italic and red — her instruction of 2026-09-07.
+                     It is a note under the product, not a line of the invoice,
+                     and it should not take up half the row. Helvetica-Oblique
+                     is one of the fonts react-pdf carries without loading a
+                     file, so this costs nothing. */
+                  <Text style={{ fontSize: 6, fontFamily: 'Helvetica-Oblique', color: RED, marginTop: 1 }}>
                     {[
-                      item.tht_date ? `THT: ${formatTht(item.tht_date)}` : '',
+                      item.tht_date ? `Best Before: ${formatTht(item.tht_date)}` : '',
                       batchLabel(batches, item.sku) ? `Batch: ${batchLabel(batches, item.sku)}` : '',
                     ].filter(Boolean).join('   ·   ')}
                   </Text>

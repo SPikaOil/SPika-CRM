@@ -104,7 +104,7 @@ export function BatchSelect({
           {options.map(o => (
             <SelectItem key={o.id} value={o.id}>
               <span className="font-mono">{o.batch_number}</span>
-              {o.tht_date ? <span className="text-muted-foreground"> · THT {formatTht(o.tht_date)}</span> : null}
+              {o.tht_date ? <span className="text-muted-foreground"> · Best Before {formatTht(o.tht_date)}</span> : null}
               <span className={o.left <= 0 ? 'text-red-600' : 'text-muted-foreground'}>
                 {' '}· {o.left <= 0 ? 'empty' : `${o.left} left`}
               </span>

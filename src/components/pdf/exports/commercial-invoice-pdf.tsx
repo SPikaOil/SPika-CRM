@@ -37,8 +37,23 @@ const styles = StyleSheet.create({
   addressLabel: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: GRAY, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 },
   addressLine: { fontSize: 9, color: DARK, marginBottom: 1 },
   addressRed: { fontSize: 9, color: RED, marginBottom: 1 },
-  metaRow: { flexDirection: 'row', gap: 0, marginBottom: 14 },
-  metaBlock: { flex: 1, backgroundColor: LIGHT, padding: 8, borderRadius: 2 },
+  metaRow: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 3, marginBottom: 14 },
+  /**
+   * A meta box is a THIRD of the width and the row wraps — never "as many as
+   * fit on one line".
+   *
+   * Six boxes on 515pt left 70pt of room for the value, and "September 30,
+   * 2026" measures 81.3pt in Helvetica at 9. So the date broke over two lines
+   * on any invoice in the long months, which is what she kept seeing.
+   *
+   * Measured across all twelve months rather than the one in front of me:
+   * September is the widest at 81.3pt, then November and December at 78.8,
+   * down to July at 53.3. With padding a box therefore needs 97.3pt at the
+   * very least. A third of the width is 171.7pt, so 155.7pt of room — twice
+   * what the worst month asks for, and it stays true whatever gets added to
+   * this row later.
+   */
+  metaBlock: { width: '33.333%', backgroundColor: LIGHT, padding: 8, borderRadius: 2 },
   metaLabel: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: GRAY, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
   metaValue: { fontSize: 9, color: DARK },
   tableHeader: { flexDirection: 'row', backgroundColor: RED, paddingVertical: 5, paddingHorizontal: 6 },
@@ -302,9 +317,12 @@ export function CommercialInvoicePDF({
             <View style={styles.colDesc}>
               <Text style={styles.tdText}>{item.name}</Text>
               {item.tht_date && (
-                <Text style={{ fontSize: 7, color: GRAY, marginTop: 1 }}>
+                /* Same treatment as the invoice: smaller, italic, red. Her
+                   instruction of 2026-09-07 — a note under the product, not a
+                   line of its own. */
+                <Text style={{ fontSize: 6, fontFamily: 'Helvetica-Oblique', color: RED, marginTop: 1 }}>
                   {[
-                    `THT: ${formatTht(item.tht_date)}`,
+                    `Best Before: ${formatTht(item.tht_date)}`,
                     batchLabel(batches, item.sku) ? `Batch: ${batchLabel(batches, item.sku)}` : '',
                   ].filter(Boolean).join('   ·   ')}
                 </Text>

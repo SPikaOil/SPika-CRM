@@ -237,7 +237,7 @@ export function ShopifyWeekCard() {
                     Array.from(new Map((arrivedBatches ?? []).map(b => [b.batch_id, b])).values()).map(b => (
                       <p key={b.batch_id} className="text-xs">
                         <span className="font-mono">{b.batch_number}</span>
-                        {b.tht_date ? <span className="text-muted-foreground"> · THT {formatTht(b.tht_date)}</span> : null}
+                        {b.tht_date ? <span className="text-muted-foreground"> · Best Before {formatTht(b.tht_date)}</span> : null}
                       </p>
                     ))
                   )}

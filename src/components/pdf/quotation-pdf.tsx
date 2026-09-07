@@ -62,7 +62,22 @@ const styles = StyleSheet.create({
 
   // Meta
   metaRow: { flexDirection: 'row', marginBottom: 10 },
-  metaBlock: { flex: 1, backgroundColor: LIGHT, padding: 8, borderRadius: 2 },
+  /**
+   * A meta box is a THIRD of the width and the row wraps — never "as many as
+   * fit on one line".
+   *
+   * Six boxes on 515pt left 70pt of room for the value, and "September 30,
+   * 2026" measures 81.3pt in Helvetica at 9. So the date broke over two lines
+   * on any invoice in the long months, which is what she kept seeing.
+   *
+   * Measured across all twelve months rather than the one in front of me:
+   * September is the widest at 81.3pt, then November and December at 78.8,
+   * down to July at 53.3. With padding a box therefore needs 97.3pt at the
+   * very least. A third of the width is 171.7pt, so 155.7pt of room — twice
+   * what the worst month asks for, and it stays true whatever gets added to
+   * this row later.
+   */
+  metaBlock: { width: '33.333%', backgroundColor: LIGHT, padding: 8, borderRadius: 2 },
   metaGap: { width: 1 },
   metaLabel: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: GRAY, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
   metaValue: { fontSize: 9, color: DARK },

@@ -201,7 +201,7 @@ export function WarehouseDashboardCard({ userId }: { userId: string | undefined 
                 <p className="text-sm font-medium">Best-before within six months</p>
                 {nearTht.slice(0, 3).map(r => (
                   <p key={`${r.batch_id}-${r.sku}`} className="text-xs text-muted-foreground">
-                    {r.qty}× {r.product_name} · {r.batch_number} · THT {formatTht(r.tht_date)}
+                    {r.qty}× {r.product_name} · {r.batch_number} · Best Before {formatTht(r.tht_date)}
                   </p>
                 ))}
               </div>

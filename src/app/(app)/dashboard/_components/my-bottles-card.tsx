@@ -64,7 +64,7 @@ export function MyBottlesCard() {
               <span className="flex-1 min-w-0 truncate">{r.product_name}</span>
               <span className="font-mono text-xs text-muted-foreground shrink-0">{r.batch_number}</span>
               {r.tht_date && (
-                <span className="text-xs text-muted-foreground shrink-0">THT {formatTht(r.tht_date)}</span>
+                <span className="text-xs text-muted-foreground shrink-0">Best Before {formatTht(r.tht_date)}</span>
               )}
               <span className="font-medium shrink-0 w-10 text-right">{r.qty}</span>
             </div>

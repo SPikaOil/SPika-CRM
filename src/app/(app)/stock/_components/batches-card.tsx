@@ -136,7 +136,7 @@ export function BatchesCard() {
                       <span className="font-mono text-sm font-medium">{b.batch_number}</span>
                       {b.tht_date && (
                         <Badge className="text-xs bg-slate-100 text-slate-700">
-                          THT {formatTht(b.tht_date)}
+                          Best Before {formatTht(b.tht_date)}
                         </Badge>
                       )}
                       {total === 0 && (
@@ -174,7 +174,7 @@ export function BatchesCard() {
                   value={number} onChange={e => setNumber(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">THT — best before</Label>
+                <Label className="text-xs">Best Before</Label>
                 {/* Month and year, like every THT in this app, and never in the
                     past: a batch filled today cannot expire yesterday. */}
                 <Input type="month" className="h-8" min={currentMonthInput()}
