@@ -73,7 +73,10 @@ async function writeAudience(
   customerIds: string[],
   visibility: string,
 ) {
-  await supabase.from('marketing_campaign_customers').delete().eq('campaign_id', campaignId)
+  // Checked: this clears the old list before writing the new one, so a refused
+  // delete would leave the customers of both sitting on the campaign.
+  const { error: clearErr } = await supabase.from('marketing_campaign_customers').delete().eq('campaign_id', campaignId)
+  if (clearErr) throw new Error(`Clearing the old customer list: ${clearErr.message}`)
   if (visibility !== 'selected' || customerIds.length === 0) return
   const { error } = await supabase
     .from('marketing_campaign_customers')

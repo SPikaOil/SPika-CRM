@@ -114,7 +114,9 @@ export default function StoreLocatorAdminPage() {
   }
 
   async function toggleActive(l: Loc) {
-    await supabase.from('store_locations').update({ active: !l.active }).eq('id', l.id)
+    const { error } = await supabase.from('store_locations').update({ active: !l.active }).eq('id', l.id)
+    // The list must not show a switch the database refused.
+    if (error) { toast.error(error.message); return }
     setLocs(prev => prev.map(x => x.id === l.id ? { ...x, active: !x.active } : x))
   }
 

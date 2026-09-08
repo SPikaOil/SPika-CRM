@@ -47,6 +47,37 @@ import { Separator } from '@/components/ui/separator'
 type Step = 'start' | 'table_bottles' | 'pod' | 'done'
 type PodMode = 'signature' | 'photo'
 
+/**
+ * A write that is not allowed to fail quietly.
+ *
+ * Supabase RETURNS an error, it does not throw one. So `await supabase.from(…)
+ * .update(…)` reads like it worked whatever happened, and this screen had seven
+ * of those.
+ *
+ * That is not theory. On 2026-08-20 order 729148 was delivered, signed for and
+ * photographed; the update that should have closed it was refused by a broken
+ * trigger, nothing said so, the e-mail went out anyway and the order sat on
+ * "processing" for a day. Danique found it, not the app: "ik heb net 729148
+ * geleverd, helemaal afgerond, mail ontvangen dat geleverd is, echter staat de
+ * levering nu als processing."
+ *
+ * Throwing puts it in the catch that is already there, so the screen says what
+ * went wrong, does not claim to be finished, and does not send the e-mail.
+ */
+async function mustWrite<T extends { error: unknown }>(
+  step: string,
+  query: PromiseLike<T>,
+): Promise<T> {
+  const result = await query
+  const err = result.error as { message?: string; code?: string; details?: string } | null
+  if (err) {
+    throw new Error(
+      `${step}: ${err.message || err.details || 'unknown error'}${err.code ? ` (${err.code})` : ''}`,
+    )
+  }
+  return result
+}
+
 export default function DeliveryPage({
   params,
 }: {
@@ -276,16 +307,16 @@ export default function DeliveryPage({
     // out earlier months in the picker; this catches a typed one, which not
     // every browser blocks.
     if (thtMonth && thtMonth < currentMonthInput()) {
-      toast.error('THT cannot be in the past')
+      toast.error('Best before cannot be in the past')
       return
     }
     const newItems = ((order?.items as any[]) ?? []).map(i => i.sku === sku ? { ...i, tht_date: monthInputToTht(thtMonth) ?? undefined } : i)
-    await supabase.from('orders').update({ items: newItems }).eq('id', orderId)
+    await mustWrite('Saving the best-before', supabase.from('orders').update({ items: newItems }).eq('id', orderId))
     refetch()
   }
 
   async function handleStartDelivery(simulate = false) {
-    if (missingTht) { toast.error('Fill in the THT for every product before starting'); return }
+    if (missingTht) { toast.error('Fill in the best before date for every product before starting'); return }
     setGpsLoading(true)
     setGpsError('')
     try {
@@ -308,7 +339,7 @@ export default function DeliveryPage({
       }
 
       // Update order status
-      await supabase.from('orders').update({ status: 'out_for_delivery' }).eq('id', orderId)
+      await mustWrite('Setting the order to out for delivery', supabase.from('orders').update({ status: 'out_for_delivery' }).eq('id', orderId))
 
       // The run this screen is about.
       //
@@ -322,15 +353,15 @@ export default function DeliveryPage({
       // the first. Either way the id is kept, because from here on the run is
       // finished BY ID — updating by order_id would finish every run at once.
       if (preparedRun?.id) {
-        await supabase.from('deliveries').update({
+        await mustWrite('Starting the run', supabase.from('deliveries').update({
           delivery_started_at: new Date().toISOString(),
           gps_location: coords
             ? { lat: coords.latitude, lng: coords.longitude, accuracy: coords.accuracy }
             : null,
-        }).eq('id', preparedRun.id)
+        }).eq('id', preparedRun.id))
         setDeliveryId(preparedRun.id)
       } else {
-        const { data: created } = await supabase.from('deliveries').insert({
+        const { data: created } = await mustWrite('Making up the run', supabase.from('deliveries').insert({
           order_id: orderId,
           items: runItems,
           assigned_to: runAssignee || (order as { assigned_to?: string | null })?.assigned_to || null,
@@ -338,7 +369,7 @@ export default function DeliveryPage({
           gps_location: coords
             ? { lat: coords.latitude, lng: coords.longitude, accuracy: coords.accuracy }
             : null,
-        }).select('id').single()
+        }).select('id').single())
         if (created?.id) {
           setDeliveryId(created.id as string)
           /**
@@ -397,10 +428,10 @@ export default function DeliveryPage({
   async function syncQueue() {
     await processQueue(async (item) => {
       const url = await uploadToSupabase(item.podBlob, item.podFileName)
-      await supabase.from('deliveries').update({
+      await mustWrite('Syncing an offline delivery', supabase.from('deliveries').update({
         ...item.deliveryData,
         pod_file_url: url,
-      }).eq('order_id', item.orderId)
+      }).eq('order_id', item.orderId))
     })
   }
 
@@ -446,7 +477,7 @@ export default function DeliveryPage({
         customer_id: (order as never as { customer_id?: string }).customer_id ?? null,
         created_by: user?.id ?? null,
       }))
-      await supabase.from('pos_movements').insert(rows)
+      await mustWrite('Booking off POS material', supabase.from('pos_movements').insert(rows))
     } catch {
       // Recorded nowhere else, so it is worth knowing about, but never worth
       // failing a signed delivery over.
@@ -457,7 +488,7 @@ export default function DeliveryPage({
 
   async function handleCompleteDelivery() {
     if (missingTht) {
-      toast.error('Fill in the THT for every product before completing')
+      toast.error('Fill in the best before date for every product before completing')
       return
     }
     if (!signerName.trim()) {
@@ -574,16 +605,16 @@ export default function DeliveryPage({
           ...deliveryData,
           pod_file_url: podUrl,
         })
-        await (deliveryId
+        await mustWrite('Finishing the run', deliveryId
           ? finish.eq('id', deliveryId)
           : finish.eq('order_id', orderId).is('delivered_at', null))
 
-        await supabase.from('orders').update({
+        await mustWrite('Closing the order', supabase.from('orders').update({
           // Partly delivered until the runs together cover the whole order.
           status: runCompletesOrder ? 'delivered' : 'partly_delivered',
           ...(signedPdfUrl ? { signed_pdf_url: signedPdfUrl } : {}),
           ...(signatureDataUrl ? { signature_data_url: signatureDataUrl } : {}),
-        } as any).eq('id', orderId)
+        } as any).eq('id', orderId))
 
         // The bottles came off the shelf when this run was made up, not here.
         // Her rule of 2026-08-21: "zodra het je de run klaarzet, echter is die
@@ -786,7 +817,7 @@ export default function DeliveryPage({
               <div className={`rounded-lg border p-3 space-y-2 ${missingTht ? 'border-red-300 bg-red-50 dark:bg-red-950/20' : 'border-green-200 bg-green-50/50 dark:bg-green-950/20'}`}>
                 <p className={`text-sm font-semibold flex items-center gap-1.5 ${missingTht ? 'text-red-700 dark:text-red-400' : 'text-green-700 dark:text-green-400'}`}>
                   <Calendar className="h-4 w-4" />
-                  {missingTht ? 'Fill in the THT before starting' : 'THT confirmed'}
+                  {missingTht ? 'Fill in the best before date before starting' : 'Best before confirmed'}
                 </p>
                 {deliveryItems.map((item: any) => (
                   <div key={item.sku} className="flex items-center justify-between gap-2">

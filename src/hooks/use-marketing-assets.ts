@@ -150,7 +150,10 @@ export function useSaveAssetAudience() {
     mutationFn: async ({ assetId, customerIds, visibility }: {
       assetId: string; customerIds: string[]; visibility: string
     }) => {
-      await supabase.from('marketing_asset_customers').delete().eq('asset_id', assetId)
+      // Checked, for the same reason: the new list is written straight after,
+      // and a refused delete leaves an asset aimed at both.
+      const { error: clearErr } = await supabase.from('marketing_asset_customers').delete().eq('asset_id', assetId)
+      if (clearErr) throw new Error(`Clearing who this was for: ${clearErr.message}`)
       if (visibility !== 'selected' || customerIds.length === 0) return
       const { error } = await supabase
         .from('marketing_asset_customers')

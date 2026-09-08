@@ -214,13 +214,17 @@ export async function recalcTransportVvp(
       .upsert({ batch_id: id, vvp, breakdown, updated_at: new Date().toISOString() })
     if (error) continue
 
-    await supabase.from('batch_cost_log').insert({
+    // The log is the answer to 'why did this bottle get more expensive', asked
+    // months later. A cost that changed with no line explaining it is worse than
+    // no change at all, so a refused insert says so rather than passing.
+    const { error: logErr } = await supabase.from('batch_cost_log').insert({
       batch_id: id,
       vvp_before: before,
       vvp_after: vvp,
       reason,
       breakdown,
     })
+    if (logErr) throw new Error(`Writing down why the cost price changed: ${logErr.message}`)
     updated++
   }
 

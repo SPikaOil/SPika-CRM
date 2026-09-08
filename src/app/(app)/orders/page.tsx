@@ -203,12 +203,21 @@ function OrdersPageInner() {
         return
       }
 
-      await supabase.from('orders').update({
+      // Checked, not assumed. Supabase RETURNS an error rather than throwing
+      // one, so an update that was refused reads exactly like one that worked —
+      // which is how order 729148 came to be delivered and still say
+      // "processing" on 2026-08-20.
+      const { error: delErr } = await supabase.from('orders').update({
         status: 'deleted',
         deleted_by: profile?.id,
         deleted_reason: deleteReason.trim(),
         deleted_at: new Date().toISOString(),
       } as any).eq('id', deleteTarget.id)
+      if (delErr) {
+        toast.error(`Not deleted: ${delErr.message}`)
+        setDeleting(false)
+        return
+      }
 
       queryClient.invalidateQueries({ queryKey: ['orders'] })
       toast.success(`${deleteTarget.order_number} deleted`)

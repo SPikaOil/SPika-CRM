@@ -258,7 +258,10 @@ async function stampTht(
     const items = (order.items ?? []) as { sku: string; tht_date?: string | null }[]
     if (!items.some(i => i.sku === sku)) continue
     const next = items.map(i => (i.sku === sku ? { ...i, tht_date: tht ?? undefined } : i))
-    await supabase.from('orders').update({ items: next }).eq('id', order.id)
+    // Said out loud when it fails: this date is printed on the invoice and the
+    // delivery note, so a silent miss puts a wrong best-before on paper.
+    const { error } = await supabase.from('orders').update({ items: next }).eq('id', order.id)
+    if (error) toast.error(`Best-before not copied to an order: ${error.message}`)
   }
 }
 
