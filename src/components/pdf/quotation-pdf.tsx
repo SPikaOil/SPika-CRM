@@ -77,10 +77,15 @@ const styles = StyleSheet.create({
    * what the worst month asks for, and it stays true whatever gets added to
    * this row later.
    */
-  metaBlock: { width: '33.333%', backgroundColor: LIGHT, padding: 8, borderRadius: 2 },
+  // ONE row, always — her instruction of 2026-09-08. The boxes fit because the
+  // VALUE is 7.5pt, not because the row may break. Six boxes on 515pt leave
+  // 69.8pt; "September 30, 2026" is the widest date of the year and is 81.3pt
+  // at 9pt, which is what broke, and 67.7pt at 7.5. Six is the most this row
+  // ever holds, the sixth being the PO number that tipped invoice 729160 over.
+  metaBlock: { flex: 1, backgroundColor: LIGHT, padding: 8, borderRadius: 2 },
   metaGap: { width: 1 },
   metaLabel: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: GRAY, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
-  metaValue: { fontSize: 9, color: DARK },
+  metaValue: { fontSize: 7.5, color: DARK },
 
   // Table
   tableHeader: { flexDirection: 'row', backgroundColor: RED, paddingVertical: 4, paddingHorizontal: 6 },
