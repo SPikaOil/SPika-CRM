@@ -510,77 +510,119 @@ function OrderRow({
   dimmed?: boolean
 }) {
   const router = useRouter()
+
+  /**
+   * The same pieces, laid out twice.
+   *
+   * On a phone every row used to be a different height — 72, 100 or 116px,
+   * depending on how long the customer's name was, because the badge and the
+   * date were pushed onto lines of their own. Her instruction of 2026-09-15:
+   * two lines, every row the same. Number, name and amount on the first; the
+   * status, the date and the buttons on the second, and the name gives way
+   * rather than the row growing.
+   *
+   * Desktop keeps the row it already had — that one was never the problem.
+   */
+  const badges = (
+    <>
+      <Badge className={`text-xs ${statusColors[order.status]}`}>
+        {statusLabels[order.status]}
+      </Badge>
+      {(order as any).payment_type === 'cash' && (
+        <Badge className="text-xs bg-green-100 text-green-700">Cash</Badge>
+      )}
+      {(order as any).order_type === 'free_bottle_service' && (
+        <Badge className="text-xs bg-emerald-100 text-emerald-700">🎁 Free Bottles</Badge>
+      )}
+      {(order as any).order_type === 'credit_note' && (
+        <Badge className="text-xs bg-red-100 text-red-700">↩ Credit Note</Badge>
+      )}
+      {(order as any).is_consignment && (
+        <Badge className="text-xs bg-amber-100 text-amber-700">📦 Consignment</Badge>
+      )}
+    </>
+  )
+
+  const when = `${order.assigned_user?.name ?? '—'} · ${new Date(order.created_at).toLocaleDateString()}`
+
+  // An order list shows what the customer was invoiced, in the currency it was
+  // invoiced in — never converted. Converting belongs where amounts are SUMMED
+  // (revenue, reports), not where a single invoice is listed.
+  const credit = (order.delivery?.table_bottles_returned ?? 0) * (order.customer?.table_bottle_return_price ?? 2.50)
+  const amount = isAdmin
+    ? `${(order as any).currency ?? 'XCG'} ${(Number(order.total) - credit).toFixed(2)}`
+    : ''
+
+  const actions = (
+    <div className="flex gap-1 shrink-0">
+      {order.status === 'processing' && (
+        // Not a <Link>: the whole row is already an anchor and nested
+        // anchors are invalid HTML (causes hydration errors)
+        <Button
+          size="sm"
+          className="h-7 bg-red-600 hover:bg-red-700 text-xs gap-1"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); router.push(`/delivery/${order.id}`) }}
+        >
+          <Truck className="h-3 w-3" />
+          Deliver
+        </Button>
+      )}
+      {isAdmin && order.status === 'invoice_ready' && onMarkPaid && (
+        <Button size="sm" className="h-7 bg-emerald-600 hover:bg-emerald-700 text-xs gap-1" onClick={onMarkPaid}>
+          <CheckCircle2 className="h-3 w-3" />
+          Paid
+        </Button>
+      )}
+      {isAdmin && order.status === 'paid' && onRevert && (
+        <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={onRevert}>
+          <RotateCcw className="h-3 w-3" />
+          Revert
+        </Button>
+      )}
+      {isAdmin && order.status !== 'paid' && onDelete && (
+        <Button size="sm" variant="outline" className="h-7 text-xs border-red-200 text-red-500 hover:bg-red-50 gap-1" onClick={onDelete}>
+          <Trash2 className="h-3 w-3" />
+        </Button>
+      )}
+    </div>
+  )
+
   return (
     <Link
       href={`/orders/${order.id}`}
       className={`block px-3 py-0.5 leading-tight rounded-xl border bg-card hover:bg-accent transition-colors ${dimmed ? 'opacity-60' : ''}`}
     >
-      <div className="flex items-center justify-between gap-2">
+      {/* Phone: two lines, always. Nothing here may wrap, which is what keeps
+          every row the same height — the name and the date are the two things
+          allowed to run out of room, and they shorten with an ellipsis. */}
+      <div className="sm:hidden">
+        <div className="flex items-center gap-2 min-w-0">
+          <p className="font-mono text-sm font-medium shrink-0">{order.order_number}</p>
+          <p className="font-medium text-sm truncate flex-1 min-w-0">{order.customer?.company_name}</p>
+          {amount && <p className="font-semibold text-sm shrink-0">{amount}</p>}
+        </div>
+        {/* 28pt tall whether or not this order has a button, so a row with one
+            and a row without still line up. */}
+        <div className="flex items-center gap-2 min-w-0 min-h-7">
+          <div className="flex items-center gap-1 shrink-0">{badges}</div>
+          <p className="text-xs text-muted-foreground truncate flex-1 min-w-0">{when}</p>
+          {actions}
+        </div>
+      </div>
+
+      {/* Desktop: unchanged. */}
+      <div className="hidden sm:flex items-center justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="font-mono text-sm font-medium">{order.order_number}</p>
             <p className="font-medium text-sm truncate">{order.customer?.company_name}</p>
-            <Badge className={`text-xs ${statusColors[order.status]}`}>
-              {statusLabels[order.status]}
-            </Badge>
-            {(order as any).payment_type === 'cash' && (
-              <Badge className="text-xs bg-green-100 text-green-700">Cash</Badge>
-            )}
-            {(order as any).order_type === 'free_bottle_service' && (
-              <Badge className="text-xs bg-emerald-100 text-emerald-700">🎁 Free Bottles</Badge>
-            )}
-            {(order as any).order_type === 'credit_note' && (
-              <Badge className="text-xs bg-red-100 text-red-700">↩ Credit Note</Badge>
-            )}
-            {(order as any).is_consignment && (
-              <Badge className="text-xs bg-amber-100 text-amber-700">📦 Consignment</Badge>
-            )}
+            {badges}
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {order.assigned_user?.name ?? '—'} · {new Date(order.created_at).toLocaleDateString()}
-          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">{when}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {isAdmin && (() => {
-            // An order list shows what the customer was invoiced, in the
-            // currency it was invoiced in — never converted. Converting belongs
-            // where amounts are SUMMED (revenue, reports), not where a single
-            // invoice is listed.
-            const credit = (order.delivery?.table_bottles_returned ?? 0) * (order.customer?.table_bottle_return_price ?? 2.50)
-            const adj = Number(order.total) - credit
-            return <p className="font-semibold text-sm">{(order as any).currency ?? 'XCG'} {adj.toFixed(2)}</p>
-          })()}
-          <div className="flex gap-1">
-            {order.status === 'processing' && (
-              // Not a <Link>: the whole row is already an anchor and nested
-              // anchors are invalid HTML (causes hydration errors)
-              <Button
-                size="sm"
-                className="h-7 bg-red-600 hover:bg-red-700 text-xs gap-1"
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); router.push(`/delivery/${order.id}`) }}
-              >
-                <Truck className="h-3 w-3" />
-                Deliver
-              </Button>
-            )}
-            {isAdmin && order.status === 'invoice_ready' && onMarkPaid && (
-              <Button size="sm" className="h-7 bg-emerald-600 hover:bg-emerald-700 text-xs gap-1" onClick={onMarkPaid}>
-                <CheckCircle2 className="h-3 w-3" />
-                Paid
-              </Button>
-            )}
-            {isAdmin && order.status === 'paid' && onRevert && (
-              <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={onRevert}>
-                <RotateCcw className="h-3 w-3" />
-                Revert
-              </Button>
-            )}
-            {isAdmin && order.status !== 'paid' && onDelete && (
-              <Button size="sm" variant="outline" className="h-7 text-xs border-red-200 text-red-500 hover:bg-red-50 gap-1" onClick={onDelete}>
-                <Trash2 className="h-3 w-3" />
-              </Button>
-            )}
-          </div>
+          {amount && <p className="font-semibold text-sm">{amount}</p>}
+          {actions}
         </div>
       </div>
     </Link>

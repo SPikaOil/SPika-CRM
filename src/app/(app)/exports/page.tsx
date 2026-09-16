@@ -277,31 +277,57 @@ function ExportsInner() {
               ? (t.location?.name ?? 'Warehouse')
               : (Array.from(new Set(orders.map(o => o.customer?.company_name).filter(Boolean)))
                   .join(', ') || 'No orders yet')
+            const badges = (
+              <>
+                <Badge className={`text-xs ${statusColors[t.status]}`}>
+                  {statusLabels[t.status]}
+                </Badge>
+                {orders.length > 1 && (
+                  <Badge className="text-xs bg-indigo-100 text-indigo-700">
+                    {orders.length} orders
+                  </Badge>
+                )}
+              </>
+            )
+            const meta = [
+              t.destination || '—',
+              fmtDay(t.etd) && `ETD ${fmtDay(t.etd)}`,
+              t.carrier?.name,
+            ].filter(Boolean).join(' · ')
             return (
               <Link
                 key={t.id}
                 href={`/exports/${t.id}`}
                 className="block px-3 py-0.5 leading-tight rounded-xl border bg-card hover:bg-accent transition-colors"
               >
-                <div className="flex items-center justify-between gap-2">
+                {/* Phone: two lines, every row the same height — her
+                    instruction of 2026-09-15. These rows ran from 44 to 116pt
+                    because the badge and the carrier were pushed onto lines of
+                    their own; now the name and the carrier line shorten instead
+                    and the row never grows. Desktop is untouched. */}
+                <div className="sm:hidden">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <p className="font-mono text-sm font-medium shrink-0">{t.transport_number}</p>
+                    <p className="font-medium text-sm truncate flex-1 min-w-0">{goingTo}</p>
+                    {fmtDay(t.eta) && (
+                      <p className="text-sm font-semibold shrink-0">{fmtDay(t.eta)}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 min-w-0 min-h-5">
+                    <div className="flex items-center gap-1 shrink-0">{badges}</div>
+                    <p className="text-xs text-muted-foreground truncate flex-1 min-w-0">{meta}</p>
+                  </div>
+                </div>
+
+                {/* Desktop: unchanged. */}
+                <div className="hidden sm:flex items-center justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-mono text-sm font-medium">{t.transport_number}</p>
                       <p className="font-medium text-sm truncate">{goingTo}</p>
-                      <Badge className={`text-xs ${statusColors[t.status]}`}>
-                        {statusLabels[t.status]}
-                      </Badge>
-                      {orders.length > 1 && (
-                        <Badge className="text-xs bg-indigo-100 text-indigo-700">
-                          {orders.length} orders
-                        </Badge>
-                      )}
+                      {badges}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {t.destination || '—'}
-                      {fmtDay(t.etd) && ` · ETD ${fmtDay(t.etd)}`}
-                      {t.carrier && ` · ${t.carrier.name}`}
-                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{meta}</p>
                   </div>
                   {/* The ETA is the date this row is about — when it lands.
                       Shown only once there is one, like the amount on an order. */}
