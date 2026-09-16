@@ -1,4 +1,8 @@
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer'
+// No hyphens in any of this app's documents: importing this registers the
+// callback that tells react-pdf a word may never be cut in half. A name
+// printed as "Canarbo Epicu-" and "rian Market" is what started it.
+import '@/lib/pdf-text'
 import { PeriodSnapshot } from '@/lib/report-snapshot'
 
 /**

@@ -8,6 +8,10 @@ import {
   Svg,
   Image,
 } from '@react-pdf/renderer'
+// No hyphens in any of this app's documents: importing this registers the
+// callback that tells react-pdf a word may never be cut in half. A name
+// printed as "Canarbo Epicu-" and "rian Market" is what started it.
+import '@/lib/pdf-text'
 import { Transport, QuoteItem } from '@/types'
 import { transportCargo, transportPackedTotals, transportGrossWeight, type ProductWeights } from '@/lib/transport-cargo'
 import { CompanyInfo } from '../delivery-note-pdf'

@@ -12,6 +12,18 @@ import { Transport } from '@/types'
 import { formatPostcode, countryLabel } from '@/lib/address'
 import { CompanyInfo } from '../delivery-note-pdf'
 import { LabelPage } from '@/lib/transport-cargo'
+import { fitOneLine } from '@/lib/pdf-text'
+
+/**
+ * How much room the address block actually has, in points.
+ *
+ * A4 is 595.28 wide and the page keeps 32 off each side, so 531.28 is printed
+ * on. The handling icons take their full 288 and the gap between them takes 12,
+ * which leaves this. It is written down rather than measured at print time
+ * because react-pdf has no layout to ask — the size of the type has to be
+ * decided before the page is built.
+ */
+const ADDRESS_WIDTH = 595.28 - 32 * 2 - 288 - 12
 
 const RED = '#CC0000'
 const DARK = '#1a1a1a'
@@ -59,7 +71,10 @@ const styles = StyleSheet.create({
   // 78, both by her instruction. Still the biggest type on the page by far —
   // it has to be readable off a pallet.
   shipToName: { fontSize: 30, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 2, lineHeight: 1.1 },
-  shipToLine: { fontSize: 22, fontFamily: 'Helvetica-Bold', color: DARK, marginBottom: 1, lineHeight: 1.15 },
+  // Not bold — her instruction of 2026-09-15: only the customer's name and the
+  // country are set heavy, so those two are what the eye lands on first. The
+  // Attn., the street and the town are read once you are already at the box.
+  shipToLine: { fontSize: 22, fontFamily: 'Helvetica', color: DARK, marginBottom: 1, lineHeight: 1.15 },
 
 })
 
@@ -131,6 +146,22 @@ export function ShippingLabelPDF({ transport, pages, company = DEFAULT_COMPANY }
           transport.destination || addr?.country || ''
         )
 
+        /**
+         * The company name goes on ONE line. Her instruction of 2026-09-15:
+         * "zet de hele naam op 1 regel". Not two, not three — one, whatever the
+         * name is, so the size is what gives and never the name.
+         *
+         * 30 stays the size it is printed at whenever it fits, which is most
+         * labels. On transport 20260901 it did not fit and react-pdf hyphenated
+         * it into "Canarbo Epicu-" and "rian Market"; that name now comes out
+         * whole at 18.5.
+         *
+         * The lines under it are NOT touched. She asked about the name, so the
+         * name is what changed.
+         */
+        const attnLine = attn && nameLine !== `Attn. ${attn}` ? `Attn. ${attn}` : ''
+        const nameSize = fitOneLine(nameLine, ADDRESS_WIDTH, 30, 'Helvetica-Bold')
+
         return (
           <Page key={page.colliNumber} size="A4" style={styles.page}>
             {/* NO LOGO on a shipping label, and it stays that way — her
@@ -187,21 +218,38 @@ export function ShippingLabelPDF({ transport, pages, company = DEFAULT_COMPANY }
                 they also cost one block of height instead of two, which is what
                 lets the address grow back at all. */}
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 4 }}>
-              <View style={{ flex: 1 }}>
+              {/* The text lines up with the icons, top and bottom — her
+                  instruction of 2026-09-15: "ship to" level with where the
+                  icons begin, "BONAIRE" level with the underside of FRAGILE.
+                  Only the text moves; the picture is not touched.
+
+                  The two numbers are measured, not picked. The image is 984x512
+                  and is drawn 288 wide, so 149.85 of the 150pt box is picture —
+                  but the artwork inside it starts at pixel row 22 and the
+                  bottom of FRAGILE is pixel row 492, which is 6.44pt of white
+                  above and 5.56pt below.
+
+                  The bottom needs no help: pinned to the foot of a 150pt block,
+                  the last line's baseline lands at 144.50 and the underside of
+                  FRAGILE is at 144.44. The top does — a 9pt capital sits 1.64pt
+                  down from its own line box, so the block starts 4.8pt lower to
+                  put it at 6.44. Both checked by reading the positions back out
+                  of a rendered PDF. */}
+              <View style={{ flex: 1, height: 150, paddingTop: 4.8, justifyContent: 'space-between' }}>
                 <Text style={styles.shipToLabel}>
                   {toWarehouse ? 'Ship To — Warehouse' : 'Ship To'}
                 </Text>
-                <Text style={styles.shipToName}>{nameLine}</Text>
+                <Text style={[styles.shipToName, { fontSize: nameSize }]}>{nameLine}</Text>
                 {/* Who is expected there. Only once — when there is no name of
                     its own, the Attn. has already been promoted to the line
                     above. */}
-                {attn && nameLine !== `Attn. ${attn}` ? (
-                  <Text style={styles.shipToLine}>Attn. {attn}</Text>
+                {attnLine ? (
+                  <Text style={styles.shipToLine}>{attnLine}</Text>
                 ) : null}
                 {streetLine ? <Text style={styles.shipToLine}>{streetLine}</Text> : null}
                 {cityLine ? <Text style={styles.shipToLine}>{cityLine}</Text> : null}
                 {destination ? (
-                  <Text style={[styles.shipToLine, { color: RED, marginTop: 3 }]}>
+                  <Text style={[styles.shipToLine, { fontFamily: 'Helvetica-Bold', color: RED, marginTop: 3 }]}>
                     {destination.toUpperCase()}
                   </Text>
                 ) : null}
