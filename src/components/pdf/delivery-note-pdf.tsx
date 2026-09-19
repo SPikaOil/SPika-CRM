@@ -386,7 +386,21 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
         </View>
 
         {items.map((item, i) => {
-          const isFree = item.unit_price === 0 && item.qty > 0
+          /**
+           * "Free of Charge" is a LABEL over the price, never an amount.
+           *
+           * The amount column below prints `line_total` and nothing else, so
+           * the figures on an invoice always add up to the subtotal under them
+           * — by construction, not because someone checked. That is the point
+           * of this: on 729169 a returned table bottle (unit price 0, line
+           * total -22.50) was read as free and printed as 0.00 while the
+           * subtotal counted the real -22.50, so the column came to 249.60 and
+           * the line under it said 227.10.
+           *
+           * A row is only free when it really costs nothing: no unit price AND
+           * no line total.
+           */
+          const isFree = item.unit_price === 0 && item.qty > 0 && (item.line_total ?? 0) === 0
           return (
             <View key={i} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]}>
               <View style={styles.colProduct}>
@@ -418,8 +432,10 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
                   {isFree ? 'Free of Charge' : fmtCur(item.unit_price)}
                 </Text>
               )}
-              {showPrices && <Text style={[styles.tdText, styles.colDisc]}>{isFree ? NONE : ((item.discount ?? 0) > 0 ? fmtCur(item.discount ?? 0) : NONE)}</Text>}
-              {showPrices && <Text style={[styles.tdText, styles.colAmount, isFree ? { color: '#16a34a' } : {}]}>{isFree ? fmtCur(0) : fmtCur(item.line_total)}</Text>}
+              {showPrices && <Text style={[styles.tdText, styles.colDisc]}>{(item.discount ?? 0) > 0 ? fmtCur(item.discount ?? 0) : NONE}</Text>}
+              {/* Always the line total. No condition may ever put a different
+                  number here, or the column stops adding up to the subtotal. */}
+              {showPrices && <Text style={[styles.tdText, styles.colAmount, isFree ? { color: '#16a34a' } : {}]}>{fmtCur(item.line_total)}</Text>}
             </View>
           )
         })}
