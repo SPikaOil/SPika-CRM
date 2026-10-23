@@ -101,17 +101,26 @@ export default function OrderFlowPage() {
     const picked = filter === 'all' ? searched : searched.filter(f => bucketOf(f) === filter)
 
     /**
-     * Furthest past their OWN rhythm first — that is the order you would phone
-     * them in. A shop that buys weekly and has been quiet three weeks outranks
-     * one that buys twice a year and is a month late. No rhythm at all sorts
-     * underneath, on plain days since the last order.
+     * Overdue first, then due soon, then on track — and INSIDE each of those,
+     * the most days late at the top.
+     *
+     * It used to sort on how far past their own rhythm they were, which is a
+     * defensible number and an invisible one: the screen shows days, so a list
+     * reading 42, 92, 46, 6 looked shuffled. Her remark of 2026-10-22: "waarom
+     * is er dan geen volgorde van dagen te laat". The column you can see is the
+     * column it sorts on.
+     *
+     * Customers with no rhythm sit at the bottom on plain days since their last
+     * order, because days late means nothing without a gap to be late against.
      */
+    const ORDER: Record<Bucket, number> = { overdue: 0, due_soon: 1, on_track: 2, no_rhythm: 3 }
     const sorted = [...picked].sort((a, b) => {
-      const ra = a.flow.rhythm.ratio
-      const rb = b.flow.rhythm.ratio
-      if (ra != null && rb != null) return rb - ra
-      if (ra != null) return -1
-      if (rb != null) return 1
+      const ba = ORDER[bucketOf(a)]
+      const bb = ORDER[bucketOf(b)]
+      if (ba !== bb) return ba - bb
+      const da = a.flow.daysUntilExpected
+      const db = b.flow.daysUntilExpected
+      if (da != null && db != null) return da - db
       return (b.flow.rhythm.daysSinceLast ?? 0) - (a.flow.rhythm.daysSinceLast ?? 0)
     })
     return { rows: sorted, counts: c }
