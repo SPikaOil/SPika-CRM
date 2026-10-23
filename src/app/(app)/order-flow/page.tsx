@@ -101,26 +101,25 @@ export default function OrderFlowPage() {
     const picked = filter === 'all' ? searched : searched.filter(f => bucketOf(f) === filter)
 
     /**
-     * Overdue first, then due soon, then on track — and INSIDE each of those,
-     * the most days late at the top.
+     * ONE line, on days. Most days late at the top, straight down to the one
+     * whose order is furthest away.
      *
-     * It used to sort on how far past their own rhythm they were, which is a
-     * defensible number and an invisible one: the screen shows days, so a list
-     * reading 42, 92, 46, 6 looked shuffled. Her remark of 2026-10-22: "waarom
-     * is er dan geen volgorde van dagen te laat". The column you can see is the
-     * column it sorts on.
+     * Grouping by status first was my idea and it broke the thing she actually
+     * reads: the days column jumped 92, 42, 6, 8, 6, 2 because each group
+     * started counting again. Her remark of 2026-10-23: "waarom is het nog
+     * steeds niet aflopend in dagen". So the status is only a label now, and
+     * the order is the timeline — 92 late, 42 late, 8 over, 6 late, 6 over, 2
+     * over, then the ones still to come.
      *
-     * Customers with no rhythm sit at the bottom on plain days since their last
-     * order, because days late means nothing without a gap to be late against.
+     * Customers with no rhythm have no day to be late against and sit at the
+     * bottom, on plain days since their last order.
      */
-    const ORDER: Record<Bucket, number> = { overdue: 0, due_soon: 1, on_track: 2, no_rhythm: 3 }
     const sorted = [...picked].sort((a, b) => {
-      const ba = ORDER[bucketOf(a)]
-      const bb = ORDER[bucketOf(b)]
-      if (ba !== bb) return ba - bb
       const da = a.flow.daysUntilExpected
       const db = b.flow.daysUntilExpected
       if (da != null && db != null) return da - db
+      if (da != null) return -1
+      if (db != null) return 1
       return (b.flow.rhythm.daysSinceLast ?? 0) - (a.flow.rhythm.daysSinceLast ?? 0)
     })
     return { rows: sorted, counts: c }
