@@ -59,18 +59,36 @@ const fmtDay = (d: string | null) =>
 
 const money = (n: number) => `XCG ${Math.round(n).toLocaleString('en')}`
 
+/** A customer counts as due soon when their date is within the coming week. */
+const DUE_SOON_DAYS = 7
+
+/**
+ * The label says the same thing the number says.
+ *
+ * It used to read the rhythm's own flag, which is worked out as a RATIO —
+ * days since the last order divided by the usual gap. Defensible, and it put
+ * "Albert Heijn · 8d over · Due soon" above "Pietermaai · 6d late · Overdue",
+ * because 8 days on a 45-day rhythm is proportionally less than 6 on a 10-day
+ * one. On screen that is simply wrong: a row further past its date cannot be
+ * the less urgent one. Her screenshot of 2026-10-23 showed exactly that.
+ *
+ * So this screen judges on the date the row itself prints. Past it is overdue,
+ * within a week of it is due soon, beyond that is on track. The dashboard's own
+ * "gone quiet" rule is untouched — that one answers a different question and
+ * she has not asked for it to change.
+ */
 function bucketOf(f: CustomerFlow): Bucket {
-  const { rhythm } = f.flow
-  if (rhythm.medianInterval == null) return 'no_rhythm'
-  if (rhythm.flag === 'overdue') return 'overdue'
-  if (rhythm.flag === 'due_soon') return 'due_soon'
+  const due = f.flow.daysUntilExpected
+  if (f.flow.rhythm.medianInterval == null || due == null) return 'no_rhythm'
+  if (due < 0) return 'overdue'
+  if (due <= DUE_SOON_DAYS) return 'due_soon'
   return 'on_track'
 }
 
 /**
- * The one number the row is about. The word follows the GROUP, not the sign:
- * a few days past a median is "over", not "late", or the row contradicts its
- * own badge.
+ * The one number the row is about: days past the date, or days until it. Past
+ * the date is always "late" now, because past the date is always Overdue — the
+ * label and the number can no longer say different things.
  */
 function headline(f: CustomerFlow): { value: string; sub: string } {
   const { rhythm } = f.flow
@@ -78,7 +96,7 @@ function headline(f: CustomerFlow): { value: string; sub: string } {
   if (rhythm.medianInterval == null || due == null) {
     return { value: `${rhythm.daysSinceLast ?? 0}d`, sub: 'quiet' }
   }
-  if (due < 0) return { value: `${Math.abs(due)}d`, sub: bucketOf(f) === 'overdue' ? 'late' : 'over' }
+  if (due < 0) return { value: `${Math.abs(due)}d`, sub: 'late' }
   if (due === 0) return { value: 'now', sub: 'due' }
   return { value: `${due}d`, sub: 'to go' }
 }
