@@ -34,7 +34,12 @@ export const PERMISSIONS: PermissionGroup[] = [
       { key: 'targets.view', label: 'See revenue targets', hint: 'The monthly targets on the dashboard' },
       { key: 'targets.edit', label: 'Change revenue targets' },
       { key: 'reports.view', label: 'Reports', hint: 'Revenue and sales reports' },
-      { key: 'audit.view', label: 'See edit history', hint: "An order's change log" },
+      // The Audit Log is deliberately NOT a permission. It used to be
+      // 'audit.view' here, unused, and the manager preset held it. Her
+      // instruction, 2026-10-01: "manager mag nooit log zien, die is echt
+      // enkel voor admin". A key in this catalogue is a switch on the
+      // Permissions screen, and a switch can be flipped — so the screen is
+      // adminOnly in lib/navigation.ts instead, and nothing reads it any more.
     ],
   },
   {
@@ -44,6 +49,13 @@ export const PERMISSIONS: PermissionGroup[] = [
       { key: 'customers.edit', label: 'Create and edit customers' },
       { key: 'customers.delete', label: 'Delete customers' },
       { key: 'leads.view', label: 'Leads tab' },
+      // Her decision of 2026-10-22, asked for plainly: "sales mag bedragen
+      // zien". So this one key opens the screen AND the turnover on it — there
+      // is no version of order flow without the amounts, the whole point is
+      // seeing whether a customer is growing or shrinking. Note that this does
+      // hand Sales the turnover per customer, which 'prices.view' deliberately
+      // keeps from them; she was told and decided.
+      { key: 'orderflow.view', label: 'Order flow', hint: 'How often a customer orders, for how much, and what they buy — including the amounts' },
       { key: 'portal.view', label: 'Customer portal management' },
     ],
   },
@@ -106,8 +118,9 @@ export const ADMIN_HAS_EVERYTHING = true
 // so switching to permissions changes nothing until an admin decides otherwise.
 export const DEFAULT_ROLE_PERMISSIONS: Record<Exclude<Role, 'admin'>, string[]> = {
   manager: [
-    'prices.view', 'prices.edit', 'targets.view', 'targets.edit', 'reports.view', 'audit.view',
+    'prices.view', 'prices.edit', 'targets.view', 'targets.edit', 'reports.view',
     'customers.view', 'customers.edit', 'customernames.view', 'leads.view',
+    'orderflow.view',
     'orders.view', 'orders.create', 'orders.approve', 'orders.edit_items', 'quotations.view',
     'deliveries.own', 'deliveries.all',
     'products.view', 'stock.view', 'batches.view', 'salesdocs.view', 'tasks.view',
@@ -128,6 +141,11 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Exclude<Role, 'admin'>, string[]> 
     'deliveries.own',
     // Reads the name list, never the price list or the turnover behind it.
     'customernames.view',
+    // Order flow IS the exception to the line above, and a deliberate one. Her
+    // instruction of 2026-10-22, asked straight out and answered straight out:
+    // "sales mag bedragen zien". They stand in the shop and need to know
+    // whether that shop is buying more or less than it used to.
+    'orderflow.view',
     // May report something that needs doing. It lands unassigned; an admin
     // reviews it and puts a name on it.
     'tasks.create',

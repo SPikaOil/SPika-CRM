@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Users, Sprout, ReceiptText, FileText, ShoppingCart, Package,
   Megaphone, CalendarRange, Store, FolderOpen, ClipboardList, CalendarDays,
   BarChart2, Droplets, PackageCheck, Warehouse, MapPin, Ship, Globe, UserCog,
-  ShieldCheck, Mail, Settings, Boxes,
+  ShieldCheck, Mail, Settings, Boxes, History, TrendingUp,
 } from 'lucide-react'
 import type { ComponentType } from 'react'
 
@@ -47,6 +47,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/agenda',          label: 'Agenda',                                    icon: CalendarDays,    permission: null,                 mainOnMobile: 'sales' },
   { href: '/handover',        label: 'Handover Btls',    shortLabel: 'Handover',  icon: PackageCheck,    permission: null,                 mainOnMobile: 'sales' },
 
+  { href: '/order-flow',      label: 'Order Flow',       shortLabel: 'Flow',      icon: TrendingUp,      permission: 'orderflow.view'      },
   { href: '/leads',           label: 'Leads',                                     icon: Sprout,          permission: 'leads.view'          },
   { href: '/quotations',      label: 'Quotations',                                icon: ReceiptText,     permission: 'quotations.view'     },
   { href: '/products',        label: 'Products',                                  icon: Package,         permission: 'products.view'       },
@@ -70,6 +71,10 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/portal-management', label: 'Portal',                                  icon: Globe,           permission: 'portal.view'         },
   { href: '/team',              label: 'Team',                                    icon: UserCog,         permission: 'team.manage'         },
   { href: '/permissions',       label: 'Permissions',                             icon: ShieldCheck,     permission: 'permissions.manage'  },
+  // Her instruction, 2026-10-01: "manager mag nooit log zien, die is echt
+  // enkel voor admin". So adminOnly, not a permission — a permission is a
+  // switch somebody can flip later, and this must not be one.
+  { href: '/audit-log',         label: 'Audit Log',        shortLabel: 'Audit',     icon: History,         permission: null, adminOnly: true },
   { href: '/email-preview',     label: 'Emails',                                  icon: Mail,            permission: 'settings.view'       },
   { href: '/settings',          label: 'Settings',                                icon: Settings,        permission: 'settings.view'       },
 ]
