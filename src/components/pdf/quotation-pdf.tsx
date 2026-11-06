@@ -14,6 +14,7 @@ import {
 import '@/lib/pdf-text'
 import { Quote } from '@/types'
 import { formatTaxId } from '@/lib/tax-id'
+import { taxLineLabel } from '@/lib/tax-names'
 import { addressLines, isEuropeanAddress } from '@/lib/address'
 
 const RED = '#CC0000'
@@ -254,7 +255,7 @@ export function QuotationPDF({ quote }: QuotationPDFProps) {
             <Text style={styles.totalValue}>{fmtCur(subtotal)}</Text>
           </View>
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>{isB2C ? 'OB (6%)' : 'OB (0% — OB exempt)'}</Text>
+            <Text style={styles.totalLabel}>{taxLineLabel(currency, isB2C)}</Text>
             <Text style={styles.totalValue}>{fmtCur(tax)}</Text>
           </View>
           <View style={styles.totalDivider} />

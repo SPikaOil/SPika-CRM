@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
 import { Customer } from '@/types'
+import { taxLineLabel } from '@/lib/tax-names'
 
 export default function NewOrderPage() {
   return <Suspense><NewOrderPageInner /></Suspense>
@@ -241,7 +242,7 @@ function NewOrderPageInner() {
               <Separator />
               {isB2C && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">VAT (6%)</span>
+                  <span className="text-muted-foreground">{taxLineLabel(currency, true)}</span>
                   <span>{fmtCur(tax)}</span>
                 </div>
               )}

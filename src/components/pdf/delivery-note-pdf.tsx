@@ -15,6 +15,7 @@ import '@/lib/pdf-text'
 import { Order, QuoteItem } from '@/types'
 import { formatTaxId } from '@/lib/tax-id'
 import { addressLines, isEuropeanAddress } from '@/lib/address'
+import { taxLineLabel, outOfScopeLabel, exportTaxNote } from '@/lib/tax-names'
 import { formatTht } from '@/lib/utils'
 import { batchLabel, type OrderBatches } from '@/lib/order-batches'
 
@@ -135,7 +136,11 @@ const styles = StyleSheet.create({
   // ── Totals ──
   totalsSection: { alignItems: 'flex-end', marginTop: 10 },
   totalRow: { flexDirection: 'row', gap: 16, paddingVertical: 2 },
-  totalLabel: { fontSize: 9, color: GRAY, textAlign: 'right', width: 100 },
+  // 160, not 100: "BTW (0% — BTW exempt)" is 21 characters and broke onto a
+  // second line at 100pt. Her rule of 2026-11-06: no stacked text on an
+  // invoice. Same width as taxNoteLabel below, which already sits in this
+  // block without wrapping.
+  totalLabel: { fontSize: 9, color: GRAY, textAlign: 'right', width: 160 },
   totalValue: { fontSize: 9, color: DARK, textAlign: 'right', width: 80 },
   balanceDueLabel: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: DARK, textAlign: 'right', width: 100 },
   // Wider and smaller than BALANCE DUE: the sentence is 56 characters and would
@@ -254,9 +259,25 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
   // A cash sale: the paper says "Cash Payment" instead of naming the buyer.
   // The order stays attached to the customer everywhere else in the app.
   const isCashInvoice = (order as any).cash_invoice === true
-  // Only the INVOICE of a consignment order changes character. A delivery note
-  // is already an afleverbon and keeps its own title and wording.
-  const isConsignmentInvoice = isConsignment && isInvoice
+  /**
+   * The tussentijdse afrekening: a PERIOD INVOICE raised against a consignment
+   * note for goods the customer has now sold.
+   *
+   * Danique, 2026-11-06: "een tussen factuur van consignatie is een factuur."
+   * It is payable, so it carries a due date, a plain Total and no delivery
+   * address — the goods left on the consignment note, not on this paper.
+   *
+   * It needs its own flag because migration 042's trigger stamps
+   * is_consignment from the CUSTOMER on every insert, so this invoice arrives
+   * flagged as consignment however it was created. order_type is the only thing
+   * that tells the two documents apart.
+   */
+  const isPeriodSettlement = (order as any).order_type === 'consignment_invoice'
+
+  // Only the INVOICE of a consignment order changes character — and only the
+  // NOTE, never the period invoice above. A delivery note is already an
+  // afleverbon and keeps its own title and wording.
+  const isConsignmentInvoice = isConsignment && isInvoice && !isPeriodSettlement
   const dateLabel = isInvoice ? 'Invoice Date' : 'Delivery Date'
   const dateValue = isInvoice
     ? fmt(invoiceDateObj)
@@ -271,7 +292,9 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
           <Image src="/spika-banner.png" style={{ width: '100%', height: 101, objectFit: 'contain' }} />
         </View>
         <View style={[styles.header, { justifyContent: 'flex-end', alignItems: 'center', gap: 8 }]}>
-          {isConsignment && <Text style={styles.consignmentTag}>CONSIGNMENT</Text>}
+          {/* Not on the period invoice: that one is an ordinary payable
+              invoice, and a CONSIGNMENT banner on it says the opposite. */}
+          {isConsignmentInvoice && <Text style={styles.consignmentTag}>CONSIGNMENT</Text>}
           {/* On consignment the document is not an invoice at all — nothing is
               claimable on delivery — so it is titled for what it is. The
               delivery note keeps its own title; only the INVOICE variant is
@@ -334,8 +357,11 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
                   </>
                 )}
               </View>
-              {/* Ship To — only when different from billing, and never on a cash sale */}
-              {hasDifferentDelivery && !isCashInvoice && (
+              {/* Ship To — only when different from billing, never on a cash
+                  sale, and never on a consignment period invoice: that is a
+                  bill for goods already handed over on the note, so an
+                  afleveradres on it is wrong. Her rule of 2026-11-06. */}
+              {hasDifferentDelivery && !isCashInvoice && !isPeriodSettlement && (
                 <View style={styles.addressBlock}>
                   <Text style={styles.addressLabel}>Ship To</Text>
                   <Text style={[styles.addressLine, { fontFamily: 'Helvetica-Bold' }]}>{customer?.company_name ?? ''}</Text>
@@ -354,19 +380,25 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
             { label: isCreditNote ? 'Credit Note #' : 'Invoice #', value: order.order_number },
             { label: isCreditNote ? 'Credit Date' : dateLabel,    value: dateValue },
             // A credit note owes nothing and refers back to the invoice it
-            // corrects. A consignment invoice has no due date either — nothing
-            // is claimable until the goods are sold and settled.
+            // corrects. A consignment NOTE has no due date either — nothing is
+            // claimable until the goods are sold. The period invoice that
+            // settles that note is payable like any other, so it falls through
+            // to Due Date and Term.
             ...(isCreditNote
               ? [{ label: 'Credit of invoice', value: creditOfNumber || NONE }]
-              : isConsignment
+              : isConsignmentInvoice
               ? [{ label: 'Payment', value: 'On settlement' }]
               : [
                   { label: 'Due Date', value: fmt(dueDate) },
                   { label: 'Term',     value: `${paymentTermDays} days` },
                 ]),
-            isInvoice
-              ? { label: 'Delivery Date', value: order.planned_date ? fmt(new Date(order.planned_date + 'T12:00:00')) : fmt(today) }
-              : { label: 'Reference', value: 'SPika Oil' },
+            // No delivery date on a period invoice: the goods went out on the
+            // consignment note, and this paper only settles what was sold.
+            ...(isPeriodSettlement
+              ? []
+              : [isInvoice
+                  ? { label: 'Delivery Date', value: order.planned_date ? fmt(new Date(order.planned_date + 'T12:00:00')) : fmt(today) }
+                  : { label: 'Reference', value: 'SPika Oil' }]),
             ...(order.po_number ? [{ label: 'PO Number', value: order.po_number }] : []),
           ].map(({ label, value }) => (
             <View key={label} style={styles.metaBlock}>
@@ -462,13 +494,17 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
             </View>
             <View style={styles.totalRow}>
               {/* One tax statement, not two. A normal invoice carries both
-                  "OB exempt" here and "Out of Scope of OB" below it; on a
+                  "<tax> exempt" here and "Out of Scope of <tax>" below it; on a
                   consignment note only this line remains, and it says what it
-                  actually is: goods leaving Curacao, no OB charged. */}
+                  actually is: goods leaving Curacao, no tax charged.
+                  WHICH tax is named follows the CURRENCY — XCG is OB, EUR is
+                  BTW, USD is VAT (lib/tax-names.ts). Her rule of 2026-11-06:
+                  "valuta is leidend". A euro invoice to Rotterdam announced
+                  Curacao OB until that day. */}
               <Text style={isConsignmentInvoice ? styles.taxNoteLabel : styles.totalLabel}>
                 {isConsignmentInvoice
-                  ? 'OB 0% — export from Curacao'
-                  : (isB2C ? 'OB (6%)' : 'OB (0% — OB exempt)')}
+                  ? exportTaxNote(currency)
+                  : taxLineLabel(currency, isB2C)}
               </Text>
               <Text style={styles.totalValue}>{fmtCur(tax)}</Text>
             </View>
@@ -487,12 +523,17 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
                   ? 'TOTAL CREDITED'
                   : isConsignmentInvoice
                   ? 'TOTAL CONSIGNMENT VALUE — NOT DUE ON DELIVERY'
+                  // Her instruction of 2026-11-06 for the period invoice: plain
+                  // "Total". It is not a balance claimed on delivery and it is
+                  // not a consignment value — it is what was sold and is owed.
+                  : isPeriodSettlement
+                  ? 'Total'
                   : 'BALANCE DUE'}
               </Text>
               <Text style={styles.balanceDueValue}>{fmtCur(total)}</Text>
             </View>
             {/* Dropped on a consignment note: the tax line above already says it */}
-            {!isConsignmentInvoice && <Text style={styles.outOfScope}>Out of Scope of OB</Text>}
+            {!isConsignmentInvoice && <Text style={styles.outOfScope}>{outOfScopeLabel(currency)}</Text>}
           </View>
         )}
 

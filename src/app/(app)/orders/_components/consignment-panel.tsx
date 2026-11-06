@@ -150,7 +150,12 @@ export function ConsignmentPanel({ order }: { order: Order }) {
         qty: qty[r.sku],
         unit_price: r.unit_price,
         discount: r.discount ?? 0,
-        line_total: qty[r.sku] * r.unit_price,
+        // (price - discount) x qty, the same rule as /orders/new and the order
+        // edit. This line read `qty * unit_price` until 2026-11-06: the agreed
+        // discount was copied onto the line, printed in the DISCOUNT column of
+        // the invoice, and never subtracted. Period invoice 729188 for La
+        // Bandera went out at EUR 299.50 instead of EUR 239.60.
+        line_total: parseFloat((qty[r.sku] * (r.unit_price - (r.discount ?? 0))).toFixed(2)),
         tht_date: r.tht_date,
       }))
     if (lines.length === 0) return
@@ -207,7 +212,10 @@ export function ConsignmentPanel({ order }: { order: Order }) {
           qty: -r.open,
           unit_price: r.unit_price,
           discount: r.discount ?? 0,
-          line_total: -(r.open * r.unit_price),
+          // Same correction as the period invoice above: credit what was
+          // actually charged, (price - discount) x qty, not the gross price.
+          // Crediting the gross price would hand back more than was invoiced.
+          line_total: -parseFloat((r.open * (r.unit_price - (r.discount ?? 0))).toFixed(2)),
           tht_date: r.tht_date,
         }))
         const total = items.reduce((s, l) => s + l.line_total, 0)
@@ -391,7 +399,10 @@ export function ConsignmentPanel({ order }: { order: Order }) {
             ))}
             <div className="flex justify-between text-sm font-semibold border-t pt-1.5">
               <span>Invoice total</span>
-              <span>{formatCurrency(rows.reduce((s, r) => s + (qty[r.sku] ?? 0) * r.unit_price, 0), currency)}</span>
+              {/* The same sum the invoice is written with, discount included.
+                  This read the gross price until 2026-11-06, so the figure on
+                  screen was already too high before the invoice was raised. */}
+              <span>{formatCurrency(rows.reduce((s, r) => s + (qty[r.sku] ?? 0) * (r.unit_price - (r.discount ?? 0)), 0), currency)}</span>
             </div>
             <div className="flex gap-2">
               <Button size="sm" className="bg-red-600 hover:bg-red-700" disabled={busy}

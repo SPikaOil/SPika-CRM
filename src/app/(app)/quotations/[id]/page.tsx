@@ -24,6 +24,7 @@ import { Input } from '@/components/ui/input'
 import { downloadQuotationPDF } from '@/lib/download-pdf'
 import { getNextOrderNumber } from '@/lib/order-number'
 import type { QuoteStatus } from '@/types'
+import { taxLineLabel, taxNameFor } from '@/lib/tax-names'
 
 const statusColors: Record<string, string> = {
   draft:    'bg-gray-100 text-gray-700',
@@ -354,7 +355,7 @@ export default function QuotationDetailPage({
           )}
           <div>
             <p className="text-muted-foreground">VAT</p>
-            <p className="font-medium">{isB2C ? '6% (B2C)' : '0% (B2B exempt)'}</p>
+            <p className="font-medium">{isB2C ? '6% (B2C)' : `0% (${taxNameFor(currency)} exempt)`}</p>
           </div>
           {quote.po_number && (
             <div>
@@ -427,7 +428,7 @@ export default function QuotationDetailPage({
               <span>{fmtCur(subtotal)}</span>
             </div>
             <div className="flex justify-between text-muted-foreground">
-              <span>{isB2C ? 'VAT (6%)' : 'VAT (0% — B2B exempt)'}</span>
+              <span>{taxLineLabel(currency, isB2C)}</span>
               <span>{fmtCur(tax)}</span>
             </div>
             <div className="flex justify-between font-bold text-base pt-1 border-t">

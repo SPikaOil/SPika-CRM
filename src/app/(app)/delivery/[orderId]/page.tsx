@@ -43,6 +43,7 @@ import { posOrderLineFor } from '@/lib/pos'
 import { openPackingSlip } from '@/lib/packing-slip'
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
+import { taxLineLabel } from '@/lib/tax-names'
 
 type Step = 'start' | 'table_bottles' | 'pod' | 'done'
 type PodMode = 'signature' | 'photo'
@@ -1188,7 +1189,7 @@ export default function DeliveryPage({
                 <Separator />
                 {order.customer?.customer_category === 'b2c' && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">VAT (6%)</span>
+                    <span className="text-muted-foreground">{taxLineLabel(deliveryCurrency, true)}</span>
                     <span>{deliveryCurrency} {(Number(order.total) * 0.06 / 1.06).toFixed(2)}</span>
                   </div>
                 )}
