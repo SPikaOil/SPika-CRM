@@ -37,7 +37,22 @@ import { toast } from 'sonner'
  * traceable later and a mistake reversible by booking its mirror image instead
  * of editing history.
  */
-export function BatchesCard() {
+/**
+ * @param stockRecorded Whether the oil stock for the month on screen has been
+ *   written down. Her rule of 2026-11-03: "je kunt pas een partij aanmaken
+ *   NADAT je voorraad hebt genoteerd". Filling bottles takes oil out of the
+ *   tank, so without a count to take it out of there is nothing to reconcile
+ *   the month against afterwards.
+ * @param monthLabel The month that count belongs to, so the message says which
+ *   one is missing rather than just refusing.
+ */
+export function BatchesCard({
+  stockRecorded = true,
+  monthLabel = '',
+}: {
+  stockRecorded?: boolean
+  monthLabel?: string
+} = {}) {
   const { data: allBatches } = useBatches()
   // PRODUCTION batches only. Since migration 110 a goods receipt at a warehouse
   // makes a batch of its own, and those belong to that warehouse — not to this
@@ -220,10 +235,24 @@ export function BatchesCard() {
             </div>
           </div>
         ) : (
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setAdding(true)}>
-            <Plus className="h-3.5 w-3.5" />
-            New batch
-          </Button>
+          <div className="space-y-1.5">
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              disabled={!stockRecorded}
+              onClick={() => setAdding(true)}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              New batch
+            </Button>
+            {!stockRecorded && (
+              <p className="text-xs text-muted-foreground">
+                Note the oil stock{monthLabel ? ` for ${monthLabel}` : ''} first — a batch takes oil out
+                of the tank, so there has to be a count to take it out of.
+              </p>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>

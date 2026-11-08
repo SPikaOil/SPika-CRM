@@ -50,7 +50,20 @@ export default function StockPage() {
   const [loading, setLoading] = useState(true)
   const [realVolumes, setRealVolumes] = useState<RealVolumes>({})
   const [litres, setLitres] = useState('')
+  // Produced THIS month, kept apart from what was already lying there. Her
+  // instruction of 2026-11-03: she fills both in by hand every month because
+  // both vary, and the total is the two added up.
+  const [produced, setProduced] = useState('')
   const [note, setNote] = useState('')
+  /**
+   * Has the oil stock for the month on screen been written down yet?
+   *
+   * Her rule of 2026-11-03: a batch may only be made once the stock is noted.
+   * A batch says how many bottles were filled, and filling empties the tank —
+   * so if the tank was never counted first, the figure it is subtracted from
+   * does not exist and the month can never be reconciled afterwards.
+   */
+  const [stockRecorded, setStockRecorded] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const [safetyMonths, setSafetyMonths] = useState('6')
@@ -82,13 +95,19 @@ export default function StockPage() {
     setLoading(true)
     const [pStart, pEnd] = monthRange(prevMonth(month))
     Promise.all([
-      supabase.from('oil_stock').select('litres, note').eq('month', month).maybeSingle(),
+      supabase.from('oil_stock').select('litres, produced_litres, note').eq('month', month).maybeSingle(),
       supabase.from('orders_with_sales_date').select('items')
         .in('status', ['delivered', 'invoice_ready', 'invoice_blocked', 'paid'])
         .gte('sales_date', pStart).lt('sales_date', pEnd),
     ]).then(([stockRes, salesRes]) => {
       setLitres(stockRes.data ? String(stockRes.data.litres) : '')
+      // Empty and not 0 when nothing was entered: a month from before this
+      // split existed does not know what was produced, and a zero would claim
+      // that it does.
+      const prod = (stockRes.data as { produced_litres?: number | null } | null)?.produced_litres
+      setProduced(prod == null ? '' : String(prod))
       setNote(stockRes.data?.note ?? '')
+      setStockRecorded(!!stockRes.data)
       const bySku: Record<string, number> = {}
       for (const o of salesRes.data ?? []) {
         for (const it of (o.items ?? []) as { sku: string; qty: number }[]) {
@@ -109,26 +128,35 @@ export default function StockPage() {
 
   async function saveStock() {
     const n = parseFloat(litres)
-    if (isNaN(n) || n < 0) { toast.error('Enter a valid number of litres'); return }
+    if (isNaN(n) || n < 0) { toast.error('Enter a valid number of litres in stock'); return }
+    const p = produced.trim() === '' ? null : parseFloat(produced)
+    if (p != null && (isNaN(p) || p < 0)) { toast.error('Enter a valid number of litres produced'); return }
     setSaving(true)
-    const { error } = await supabase.from('oil_stock').upsert({ month, litres: n, note })
+    const { error } = await supabase.from('oil_stock').upsert({ month, litres: n, produced_litres: p, note })
     setSaving(false)
     if (error) toast.error(`Could not save: ${error.message}`)
-    else toast.success('Oil stock saved')
+    else { setStockRecorded(true); toast.success('Oil stock saved') }
   }
 
   // Export the full month-by-month stock history, not just the month on screen
   async function exportCsv() {
     const { data, error } = await supabase
       .from('oil_stock')
-      .select('month, litres, note, updated_at')
+      .select('month, litres, produced_litres, note, updated_at')
       .order('month', { ascending: false })
     if (error) { toast.error(`Could not export: ${error.message}`); return }
     if (!data?.length) { toast.error('No stock data to export yet'); return }
     downloadCsv(
       'oil-stock',
-      ['Month', 'Litres in stock', 'Note', 'Last updated'],
-      data.map((r: any) => [r.month, r.litres, r.note, r.updated_at ? String(r.updated_at).split('T')[0] : ''])
+      ['Month', 'Litres in stock', 'Litres produced', 'Total litres', 'Note', 'Last updated'],
+      data.map((r: any) => [
+        r.month,
+        r.litres,
+        r.produced_litres ?? '',
+        r.produced_litres == null ? r.litres : Number(r.litres) + Number(r.produced_litres),
+        r.note,
+        r.updated_at ? String(r.updated_at).split('T')[0] : '',
+      ])
     )
   }
 
@@ -143,7 +171,17 @@ export default function StockPage() {
     else { setSafetyMonths(String(n)); toast.success('Safety stock updated') }
   }
 
-  const currentLitres = parseFloat(litres) || 0
+  /**
+   * In stock, produced, and the two added up.
+   *
+   * The total is what everything below works from - the bottles it could fill
+   * and the safety stock - because the total IS the oil she has. Before the
+   * split she typed that one number into the stock field, so none of those
+   * sums change; they just take their input from two boxes instead of one.
+   */
+  const inStockLitres = parseFloat(litres) || 0
+  const producedLitres = parseFloat(produced) || 0
+  const currentLitres = inStockLitres + producedLitres
   const bottleEquivalents = bottlesFromLitres(currentLitres, realVolumes)
   const requiredLitres = prevMonthLitres * (parseInt(safetyMonths, 10) || 0)
   const toProduce = Math.max(0, requiredLitres - currentLitres)
@@ -187,13 +225,36 @@ export default function StockPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex items-end gap-2">
-            <div className="space-y-1">
-              <Label className="text-xs">Total litres in stock now</Label>
-              <Input type="number" inputMode="decimal" value={litres} placeholder="e.g. 125"
-                onChange={e => setLitres(e.target.value)} className="h-9 w-32" />
+          {/* Three figures, two of them typed. Her instruction of 2026-11-03:
+              "in stock" is what was already lying there from earlier months,
+              "produced" is what came out of production this month, and the
+              total is those two added up — which is the oil actually standing
+              there, so it is the total everything below works from. */}
+          {/* The three figures keep one row to themselves on a phone — three
+              equal columns, because three 112pt boxes plus the note and a
+              button do not fit in 375 and wrapped into a ragged block. On a
+              desktop the inner grid turns back into the same row of fixed
+              boxes it always was, so nothing changes there. */}
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="grid grid-cols-3 gap-2 w-full sm:flex sm:items-end sm:w-auto">
+              <div className="space-y-1">
+                <Label className="text-xs">In stock (L)</Label>
+                <Input type="number" inputMode="decimal" value={litres} placeholder="e.g. 125"
+                  onChange={e => setLitres(e.target.value)} className="h-9 w-full sm:w-28" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Produced (L)</Label>
+                <Input type="number" inputMode="decimal" value={produced} placeholder="e.g. 60"
+                  onChange={e => setProduced(e.target.value)} className="h-9 w-full sm:w-28" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Total</Label>
+                <div className="h-9 px-3 flex items-center rounded-md border bg-muted font-semibold text-sm w-full sm:w-28">
+                  {currentLitres.toLocaleString('en', { maximumFractionDigits: 1 })} L
+                </div>
+              </div>
             </div>
-            <div className="space-y-1 flex-1">
+            <div className="space-y-1 flex-1 min-w-[140px]">
               <Label className="text-xs">Note (optional)</Label>
               <Input value={note} onChange={e => setNote(e.target.value)} className="h-9" />
             </div>
@@ -274,7 +335,10 @@ export default function StockPage() {
 
       {/* Batches — where a batch begins: filled bottles allocated to a number
           that then follows the goods all the way to the customer. */}
-      <BatchesCard />
+      <BatchesCard
+        stockRecorded={stockRecorded}
+        monthLabel={monthOptions().find(o => o.value === month)?.label ?? month}
+      />
     </div>
   )
 }
