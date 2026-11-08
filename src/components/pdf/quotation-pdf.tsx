@@ -65,7 +65,7 @@ const DEFAULT_COMPANY: QuotationCompany = {
   name: 'Mils Inc.',
   address_line1: 'Kaya Kiwa 31-a',
   address_line2: 'Willemstad Curacao CW',
-  email: 'd.thijm@milsinc.com',
+  email: 'hello@spikaoil.nl',
 }
 
 interface QuotationPDFProps {

@@ -102,7 +102,7 @@ const DEFAULT_COMPANY: CompanyInfo = {
   name: 'Mils Inc.',
   address_line1: 'Kaya Kiwa 31-a',
   address_line2: 'Willemstad Curacao CW',
-  email: 'd.thijm@milsinc.com',
+  email: 'hello@spikaoil.nl',
   phone: '5999-6896969',
   crib_number: '102471812',
   coc_number: '145141',

@@ -213,8 +213,26 @@ export async function downloadQuotationPDF(quote: Quote) {
   const React = await import('react')
   const { QuotationPDF } = await import('@/components/pdf/quotation-pdf')
 
+  // Who the quotation is from, out of Settings — the same row the delivery
+  // note and the export papers read. Her instruction of 2026-11-08, after the
+  // Marriott quote printed a street nobody recognised: the sender belongs in
+  // Settings, not in the document. A failure here is not worth losing the
+  // download over; the document then falls back to its own default.
+  let company: Record<string, unknown> | null = null
+  try {
+    const { createClient } = await import('@/lib/supabase/client')
+    const { data } = await createClient()
+      .from('company_settings')
+      .select('name, address_line1, address_line2, email')
+      .eq('id', '00000000-0000-0000-0000-000000000001')
+      .single()
+    company = data ?? null
+  } catch {
+    company = null
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const element = React.createElement(QuotationPDF as any, { quote })
+  const element = React.createElement(QuotationPDF as any, { quote, company })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const blob = await (pdf as any)(element).toBlob()
 
