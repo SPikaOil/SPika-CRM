@@ -47,7 +47,14 @@ export interface FlowMoment {
 
 export type ProductTrend = 'up' | 'down' | 'flat' | 'stopped' | 'new'
 
-/** One product, across this customer's whole history. */
+/**
+ * One product, across this customer's whole history.
+ *
+ * Sold lines only, by the same rule as `soldBottles`. Her ruling of
+ * 2026-11-08: "gratis samples is GEEN verkoop". So a sample does not appear
+ * here, and the units in this list add up to `lifetimeBottles` exactly — the
+ * two cannot drift apart any more.
+ */
 export interface ProductFlow {
   sku: string
   name: string
@@ -217,6 +224,12 @@ export function computeOrderFlow(orders: FlowOrder[] | undefined | null): OrderF
       if (!sku) continue
       const qty = Number(line.qty ?? 0)
       if (!qty) continue
+      // Same test as soldBottles: a free sample is not a purchase and empty
+      // glass coming back is not one either. Her ruling of 2026-11-08.
+      if (sku.toLowerCase().includes('return')) continue
+      const charged =
+        line.line_total != null ? Number(line.line_total) : Number(line.unit_price ?? 0) * qty
+      if (!(charged > 0)) continue
       const row = perSku.get(sku) ?? {
         name: line.name ?? sku,
         perMoment: new Array(moments.length).fill(0),

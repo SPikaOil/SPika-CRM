@@ -3,7 +3,7 @@
 import { TrendingUp, TrendingDown, Minus, CalendarClock, Package } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import type { OrderFlow, ProductTrend } from '@/lib/order-flow'
+import type { FlowMoment, OrderFlow, ProductTrend } from '@/lib/order-flow'
 
 /**
  * Order flow for one customer: when they buy, for how much, and what.
@@ -44,6 +44,61 @@ const TREND_STYLE: Record<ProductTrend, { pill: string; label: string }> = {
   flat:    { pill: 'bg-muted text-muted-foreground',                                    label: 'Steady' },
   stopped: { pill: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',         label: 'Stopped' },
   new:     { pill: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300',     label: 'New' },
+}
+
+/**
+ * The value of every order, as bars. One thing only.
+ *
+ * The bars do NOT start at zero, and the chart says so underneath. Starting
+ * at zero is the honest default for a single figure, but here it hides the
+ * whole point: thirteen orders between 615 and 653 all reach the same height
+ * and the chart may as well not be there. The floor sits a little under the
+ * smallest order, and both ends of the scale are printed beside it so nobody
+ * reads a difference that is bigger than it is.
+ */
+function OrderChart({ moments }: { moments: FlowMoment[] }) {
+  if (moments.length === 0) return null
+
+  const values = moments.map(m => m.amount)
+  const top = Math.max(...values)
+  const low = Math.min(...values)
+  const span = top - low
+  // All orders the same size: then zero is the only honest floor, and flat
+  // bars are the true picture.
+  const floor = span === 0 ? 0 : Math.max(0, low - span * 0.4)
+  const height = (v: number) => Math.max(3, ((v - floor) / (top - floor || 1)) * 96)
+
+  return (
+    <div className="pb-1">
+      <div className="flex gap-2">
+        {/* The scale, so the height of a bar means something. */}
+        <div className="flex flex-col justify-between text-[10px] text-muted-foreground shrink-0 h-[96px] text-right w-12">
+          <span>{Math.round(top).toLocaleString('en')}</span>
+          <span>{Math.round(floor).toLocaleString('en')}</span>
+        </div>
+        <div className="flex items-end gap-1.5 h-[96px] flex-1 overflow-x-auto border-l border-b pl-1.5">
+          {moments.map(m => (
+            <div
+              key={m.date}
+              className="bg-red-500/80 rounded-t min-w-[14px] flex-1 hover:bg-red-600"
+              style={{ height: `${height(m.amount)}px` }}
+              title={`${fmtDay(m.date)} — ${fmtMoney(m.amount)} — ${m.bottles} bottles`}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="flex justify-between text-[10px] text-muted-foreground pl-14 pt-0.5">
+        <span>{fmtShort(moments[0].date)}</span>
+        <span>{fmtShort(moments[moments.length - 1].date)}</span>
+      </div>
+      {floor > 0 && (
+        <p className="text-[10px] text-muted-foreground pt-0.5">
+          Value in XCG. The scale starts at {Math.round(floor).toLocaleString('en')}, not at zero, so the
+          difference between orders is visible.
+        </p>
+      )}
+    </div>
+  )
 }
 
 /** One of the six boxes: a label, one number, and at most one line under it. */
@@ -147,21 +202,21 @@ export function OrderFlowPanel({ flow }: { flow: OrderFlow }) {
         </p>
       )}
 
-      {/* ── Every order ──
-          Bars across the bottom of the screen were the wrong shape for this:
-          thirteen orders of almost the same size became thirteen identical
-          blocks with 9px numbers over them, and the bottles had to be squeezed
-          in underneath. Her verdict of 2026-11-08: "dit is echt slecht".
+      {/* ── Every order: the picture, then the figures ──
+          The first attempt put everything on the bars at once — value above,
+          bottles below, date under that, in 9px type. Her verdict of
+          2026-11-08: "dit is echt slecht", and then: "grafieken overzichtelijk
+          ... niet per maand alle info erop plaatsen".
 
-          So it is a list, like every other list in this app: one line per
-          order, newest at the top, value and bottles each in their own column
-          that you can read straight down. The bar is only a shade behind the
-          value, to show size without pretending to be a chart. */}
+          So the chart carries ONE thing, the value, and carries it big. The
+          bottles and the exact amounts are in the list underneath, where
+          numbers belong. */}
       <Card size="sm" className="py-0">
         <CardHeader className="pt-2 pb-1">
           <CardTitle className="text-sm">Every order</CardTitle>
         </CardHeader>
         <CardContent className="pb-2.5">
+          <OrderChart moments={flow.moments} />
           <div className="flex items-center gap-2 px-1 pb-1 text-[10px] text-muted-foreground border-b">
             <span className="flex-1">Date</span>
             <span className="w-24 text-right">Value</span>
