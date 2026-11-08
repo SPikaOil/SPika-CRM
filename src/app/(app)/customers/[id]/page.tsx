@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useMemo, useState } from 'react'
+import { use, useEffect, useMemo, useState } from 'react'
 import { formatTaxId } from '@/lib/tax-id'
 import { isExportCustomer } from '@/lib/country'
 import { storagePath } from '@/lib/storage'
@@ -35,6 +35,8 @@ import { ContactLog } from '../_components/contact-log'
 import { DocumentsCard } from '../_components/documents-card'
 import { Customer, posRequestSubject } from '@/types'
 import { computeOrderRhythm, type OrderRhythm } from '@/lib/order-rhythm'
+import { computeOrderFlow } from '@/lib/order-flow'
+import { OrderFlowPanel } from '../_components/order-flow-panel'
 
 // ── Order rhythm card ──────────────────────────────────────────────────────
 // Shows when the customer last ordered, their cadence (only when the data
@@ -166,6 +168,23 @@ export default function CustomerDetailPage({
   const [signerToRemove, setSignerToRemove] = useState<string | null>(null)
   const hideSigner = useHideCustomerSigner()
   const orderRhythm = useMemo(() => computeOrderRhythm((orders ?? []) as any), [orders])
+  const orderFlow = useMemo(() => computeOrderFlow((orders ?? []) as any), [orders])
+  const canSeeFlow = isAdmin || can('orderflow.view')
+  /**
+   * Which tab is open, so the Order Flow list can link straight into this
+   * panel with `?tab=flow`.
+   *
+   * Set from an effect rather than from the initial state: this page is
+   * rendered on the server first, where there is no address bar, so a lazy
+   * initialiser would always say "details" and hydration would keep that
+   * answer. `location.search` rather than `useSearchParams`, which would drag
+   * the whole page into a Suspense boundary for one string.
+   */
+  const [tab, setTab] = useState('details')
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get('tab')
+    if (t === 'flow' || t === 'orders') setTab(t)
+  }, [])
   const restoreSigner = useRestoreCustomerSigner()
   const { data: hiddenSigners } = useHiddenSigners(id)
   const router = useRouter()
@@ -408,12 +427,13 @@ export default function CustomerDetailPage({
         )}
       </div>
 
-      <Tabs defaultValue="details">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="orders">
             Orders {orders && orders.length > 0 && `(${orders.length})`}
           </TabsTrigger>
+          {canSeeFlow && <TabsTrigger value="flow">Order flow</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="details" className="space-y-2.5 mt-3">
@@ -881,6 +901,14 @@ export default function CustomerDetailPage({
             </>
           )}
         </TabsContent>
+
+        {/* Order flow — how often they buy, for how much, and what. Her request
+            of 2026-10-22; the same panel the Order Flow list links into. */}
+        {canSeeFlow && (
+          <TabsContent value="flow" className="mt-3">
+            <OrderFlowPanel flow={orderFlow} />
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* Remove signer confirmation — admin only */}
