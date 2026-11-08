@@ -1189,7 +1189,7 @@ export default function DeliveryPage({
                 <Separator />
                 {order.customer?.customer_category === 'b2c' && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">{taxLineLabel(deliveryCurrency, true)}</span>
+                    <span className="text-muted-foreground">{taxLineLabel(deliveryCurrency, (order as any)?.customer?.customer_category)}</span>
                     <span>{deliveryCurrency} {(Number(order.total) * 0.06 / 1.06).toFixed(2)}</span>
                   </div>
                 )}

@@ -242,7 +242,7 @@ function NewOrderPageInner() {
               <Separator />
               {isB2C && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">{taxLineLabel(currency, true)}</span>
+                  <span className="text-muted-foreground">{taxLineLabel(currency, (customer as any)?.customer_category)}</span>
                   <span>{fmtCur(tax)}</span>
                 </div>
               )}

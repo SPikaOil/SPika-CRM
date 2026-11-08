@@ -31,7 +31,7 @@ import {
 import { QuoteItem } from '@/types'
 import { SPIKA_PRODUCTS } from '@/lib/products'
 import { getNextOrderNumber, getNextFreeBottleOrderNumber } from '@/lib/order-number'
-import { taxLineLabel, taxNameFor } from '@/lib/tax-names'
+import { taxLineLabel, taxNameFor, taxRateFor } from '@/lib/tax-names'
 
 const B2C_TAX_RATE = 0.06
 const B2B_TAX_RATE = 0
@@ -178,8 +178,8 @@ function NewDeliveryNoteInner() {
   const currency = (selectedCustomer as any)?.currency ?? 'XCG'
   const fmtCur = (amount: number) => `${currency} ${amount.toFixed(2)}`
 
-  const taxRate = selectedCustomer?.customer_category === 'b2c' ? B2C_TAX_RATE : B2B_TAX_RATE
-  const taxLabel = taxLineLabel(currency, selectedCustomer?.customer_category === 'b2c')
+  const taxRate = taxRateFor(selectedCustomer?.customer_category)
+  const taxLabel = taxLineLabel(currency, selectedCustomer?.customer_category)
 
   // POS material going along with this order, as {pos_item_id: qty}.
   const [posPicked, setPosPicked] = useState<Record<string, number>>({})
@@ -310,7 +310,7 @@ function NewDeliveryNoteInner() {
               </Select>
               {selectedCustomer && (
                 <p className="text-xs text-muted-foreground">
-                  {selectedCustomer.customer_category === 'b2c' ? `6% ${taxNameFor(currency)} applies` : `Tax-exempt B2B — 0% ${taxNameFor(currency)}`}
+                  {taxLabel}
                 </p>
               )}
             </div>

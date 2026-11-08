@@ -6,6 +6,7 @@ import { AuthProvider } from '@/contexts/auth-context'
 import { getQueryClient } from '@/lib/query-client'
 import { ThemeProvider } from '@/components/layout/theme-provider'
 import { ServiceWorkerRegister } from '@/components/layout/sw-register'
+import { CurrencyTaxLoader } from '@/components/layout/currency-tax-loader'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const queryClient = getQueryClient()
@@ -22,6 +23,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
           {children}
           <Toaster richColors position="top-right" />
           <ServiceWorkerRegister />
+          {/* Fills lib/tax-names with the stored tax per currency, so the PDFs
+              — which render outside the React tree — can read it. */}
+          <CurrencyTaxLoader />
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>

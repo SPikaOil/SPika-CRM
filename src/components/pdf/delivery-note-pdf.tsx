@@ -15,7 +15,7 @@ import '@/lib/pdf-text'
 import { Order, QuoteItem } from '@/types'
 import { formatTaxId } from '@/lib/tax-id'
 import { addressLines, isEuropeanAddress } from '@/lib/address'
-import { taxLineLabel, outOfScopeLabel, exportTaxNote } from '@/lib/tax-names'
+import { taxLineLabel, outOfScopeLabel, exportTaxNote, taxRateFor } from '@/lib/tax-names'
 import { formatTht } from '@/lib/utils'
 import { batchLabel, type OrderBatches } from '@/lib/order-batches'
 
@@ -226,7 +226,7 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
   // guilders, where the country is the right answer and the currency is not.
   const europeanAddress = isEuropeanAddress(customer?.billing_address as any)
   const isB2C = customer?.customer_category === 'b2c'
-  const taxRate = isB2C ? 0.06 : 0
+  const taxRate = taxRateFor(customer?.customer_category)
   const returnPrice = customer?.table_bottle_return_price ?? 2.50
   // If the return is already embedded in order items (pre-delivery estimate), skip the special row
   const returnInItems = items.some(i => (i as any).sku === 'oil-30ml-table-return' && i.qty < 0)
@@ -504,7 +504,7 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
               <Text style={isConsignmentInvoice ? styles.taxNoteLabel : styles.totalLabel}>
                 {isConsignmentInvoice
                   ? exportTaxNote(currency)
-                  : taxLineLabel(currency, isB2C)}
+                  : taxLineLabel(currency, customer?.customer_category)}
               </Text>
               <Text style={styles.totalValue}>{fmtCur(tax)}</Text>
             </View>

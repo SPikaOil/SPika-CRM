@@ -24,7 +24,7 @@ import { Input } from '@/components/ui/input'
 import { downloadQuotationPDF } from '@/lib/download-pdf'
 import { getNextOrderNumber } from '@/lib/order-number'
 import type { QuoteStatus } from '@/types'
-import { taxLineLabel, taxNameFor } from '@/lib/tax-names'
+import { taxLineLabel, taxNameFor, taxRateFor } from '@/lib/tax-names'
 
 const statusColors: Record<string, string> = {
   draft:    'bg-gray-100 text-gray-700',
@@ -69,7 +69,7 @@ export default function QuotationDetailPage({
   // quotations written before that column existed.
   const currency = (quote as any)?.currency ?? (customer as any)?.currency ?? 'XCG'
   const fmtCur = (amount: number) => `${currency} ${amount.toFixed(2)}`
-  const taxRate = isB2C ? B2C_TAX_RATE : 0
+  const taxRate = taxRateFor(customer?.customer_category)
   const tax = subtotal * taxRate
   const total = subtotal + tax
 
@@ -355,7 +355,7 @@ export default function QuotationDetailPage({
           )}
           <div>
             <p className="text-muted-foreground">VAT</p>
-            <p className="font-medium">{isB2C ? '6% (B2C)' : `0% (${taxNameFor(currency)} exempt)`}</p>
+            <p className="font-medium">{taxLineLabel(currency, customer?.customer_category)}</p>
           </div>
           {quote.po_number && (
             <div>
@@ -428,7 +428,7 @@ export default function QuotationDetailPage({
               <span>{fmtCur(subtotal)}</span>
             </div>
             <div className="flex justify-between text-muted-foreground">
-              <span>{taxLineLabel(currency, isB2C)}</span>
+              <span>{taxLineLabel(currency, customer?.customer_category)}</span>
               <span>{fmtCur(tax)}</span>
             </div>
             <div className="flex justify-between font-bold text-base pt-1 border-t">

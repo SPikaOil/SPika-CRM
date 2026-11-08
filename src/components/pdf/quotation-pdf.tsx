@@ -14,7 +14,7 @@ import {
 import '@/lib/pdf-text'
 import { Quote } from '@/types'
 import { formatTaxId } from '@/lib/tax-id'
-import { taxLineLabel } from '@/lib/tax-names'
+import { taxLineLabel, taxRateFor } from '@/lib/tax-names'
 import { addressLines, isEuropeanAddress } from '@/lib/address'
 
 const RED = '#CC0000'
@@ -39,8 +39,39 @@ const NONE = ''
 
 const B2C_TAX_RATE = 0.06
 
+/**
+ * Who the quotation is FROM.
+ *
+ * It used to be four lines typed into this file, and they said something else
+ * than every other document in the app: a different street and a different
+ * e-mail address. Her question of 2026-11-03, holding the Marriott quote:
+ * "bij quotation komt er een adress uit voor Milsinc, die ik echt niet weet
+ * waar hij die vandaan heeft gehaald". It came from here, and from nowhere
+ * else — which is why editing Settings never changed it.
+ *
+ * Now it comes from Settings, like the delivery note and the export papers.
+ * The fallback below is the same one those documents use, so an empty
+ * Settings row gives the same sender everywhere instead of a second version
+ * of the company.
+ */
+export interface QuotationCompany {
+  name: string
+  address_line1: string
+  address_line2: string
+  email: string
+}
+
+const DEFAULT_COMPANY: QuotationCompany = {
+  name: 'Mils Inc.',
+  address_line1: 'Kaya Kiwa 31-a',
+  address_line2: 'Willemstad Curacao CW',
+  email: 'd.thijm@milsinc.com',
+}
+
 interface QuotationPDFProps {
   quote: Quote
+  /** From Settings. Left out, the document falls back to DEFAULT_COMPANY. */
+  company?: Partial<QuotationCompany> | null
 }
 
 const styles = StyleSheet.create({
@@ -121,10 +152,21 @@ const styles = StyleSheet.create({
 
 })
 
-export function QuotationPDF({ quote }: QuotationPDFProps) {
+export function QuotationPDF({ quote, company }: QuotationPDFProps) {
+  // Field by field, so one empty box in Settings cannot wipe the whole sender.
+  const from: QuotationCompany = {
+    name: company?.name?.trim() || DEFAULT_COMPANY.name,
+    address_line1: company?.address_line1?.trim() || DEFAULT_COMPANY.address_line1,
+    address_line2: company?.address_line2?.trim() || DEFAULT_COMPANY.address_line2,
+    email: company?.email?.trim() || DEFAULT_COMPANY.email,
+  }
   const customer = (quote as any).customer
   const isB2C = customer?.customer_category === 'b2c'
-  const taxRate = isB2C ? B2C_TAX_RATE : 0
+  // The quote is priced in the customer's currency (051), and the currency
+  // decides the tax — so this has to be read before the rate, not below it.
+  // Falls back to the customer for quotes written before the column existed.
+  const currency = (quote as any).currency ?? (customer as any)?.currency ?? 'XCG'
+  const taxRate = taxRateFor(customer?.customer_category)
 
   const activeItems = (quote.items ?? []).filter((i) => i.qty > 0)
   const subtotal = activeItems.reduce((sum, i) => sum + i.line_total, 0)
@@ -140,9 +182,6 @@ export function QuotationPDF({ quote }: QuotationPDFProps) {
 
   const billingAddr = customer?.billing_address as any
 
-  // The quote is priced in the customer's currency (051). Falls back to the
-  // customer for quotes written before the column existed.
-  const currency = (quote as any).currency ?? (customer as any)?.currency ?? 'XCG'
   const fmtCur = (amount: number) => `${currency} ${amount.toFixed(2)}`
 
   return (
@@ -164,10 +203,10 @@ export function QuotationPDF({ quote }: QuotationPDFProps) {
         <View style={styles.addressRow}>
           <View style={styles.addressBlock}>
             <Text style={styles.addressLabel}>From</Text>
-            <Text style={[styles.addressLine, { fontFamily: 'Helvetica-Bold' }]}>Mils Inc. / SPika Oil</Text>
-            <Text style={styles.addressLine}>Kaya Gilberto F. Croes 4</Text>
-            <Text style={styles.addressLine}>Willemstad, Curaçao</Text>
-            <Text style={styles.addressLine}>hello@spikaoil.nl</Text>
+            <Text style={[styles.addressLine, { fontFamily: 'Helvetica-Bold' }]}>{from.name}</Text>
+            <Text style={styles.addressLine}>{from.address_line1}</Text>
+            <Text style={styles.addressLine}>{from.address_line2}</Text>
+            <Text style={styles.addressLine}>{from.email}</Text>
           </View>
           <View style={styles.addressBlock}>
             <Text style={styles.addressLabel}>Quotation For</Text>
@@ -255,7 +294,7 @@ export function QuotationPDF({ quote }: QuotationPDFProps) {
             <Text style={styles.totalValue}>{fmtCur(subtotal)}</Text>
           </View>
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>{taxLineLabel(currency, isB2C)}</Text>
+            <Text style={styles.totalLabel}>{taxLineLabel(currency, customer?.customer_category)}</Text>
             <Text style={styles.totalValue}>{fmtCur(tax)}</Text>
           </View>
           <View style={styles.totalDivider} />

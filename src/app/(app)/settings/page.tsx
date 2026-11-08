@@ -16,6 +16,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { CarriersCard } from './_components/carriers-card'
 import { WarehousesCard } from './_components/warehouses-card'
+import { CurrencyTaxCard } from './_components/currency-tax-card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -106,6 +107,7 @@ export default function SettingsPage() {
       {/* Carriers — used by the Export tab when putting orders on a transport */}
       <CarriersCard />
       <WarehousesCard />
+      <CurrencyTaxCard />
 
       {/* QuickBooks Export */}
       <Card className="py-3 gap-2">
