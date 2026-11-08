@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Search, TrendingUp, TrendingDown, CalendarClock } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
 import { useCustomerFlows, type CustomerFlow } from '@/hooks/use-order-flow'
+import { monthlyTotals, type MonthTotal } from '@/lib/order-flow'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
@@ -58,6 +59,15 @@ const fmtDay = (d: string | null) =>
   d ? new Date(d + 'T12:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short' }) : '—'
 
 const money = (n: number) => `XCG ${Math.round(n).toLocaleString('en')}`
+
+/** Without the currency in front, for a cell that already says XCG above it. */
+const plain = (n: number) => Math.round(n).toLocaleString('en')
+
+/** How many months the strip shows. A year, so last November is still on it. */
+const MONTHS_BACK = 12
+
+const fmtMonth = (m: string) =>
+  new Date(m + '-01T12:00:00').toLocaleDateString('en', { month: 'short' })
 
 /** A customer counts as due soon when their date is within the coming week. */
 const DUE_SOON_DAYS = 7
@@ -143,6 +153,17 @@ export default function OrderFlowPage() {
     return { rows: sorted, counts: c }
   }, [data, q, filter])
 
+  /**
+   * The month strip stands above the search box and is deliberately NOT
+   * filtered by it: it answers "what went out of the door in October", and
+   * that answer may not change because somebody typed three letters in a
+   * search box. Every customer on this screen, every month.
+   */
+  const months = useMemo(
+    () => monthlyTotals((data ?? []).map(f => f.flow), MONTHS_BACK),
+    [data],
+  )
+
   if (authLoading) return null
   if (!allowed) {
     return (
@@ -160,6 +181,8 @@ export default function OrderFlowPage() {
           {counts.all} customers who order · {counts.overdue} overdue
         </p>
       </div>
+
+      {months.length > 0 && <MonthStrip months={months} />}
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -204,6 +227,57 @@ export default function OrderFlowPage() {
   )
 }
 
+/**
+ * What was ordered per month, over every customer: the value and the bottles.
+ *
+ * Her request of 2026-11-08. One cell per month, six across on a screen and
+ * three on a phone, so a year fits in a block the height of two list rows
+ * instead of a chart that pushes the list off the screen.
+ *
+ * A month in which nothing was ordered still gets its cell, greyed out. That
+ * gap is information.
+ */
+function MonthStrip({ months }: { months: MonthTotal[] }) {
+  const best = Math.max(1, ...months.map(m => m.amount))
+
+  return (
+    <div className="rounded-xl border bg-card px-3 py-2">
+      <div className="flex items-baseline justify-between mb-1.5">
+        <p className="text-xs font-medium">Per month</p>
+        <p className="text-[10px] text-muted-foreground">value in XCG · bottles sold</p>
+      </div>
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-x-2 gap-y-1">
+        {months.map(m => {
+          const empty = m.moments === 0
+          return (
+            <div key={m.month} className="min-w-0">
+              <div className="flex items-baseline gap-1">
+                <span className="text-[10px] text-muted-foreground w-7 shrink-0">{fmtMonth(m.month)}</span>
+                <span className={`text-sm font-semibold truncate ${empty ? 'text-muted-foreground/50' : ''}`}>
+                  {empty ? '—' : plain(m.amount)}
+                </span>
+              </div>
+              {/* A bar under the number, so a tall month is visible without
+                  reading twelve figures one by one. */}
+              <div className="flex items-center gap-1 pl-8">
+                <div className="h-1 flex-1 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full bg-red-500/80 rounded-full"
+                    style={{ width: `${empty ? 0 : Math.max(4, (m.amount / best) * 100)}%` }}
+                  />
+                </div>
+                <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">
+                  {empty ? '0' : m.bottles} bottles
+                </span>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function Row({ f }: { f: CustomerFlow }) {
   const { rhythm } = f.flow
   const b = bucketOf(f)
@@ -217,6 +291,17 @@ function Row({ f }: { f: CustomerFlow }) {
   ].filter(Boolean).join(' · ')
 
   const perOrder = f.flow.averageAmount != null ? money(f.flow.averageAmount) : '—'
+  // Bottles per order, beside the money. Her request of 2026-11-08: the screen
+  // said only what an order was worth, never how much actually went out.
+  const perOrderBottles = f.flow.averageBottles != null ? `${f.flow.averageBottles} bottles` : null
+  /**
+   * The phone drops the currency in front of the figure. Her decision of
+   * 2026-11-08: with "XCG 214 · 25 bottles" on the line, the grey line beside
+   * it lost "last Jun 17 · due Jul 23" to the truncation, and the date is
+   * worth more there than a currency that is the same on every single row and
+   * is named above in the month block. The screen keeps XCG.
+   */
+  const perOrderPhone = f.flow.averageAmount != null ? plain(f.flow.averageAmount) : '—'
   const TrendIcon = f.flow.trend === 'up' ? TrendingUp : TrendingDown
   const trendColour = f.flow.trend === 'up' ? 'text-green-600' : 'text-red-600'
 
@@ -235,7 +320,10 @@ function Row({ f }: { f: CustomerFlow }) {
         <div className="flex items-center gap-2 min-w-0 min-h-7">
           <Badge className={`text-xs shrink-0 ${BUCKET_PILL[b]}`}>{BUCKET_LABEL[b]}</Badge>
           <p className="text-xs text-muted-foreground truncate flex-1 min-w-0">{meta}</p>
-          <p className="text-xs font-medium shrink-0">{perOrder}</p>
+          <p className="text-xs font-medium shrink-0">
+            {perOrderPhone}
+            {perOrderBottles && <span className="text-muted-foreground font-normal"> · {perOrderBottles}</span>}
+          </p>
         </div>
       </div>
 
@@ -257,7 +345,9 @@ function Row({ f }: { f: CustomerFlow }) {
         <div className="flex items-center gap-4 shrink-0">
           <div className="text-right">
             <p className="text-sm font-semibold">{perOrder}</p>
-            <p className="text-[10px] text-muted-foreground -mt-0.5">per order</p>
+            <p className="text-[10px] text-muted-foreground -mt-0.5">
+              {perOrderBottles ? `${perOrderBottles} per order` : 'per order'}
+            </p>
           </div>
           <div className="text-right w-16">
             <p className={`text-sm font-bold ${BUCKET_TONE[b]}`}>{h.value}</p>

@@ -25,7 +25,13 @@ export interface FlowOrder extends RhythmOrder {
   fx_rate?: number | string | null
   currency?: string | null
   order_type?: string | null
-  items?: { sku?: string | null; name?: string | null; qty?: number | null }[] | null
+  items?: {
+    sku?: string | null
+    name?: string | null
+    qty?: number | null
+    unit_price?: number | string | null
+    line_total?: number | string | null
+  }[] | null
 }
 
 /** One buying moment: a calendar day on which this customer ordered. */
@@ -35,6 +41,8 @@ export interface FlowMoment {
   amount: number
   /** How many orders were placed that day. Usually one. */
   orders: number
+  /** Bottles sold that day. See `soldBottles` for what counts as one. */
+  bottles: number
 }
 
 export type ProductTrend = 'up' | 'down' | 'flat' | 'stopped' | 'new'
@@ -69,10 +77,14 @@ export interface OrderFlow {
   /** The three most recent moments against the three before them. */
   trend: FlowTrend | null
   trendPct: number | null
+  /** Average bottles per buying moment. Null when they have never ordered. */
+  averageBottles: number | null
   /** Everything they have ever ordered, biggest first. */
   products: ProductFlow[]
   /** Total value of everything, in XCG. */
   lifetimeValue: number
+  /** Total bottles sold to them, ever. */
+  lifetimeBottles: number
 }
 
 // Same exclusions as the rhythm: a deleted order never happened, and one
@@ -86,6 +98,40 @@ const daysBetween = (a: string, b: string) =>
 /** An order's value in XCG, whatever it was invoiced in. */
 export function orderValueXcg(o: FlowOrder): number {
   return Number(o.total ?? 0) * (Number(o.fx_rate) || 1)
+}
+
+/**
+ * Bottles SOLD on an order. Her answer of 2026-11-08, asked straight out:
+ * "alleen verkochte flessen" — samples and returns do not count.
+ *
+ * Two things are therefore skipped:
+ *
+ *   · a return sku. `oil-30ml-table-return` is empty glass coming back, not a
+ *     bottle going out.
+ *   · a line nobody paid for. The free sample skus sit at 0.00, and a normal
+ *     bottle discounted to nothing is a giveaway too — not a sale. So the test
+ *     is the money on the line, not the name of the product, and a sample sku
+ *     that is one day sold for real would count by itself.
+ *
+ * `line_total` is what the order itself says the line came to, discount
+ * included. Older orders that predate that field fall back to price × qty.
+ *
+ * POS material cannot land here: it lives in its own field on the transport,
+ * never between the order lines.
+ */
+export function soldBottles(o: FlowOrder): number {
+  let n = 0
+  for (const line of o.items ?? []) {
+    const sku = (line.sku ?? '').trim().toLowerCase()
+    if (!sku || sku.includes('return')) continue
+    const qty = Number(line.qty ?? 0)
+    if (!(qty > 0)) continue
+    const charged =
+      line.line_total != null ? Number(line.line_total) : Number(line.unit_price ?? 0) * qty
+    if (!(charged > 0)) continue
+    n += qty
+  }
+  return n
 }
 
 function addDays(day: string, n: number): string {
@@ -122,23 +168,26 @@ export function computeOrderFlow(orders: FlowOrder[] | undefined | null): OrderF
   const live = (orders ?? []).filter(o => !(o.status && EXCLUDED.has(o.status)))
 
   // Group by buying day, exactly as the rhythm counts them.
-  const byDay = new Map<string, { amount: number; orders: number }>()
+  const byDay = new Map<string, { amount: number; orders: number; bottles: number }>()
   for (const o of live) {
     const raw = effectiveOrderDate(o)
     if (!raw) continue
     const day = dayKey(raw)
-    const cur = byDay.get(day) ?? { amount: 0, orders: 0 }
+    const cur = byDay.get(day) ?? { amount: 0, orders: 0, bottles: 0 }
     cur.amount += orderValueXcg(o)
     cur.orders += 1
+    cur.bottles += soldBottles(o)
     byDay.set(day, cur)
   }
   const moments: FlowMoment[] = [...byDay.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, v]) => ({ date, amount: +v.amount.toFixed(2), orders: v.orders }))
+    .map(([date, v]) => ({ date, amount: +v.amount.toFixed(2), orders: v.orders, bottles: v.bottles }))
 
   const amounts = moments.map(m => m.amount)
   const lifetimeValue = +amounts.reduce((s, v) => s + v, 0).toFixed(2)
   const averageAmount = amounts.length ? +(lifetimeValue / amounts.length).toFixed(2) : null
+  const lifetimeBottles = moments.reduce((s, m) => s + m.bottles, 0)
+  const averageBottles = moments.length ? Math.round(lifetimeBottles / moments.length) : null
   const lastAmount = amounts.length ? amounts[amounts.length - 1] : null
   const lastVsAverage =
     averageAmount && averageAmount > 0 && lastAmount != null
@@ -209,7 +258,72 @@ export function computeOrderFlow(orders: FlowOrder[] | undefined | null): OrderF
     lastVsAverage,
     trend,
     trendPct,
+    averageBottles,
     products,
     lifetimeValue,
+    lifetimeBottles,
   }
+}
+
+/** One calendar month, totalled over everybody. */
+export interface MonthTotal {
+  /** 'YYYY-MM'. */
+  month: string
+  /** Value in XCG. */
+  amount: number
+  /** Bottles sold, by the same rule as everywhere else. */
+  bottles: number
+  /** How many buying moments landed in that month. */
+  moments: number
+}
+
+/**
+ * What was ordered per month, over every customer on the screen.
+ *
+ * Her request of 2026-11-08: "ik wil ook per maand kunnen zien wat er totaal
+ * besteld is aan waarde en flessen".
+ *
+ * Built from the buying moments the screen already has, not from a second
+ * query, so the month block and the rows below it can never show a different
+ * total for the same orders.
+ *
+ * Months with nothing in them are filled in as zero rather than skipped: a gap
+ * in the row of bars is the whole point — it shows a month in which nothing
+ * went out, which a list of only the good months hides.
+ *
+ * @param months How many months back, counting the current one. 0 or less
+ *   means every month there has ever been.
+ */
+export function monthlyTotals(flows: { moments: FlowMoment[] }[], months = 12): MonthTotal[] {
+  const by = new Map<string, MonthTotal>()
+  for (const f of flows) {
+    for (const m of f.moments) {
+      const key = m.date.slice(0, 7)
+      const cur = by.get(key) ?? { month: key, amount: 0, bottles: 0, moments: 0 }
+      cur.amount += m.amount
+      cur.bottles += m.bottles
+      cur.moments += 1
+      by.set(key, cur)
+    }
+  }
+  if (by.size === 0) return []
+
+  const keys = [...by.keys()].sort()
+  const first = keys[0]
+  const now = new Date()
+  const last = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+
+  // Walk month by month from the first one to this one, so empty months exist.
+  const out: MonthTotal[] = []
+  let [y, mo] = first.split('-').map(Number)
+  for (let guard = 0; guard < 600; guard++) {
+    const key = `${y}-${String(mo).padStart(2, '0')}`
+    out.push(by.get(key) ?? { month: key, amount: 0, bottles: 0, moments: 0 })
+    if (key >= last) break
+    mo += 1
+    if (mo > 12) { mo = 1; y += 1 }
+  }
+
+  const trimmed = months > 0 ? out.slice(-months) : out
+  return trimmed.map(m => ({ ...m, amount: +m.amount.toFixed(2) }))
 }
