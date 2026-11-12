@@ -13,6 +13,7 @@ import { useWarehousesFor } from '@/hooks/use-customer-warehouses'
 import { useAuth } from '@/contexts/auth-context'
 import { OrderPosLine } from '@/components/order-pos-line'
 import { DeliveryRunsCard } from '../_components/delivery-runs-card'
+import { ReturnCard } from '../_components/return-card'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -36,6 +37,7 @@ import { useOrderPicks, useSetOrderPick, useOrderLoadPicks } from '@/hooks/use-b
 import { ConsignmentPanel } from '../_components/consignment-panel'
 import { DefectReportsPanel } from '../_components/defect-reports-panel'
 import { PosRequestsPanel } from '../_components/pos-requests-panel'
+import { RecordHistory } from '@/components/audit-trail'
 
 const statusColors: Record<OrderStatus, string> = {
   pending_approval: 'bg-orange-100 text-orange-700',
@@ -1250,6 +1252,10 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
           Her instruction of 2026-08-20. */}
       <DeliveryRunsCard order={order} />
 
+      {/* Goods handed back on this visit, settled on this order.
+          Her instruction of 2026-11-12. */}
+      <ReturnCard order={order} />
+
       {/* PDF Actions */}
       <Card size="sm">
         <CardContent className="space-y-3">
@@ -1684,7 +1690,19 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
                   {i > 0 && <Separator className="my-2" />}
                   <div className="flex justify-between items-start gap-2">
                     <div>
-                      <p className="font-medium text-sm">{item.name}</p>
+                      <p className="font-medium text-sm">
+                        {item.name}
+                        {/* A negative line is a credit, and without saying so it
+                            reads as a mistake. Her return of 2026-11-12. */}
+                        {item.is_return && (
+                          <Badge className="ml-2 bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0 align-middle">
+                            Taken back
+                          </Badge>
+                        )}
+                      </p>
+                      {item.is_return && item.return_note && (
+                        <p className="text-xs text-muted-foreground">{item.return_note}</p>
+                      )}
                       {/* The price shown here is the one the line is actually
                           billed at — price minus discount. It used to print the
                           gross price, so on a discounted line the sum on screen
@@ -1949,6 +1967,11 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
           )}
         </CardContent>
       </Card>
+
+      {/* What happened to THIS order. Sign-ins are not here on purpose — those
+          belong to a person, not to an order, and live on the Audit Log screen.
+          Admin only — her rule: everyone is recorded, only the owner reads. */}
+      {isAdmin && <RecordHistory table="orders" recordId={order.id} />}
 
       {/* Credit note dialog. Amount and reason, nothing else — no date to plan,
           nobody to assign, nothing to sign. */}

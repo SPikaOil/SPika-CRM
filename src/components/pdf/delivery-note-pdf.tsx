@@ -437,6 +437,15 @@ export function DeliveryNotePDF({ order, signatureDataUrl, tableBottlesReturned,
             <View key={i} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]}>
               <View style={styles.colProduct}>
                 <Text style={styles.tdText}>{item.name}</Text>
+                {/* Goods handed back, credited on this invoice. The customer
+                    has to be able to see WHY a negative amount is there —
+                    her instruction of 2026-11-12 — so the reason she typed
+                    when taking them back is printed under the product. */}
+                {item.is_return && (
+                  <Text style={{ fontSize: 6, fontFamily: 'Helvetica-Oblique', color: GRAY, marginTop: 1 }}>
+                    {item.return_note ? `Taken back — ${item.return_note}` : 'Taken back'}
+                  </Text>
+                )}
                 {/* THT and batch on ONE line under the product, not stacked:
                     two thin lines per row pushed a long invoice onto a second
                     page for nothing.

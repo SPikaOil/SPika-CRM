@@ -40,6 +40,19 @@ export interface QuoteItem {
   discount: number
   line_total: number
   tht_date?: string
+  /**
+   * Goods the customer handed back, taken onto THIS order so one delivery
+   * settles them — Danique, 2026-11-12, after finding old and expired stock on
+   * a reseller's shelf that came from several earlier deliveries.
+   *
+   * The line is negative: `qty` is how many came back, `unit_price` is what she
+   * gives back per bottle, which is deliberately not what she sold it for. The
+   * goods are destroyed, so nothing is booked back into stock — they left it
+   * when they were delivered, and they never return to the shelf.
+   */
+  is_return?: boolean
+  /** Which invoice the returned goods came off, in her own words. */
+  return_note?: string
 }
 
 export interface GpsLocation {

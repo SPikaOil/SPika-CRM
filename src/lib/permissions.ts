@@ -67,6 +67,7 @@ export const PERMISSIONS: PermissionGroup[] = [
       { key: 'orders.approve', label: 'Approve pending orders' },
       { key: 'orders.edit_items', label: 'Change order lines afterwards' },
       { key: 'orders.mark_paid', label: 'Mark as invoiced / paid' },
+      { key: 'orders.return', label: 'Take goods back and credit them' },
       { key: 'orders.delete', label: 'Delete orders' },
       { key: 'quotations.view', label: 'Quotations tab' },
     ],
