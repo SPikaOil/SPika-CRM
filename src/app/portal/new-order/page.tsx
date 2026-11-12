@@ -17,6 +17,7 @@ import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
 import { Customer } from '@/types'
 import { taxLineLabel } from '@/lib/tax-names'
+import { netPriceFor, orderLineFor } from '@/lib/customer-price'
 
 export default function NewOrderPage() {
   return <Suspense><NewOrderPageInner /></Suspense>
@@ -62,18 +63,14 @@ function NewOrderPageInner() {
     }
   }, [profile?.customer_id])
 
-  function getPrice(sku: string) {
-    if (!customer) return SPIKA_PRODUCTS.find(p => p.sku === sku)?.default_price ?? 0
-    return customer.product_prices?.[sku] ?? SPIKA_PRODUCTS.find(p => p.sku === sku)?.default_price ?? 0
-  }
+  // The price this customer pays, discount included. Until 2026-11-08 this
+  // screen read product_prices and never looked at product_discounts, so a
+  // reseller ordering for themselves would have been billed the gross price.
+  const getPrice = (sku: string) => netPriceFor(customer, sku)
 
   const activeItems = SPIKA_PRODUCTS
     .filter(p => (quantities[p.sku] ?? 0) > 0)
-    .map(p => {
-      const qty = quantities[p.sku] ?? 0
-      const unit_price = getPrice(p.sku)
-      return { sku: p.sku, name: p.name, qty, unit_price, line_total: qty * unit_price }
-    })
+    .map(p => orderLineFor(customer, p, quantities[p.sku] ?? 0))
 
   // Everything this customer sees is priced in their own currency (051).
   const currency = (customer as any)?.currency ?? 'XCG'

@@ -17,6 +17,7 @@ import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
 import { Order, Customer, QuoteItem } from '@/types'
 import { taxLineLabel } from '@/lib/tax-names'
+import { netPriceFor, orderLineFor } from '@/lib/customer-price'
 
 export default function EditOrderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -70,18 +71,12 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
     setIsLoading(false)
   }
 
-  function getPrice(sku: string) {
-    if (!customer) return SPIKA_PRODUCTS.find(p => p.sku === sku)?.default_price ?? 0
-    return customer.product_prices?.[sku] ?? SPIKA_PRODUCTS.find(p => p.sku === sku)?.default_price ?? 0
-  }
+  // The price this customer pays, discount included — see lib/customer-price.
+  const getPrice = (sku: string) => netPriceFor(customer, sku)
 
   const activeItems = SPIKA_PRODUCTS
     .filter(p => (quantities[p.sku] ?? 0) > 0)
-    .map(p => {
-      const qty = quantities[p.sku] ?? 0
-      const unit_price = getPrice(p.sku)
-      return { sku: p.sku, name: p.name, qty, unit_price, line_total: qty * unit_price }
-    })
+    .map(p => orderLineFor(customer, p, quantities[p.sku] ?? 0))
 
   const isB2C = customer?.customer_category === 'b2c'
   // The order's own currency wins; the customer is the fallback (051).

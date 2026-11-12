@@ -9,6 +9,7 @@ import { SPIKA_PRODUCTS } from '@/lib/products'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Customer } from '@/types'
+import { netPriceFor } from '@/lib/customer-price'
 
 // Product metadata — packaging & description per SKU
 const PRODUCT_META: Record<string, { description: string; packaging: string }> = {
@@ -43,8 +44,11 @@ export default function PortalCataloguePage() {
   // Priced in the customer's own currency (051).
   const currency = (customer as any)?.currency ?? 'XCG'
 
+  // What the customer actually pays, discount included. The catalogue showed
+  // the gross price until 2026-11-08, so the price here did not match the one
+  // on their own order — see lib/customer-price.
   function getPrice(sku: string): number {
-    return customer?.product_prices?.[sku] ?? SPIKA_PRODUCTS.find(p => p.sku === sku)?.default_price ?? 0
+    return netPriceFor(customer, sku)
   }
 
   if (isLoading) return (
