@@ -37,7 +37,6 @@ import { useOrderPicks, useSetOrderPick, useOrderLoadPicks } from '@/hooks/use-b
 import { ConsignmentPanel } from '../_components/consignment-panel'
 import { DefectReportsPanel } from '../_components/defect-reports-panel'
 import { PosRequestsPanel } from '../_components/pos-requests-panel'
-import { RecordHistory } from '@/components/audit-trail'
 
 const statusColors: Record<OrderStatus, string> = {
   pending_approval: 'bg-orange-100 text-orange-700',
@@ -1971,7 +1970,6 @@ async function handleUploadSigned(e: React.ChangeEvent<HTMLInputElement>) {
       {/* What happened to THIS order. Sign-ins are not here on purpose — those
           belong to a person, not to an order, and live on the Audit Log screen.
           Admin only — her rule: everyone is recorded, only the owner reads. */}
-      {isAdmin && <RecordHistory table="orders" recordId={order.id} />}
 
       {/* Credit note dialog. Amount and reason, nothing else — no date to plan,
           nobody to assign, nothing to sign. */}
