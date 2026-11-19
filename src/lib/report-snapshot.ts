@@ -363,7 +363,11 @@ export async function buildPeriodSnapshot(
   today.setHours(0, 0, 0, 0)
   const outstanding = orders
     .filter(o => ['invoice_ready', 'invoice_blocked'].includes(o.status))
-    .filter(o => o.payment_type !== 'cash' && !o.is_consignment)
+    // Same exception as the dashboard chase: a consignment PERIOD INVOICE is
+    // payable and belongs in the outstanding list. Migration 042's trigger
+    // stamps is_consignment onto it from the customer, so the flag alone hides
+    // the one consignment document that does have to be collected.
+    .filter(o => o.payment_type !== 'cash' && (!o.is_consignment || o.order_type === 'consignment_invoice'))
     .map(o => {
       const term = termByCustomer.get(o.customer_id) ?? 7
       const due = new Date(o.sales_date + 'T12:00:00')

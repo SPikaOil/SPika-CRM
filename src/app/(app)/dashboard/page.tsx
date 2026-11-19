@@ -846,7 +846,15 @@ export default function DashboardPage() {
       // Consignment orders aren't chased for payment — the customer only pays
       // once they've sold the goods, settled manually by admin. They still count
       // as revenue elsewhere; here they're just kept out of the overdue chase.
-      .filter((o) => !(o as any).is_consignment)
+      //
+      // A PERIOD INVOICE is the exception, and belongs in this list.
+      // createPeriodInvoice() sets is_consignment: false for exactly that
+      // reason — this one IS payable — but migration 042's trigger overwrites
+      // the flag from the customer on every insert, so the single invoice that
+      // must be chased was the one thing this filter threw away. Measured
+      // 2026-11-13: 729188, EUR 239.60, seven days overdue and nowhere on
+      // screen. order_type is the honest signal, whatever the flag says.
+      .filter((o) => !(o as any).is_consignment || (o as any).order_type === 'consignment_invoice')
       .map((o) => {
         const termDays = (o.customer as any)?.payment_term_days ?? 7
         // sales_date is a plain YYYY-MM-DD; midday keeps the day stable across
@@ -923,6 +931,14 @@ export default function DashboardPage() {
   // They're deliberately kept out of the overdue chase, so this banner is the
   // one place they surface — the admin settles them (marks paid) once the
   // customer has sold the goods. Drops off automatically at status 'paid'.
+  //
+  // A period invoice is NOT stock still out: those bottles have been sold and
+  // billed, and the invoice is chased in the overdue banner above. It sat here
+  // too, because migration 042's trigger stamps is_consignment onto it anyway,
+  // so the same bottles were counted twice — 729134 at XCG 2,625.78 plus its
+  // own settlement 729188 at XCG 469.32, making this banner read XCG 3,095.10.
+  // Filtered in JS rather than with .neq, which would also drop a row whose
+  // order_type is null.
   async function loadConsignmentOrders() {
     const { data } = await supabase
       .from('orders')
@@ -930,7 +946,9 @@ export default function DashboardPage() {
       .eq('is_consignment', true)
       .in('status', ['processing', 'out_for_delivery', 'delivered', 'invoice_ready', 'invoice_blocked'])
       .order('created_at', { ascending: true })
-    setConsignmentOrders((data ?? []) as Order[])
+    setConsignmentOrders(
+      ((data ?? []) as Order[]).filter(o => (o as any).order_type !== 'consignment_invoice')
+    )
   }
 
   // Export orders with no transport behind them.
